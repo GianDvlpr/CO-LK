@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+.npm-cache/
+.neon-config/
+
+# Next.js
+.next/
+.next-build-*/
+out/
+
+# Tests
+coverage/
+playwright-report/
+test-results/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs and editor files
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Generated Prisma client
+src/generated/prisma/
+
+# Local artifacts
+*.tsbuildinfo
+.neon
+.neon-cli/

@@ -1,0 +1,15 @@
+ALTER TABLE "production_orders"
+ADD COLUMN "machine_equipment" TEXT,
+ADD COLUMN "operator_name" TEXT,
+ADD COLUMN "model_logo" TEXT,
+ADD COLUMN "material_load" TEXT,
+ADD COLUMN "series_lot" TEXT,
+ADD COLUMN "process_type" TEXT,
+ADD COLUMN "mold" TEXT,
+ADD COLUMN "brand_color" TEXT,
+ADD COLUMN "press_number" TEXT,
+ADD COLUMN "press_load" TEXT,
+ADD COLUMN "injector_number" TEXT,
+ADD COLUMN "curve" TEXT,
+ADD COLUMN "size_program" JSONB,
+ADD COLUMN "daily_production" JSONB;

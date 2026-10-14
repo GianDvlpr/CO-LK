@@ -1,0 +1,71 @@
+"use client";
+
+import { HistoryOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tag } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import dayjs, { type Dayjs } from "dayjs";
+import Decimal from "decimal.js";
+import { ModuleImportButton } from "@/components/imports/module-import-button";
+import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
+import Link from "next/link";
+import { useState } from "react";
+import { toast } from "sonner";
+
+type Balance = { warehouseId: string; onHandQuantity: string; reservedQuantity: string; averageUnitCost: string; inventoryValue: string };
+type Item = { id: string; code: string; name: string; type: string; minimumStock: string; lotTrackingMode: string; active: boolean; unit: { code: string; symbol: string }; balances: Balance[] };
+type Options = { units: { id: string; code: string; name: string; symbol: string }[]; warehouses: { id: string; code: string; name: string }[]; items: (Pick<Item, "id" | "code" | "name" | "lotTrackingMode"> & { unit: { symbol: string } })[] };
+type ItemForm = { code: string; name: string; type: "RAW_MATERIAL" | "FINISHED_PRODUCT"; unitId: string; minimumStock: number; lotTrackingMode: "NONE" | "OPTIONAL" | "REQUIRED" };
+type OpeningForm = { referenceNumber: string; itemId: string; warehouseId: string; quantity: number; unitCost: number; lotCode?: string; occurredAt: Dayjs };
+
+async function api<T>(url: string, init?: RequestInit): Promise<T> { const response = await fetch(url, init); const payload = await response.json(); if (!response.ok) throw new Error(payload.error?.message ?? "No se pudo completar la operación."); return payload.data; }
+
+export function InventoryWorkspace({ permissions, canCreate, canOpenStock }: { permissions: string[]; canCreate: boolean; canOpenStock: boolean }) {
+  const queryClient = useQueryClient();
+  const [itemOpen, setItemOpen] = useState(false);
+  const [openingOpen, setOpeningOpen] = useState(false);
+  const [itemForm] = Form.useForm<ItemForm>();
+  const [openingForm] = Form.useForm<OpeningForm>();
+  const inventory = useQuery({ queryKey: ["inventory"], queryFn: () => api<{ items: Item[] }>("/api/v1/inventory") });
+  const options = useQuery({ queryKey: ["inventory-options"], queryFn: () => api<Options>("/api/v1/inventory/options") });
+  const createItem = useMutation({ mutationFn: (values: ItemForm) => api("/api/v1/inventory", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(values) }), onSuccess: async () => { toast.success("Ítem creado."); setItemOpen(false); itemForm.resetFields(); await Promise.all([queryClient.invalidateQueries({ queryKey: ["inventory"] }), queryClient.invalidateQueries({ queryKey: ["inventory-options"] })]); }, onError: (error) => toast.error(error.message) });
+  const createOpening = useMutation({ mutationFn: (values: OpeningForm) => api("/api/v1/inventory/opening", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...values, occurredAt: values.occurredAt.format("YYYY-MM-DD") }) }), onSuccess: async () => { toast.success("Stock inicial contabilizado."); setOpeningOpen(false); openingForm.resetFields(); await queryClient.invalidateQueries({ queryKey: ["inventory"] }); }, onError: (error) => toast.error(error.message) });
+
+  const columns: ColumnsType<Item> = [
+    { title: "Código", dataIndex: "code", width: 130, fixed: "left", render: (value) => <strong>{value}</strong> },
+    { title: "Ítem", dataIndex: "name", width: 260 },
+    { title: "Tipo", dataIndex: "type", width: 150, render: (value) => <Tag color={value === "RAW_MATERIAL" ? "blue" : "purple"}>{value === "RAW_MATERIAL" ? "Materia prima" : "Producto terminado"}</Tag> },
+    { title: "Unidad", width: 90, render: (_, row) => row.unit.symbol },
+    { title: "Stock", width: 120, align: "right", render: (_, row) => row.balances.reduce((sum, balance) => sum.add(balance.onHandQuantity), new Decimal(0)).toFixed(3) },
+    { title: "Disponible", width: 120, align: "right", render: (_, row) => row.balances.reduce((sum, balance) => sum.add(balance.onHandQuantity).sub(balance.reservedQuantity), new Decimal(0)).toFixed(3) },
+    { title: "Stock mínimo", dataIndex: "minimumStock", width: 130, align: "right", render: (value) => new Decimal(value).toFixed(3) },
+    { title: "Valor inventario", width: 150, align: "right", render: (_, row) => `S/ ${row.balances.reduce((sum, balance) => sum.add(balance.inventoryValue), new Decimal(0)).toFixed(2)}` },
+    { title: "Lotes", dataIndex: "lotTrackingMode", width: 110, render: (value: Item["lotTrackingMode"]) => ({ NONE: "No", OPTIONAL: "Opcional", REQUIRED: "Obligatorio" } as Record<string, string>)[value] ?? value },
+  ];
+
+  return <>
+    <div className="page-heading"><ModuleHeadingIntro title="Almacén" eyebrow="Operativo" description="Administra materias primas, productos terminados, existencias, costo promedio y stock mínimo." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => inventory.refetch()}>Actualizar</Button><ModuleImportButton module="inventory" permissions={permissions} /><Link href="/dashboard/inventory/kardex"><Button icon={<HistoryOutlined />}>Ver kardex</Button></Link>{canOpenStock ? <Button onClick={() => setOpeningOpen(true)}>Stock inicial</Button> : null}</Space></div>
+    <Card className="section-card" title="Ítems y existencias" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => setItemOpen(true)}>Nuevo ítem</Button> : null}>{inventory.error ? <Alert type="error" showIcon message={inventory.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={inventory.isLoading} columns={columns} dataSource={inventory.data?.items ?? []} scroll={{ x: 1250 }} pagination={{ pageSize: 20 }} locale={{ emptyText: <Empty description="Aún no hay ítems registrados" /> }} /></Card>
+    <Modal title="Nuevo ítem de almacén" open={itemOpen} onCancel={() => setItemOpen(false)} onOk={() => itemForm.submit()} okText="Crear ítem" confirmLoading={createItem.isPending} destroyOnHidden>
+      <Form form={itemForm} layout="vertical" onFinish={(values) => createItem.mutate(values)} initialValues={{ type: "RAW_MATERIAL", minimumStock: 0, lotTrackingMode: "NONE" }}>
+        <Form.Item name="code" label="Código" rules={[{ required: true }]}><Input placeholder="MP-0001" /></Form.Item><Form.Item name="name" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
+        <Form.Item name="type" label="Tipo" rules={[{ required: true }]}><Select options={[{ value: "RAW_MATERIAL", label: "Materia prima" }, { value: "FINISHED_PRODUCT", label: "Producto terminado" }]} /></Form.Item>
+        <Form.Item name="unitId" label="Unidad base" rules={[{ required: true }]}><Select loading={options.isLoading} options={options.data?.units.map((unit) => ({ value: unit.id, label: `${unit.code} · ${unit.name} (${unit.symbol})` }))} /></Form.Item>
+        <Form.Item name="minimumStock" label="Stock mínimo" rules={[{ required: true }]}><InputNumber min={0} precision={3} style={{ width: "100%" }} /></Form.Item>
+        <Form.Item name="lotTrackingMode" label="Control de lotes" rules={[{ required: true }]}><Select options={[{ value: "NONE", label: "Sin lotes" }, { value: "OPTIONAL", label: "Opcional" }, { value: "REQUIRED", label: "Obligatorio" }]} /></Form.Item>
+      </Form>
+    </Modal>
+    <Modal title="Registrar stock inicial" open={openingOpen} onCancel={() => setOpeningOpen(false)} onOk={() => openingForm.submit()} okText="Contabilizar" confirmLoading={createOpening.isPending} destroyOnHidden>
+      <Alert type="info" showIcon message="Cada número de apertura solo puede contabilizarse una vez." style={{ marginBottom: 16 }} />
+      <Form form={openingForm} layout="vertical" onFinish={(values) => createOpening.mutate(values)} initialValues={{ occurredAt: dayjs(), quantity: 1, unitCost: 0 }}>
+        <Form.Item name="referenceNumber" label="Número de apertura" rules={[{ required: true }]}><Input placeholder="APER-0001" /></Form.Item>
+        <Form.Item name="occurredAt" label="Fecha" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>
+        <Form.Item name="itemId" label="Ítem" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.items.map((item) => ({ value: item.id, label: `${item.code} · ${item.name} (${item.unit.symbol})` }))} /></Form.Item>
+        <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select options={options.data?.warehouses.map((warehouse) => ({ value: warehouse.id, label: `${warehouse.code} · ${warehouse.name}` }))} /></Form.Item>
+        <Form.Item name="quantity" label="Cantidad" rules={[{ required: true }]}><InputNumber min={0.001} precision={3} style={{ width: "100%" }} /></Form.Item>
+        <Form.Item name="unitCost" label="Costo unitario PEN" rules={[{ required: true }]}><InputNumber min={0} precision={6} prefix="S/" style={{ width: "100%" }} /></Form.Item>
+        <Form.Item name="lotCode" label="Código de lote"><Input placeholder="Según configuración del ítem" /></Form.Item>
+      </Form>
+    </Modal>
+  </>;
+}
