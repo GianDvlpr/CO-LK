@@ -42,7 +42,7 @@ Actualizado: 14/10/2026.
 - Cada orden conserva la versión exacta de receta, ejecuciones, cantidades planificadas y consumidas, auditoría y eventos outbox.
 - Módulo operativo de Pedidos con cliente, fechas, variantes SKU, cantidades, precios e importes.
 - Confirmación transaccional de pedidos con reserva de producto terminado.
-- Módulo Pick & Pack con correlativo, prioridad, responsables, picking, packing, ubicaciones, lotes, incidencias, paquetes, transportista y documento de salida.
+- Módulo Pick & Pack con correlativo, prioridad, picking, packing, ubicaciones, lotes, incidencias, paquetes, transportista y documento de salida.
 - Flujo obligatorio `CONFIRMED → PICKING → PACKING → READY → DISPATCHED`; el despacho directo queda bloqueado.
 - Formato A4 apaisado imprimible o guardable como PDF, sin firmas, con cabecera, detalle de productos, verificación, incidencias, paquetes y observaciones.
 - Despacho valorizado de las cantidades realmente empacadas, liberación de diferencias reservadas, actualización del kardex, auditoría y notificaciones Pusher.

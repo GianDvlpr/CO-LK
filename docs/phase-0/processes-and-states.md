@@ -60,7 +60,7 @@ Pick & Pack: PENDING → PICKING → PACKING → READY → DISPATCHED
 
 - Confirmar reserva stock disponible.
 - Un faltante puede vincularse a producción.
-- Pick & Pack registra ubicación, lote, cantidades recogidas y empacadas, responsables, incidencias y paquetes sin modificar el kardex.
+- Pick & Pack registra ubicación, lote, cantidades recogidas y empacadas, incidencias y paquetes sin modificar el kardex.
 - Una diferencia solo puede cerrarse con tipo y motivo de incidencia.
 - Despachar registra la salida de la cantidad realmente empacada y libera la diferencia reservada.
 - El formato A4 puede imprimirse o guardarse como PDF y no incluye firmas.

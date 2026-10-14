@@ -100,7 +100,7 @@ describe("producción y pedidos sobre PostgreSQL real", () => {
     expect(finished.reservedQuantity.toString()).toBe("2");
 
     const salesLine = await prisma.salesOrderLine.findFirstOrThrow({ where: { salesOrderId: salesOrder.id } });
-    await prisma.pickPackOrder.create({ data: { companyId: fixture.companyId, salesOrderId: salesOrder.id, warehouseId: fixture.warehouseId, pickerId: fixture.userId, packerId: fixture.userId, number: "PP-TEST-001", status: "READY", lines: { create: { salesOrderLineId: salesLine.id, requestedQuantity: 2, pickedQuantity: 2, packedQuantity: 2 } } } });
+    await prisma.pickPackOrder.create({ data: { companyId: fixture.companyId, salesOrderId: salesOrder.id, warehouseId: fixture.warehouseId, number: "PP-TEST-001", status: "READY", lines: { create: { salesOrderLineId: salesLine.id, requestedQuantity: 2, pickedQuantity: 2, packedQuantity: 2 } } } });
     await prisma.salesOrder.update({ where: { id: salesOrder.id }, data: { status: "READY" } });
 
     await dispatchSalesOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, orderId: salesOrder.id });

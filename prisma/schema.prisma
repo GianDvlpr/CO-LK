@@ -175,8 +175,6 @@ model User {
   imports            ImportJob[]
   approvals          PurchaseApproval[]
   productImages      ProductImage[]
-  pickPackAssignments PickPackOrder[] @relation("PickPackPicker")
-  packAssignments     PickPackOrder[] @relation("PickPackPacker")
 
   @@unique([companyId, email])
   @@index([companyId, status])
@@ -760,7 +758,7 @@ model ProductionOrder {
   warehouse        Warehouse             @relation(fields: [warehouseId], references: [id])
   productVariant   ProductVariant        @relation(fields: [productVariantId], references: [id])
   recipeVersion    RecipeVersion         @relation(fields: [recipeVersionId], references: [id])
-  machine           Machine?              @relation(fields: [machineId], references: [id])
+  machine          Machine?              @relation(fields: [machineId], references: [id])
   materials        ProductionMaterial[]
   salesOrderLines  SalesOrderLine[]
 
@@ -841,19 +839,19 @@ model Customer {
 }
 
 model SalesOrder {
-  id          String           @id @default(uuid()) @db.Uuid
-  companyId   String           @map("company_id") @db.Uuid
-  customerId  String           @map("customer_id") @db.Uuid
-  number      String
-  status      SalesOrderStatus @default(DRAFT)
-  requestedAt DateTime         @map("requested_at") @db.Date
-  promisedAt  DateTime?        @map("promised_at") @db.Date
-  notes       String?
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
-  company     Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer    Customer         @relation(fields: [customerId], references: [id])
-  lines       SalesOrderLine[]
+  id            String           @id @default(uuid()) @db.Uuid
+  companyId     String           @map("company_id") @db.Uuid
+  customerId    String           @map("customer_id") @db.Uuid
+  number        String
+  status        SalesOrderStatus @default(DRAFT)
+  requestedAt   DateTime         @map("requested_at") @db.Date
+  promisedAt    DateTime?        @map("promised_at") @db.Date
+  notes         String?
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer      Customer         @relation(fields: [customerId], references: [id])
+  lines         SalesOrderLine[]
   pickPackOrder PickPackOrder?
 
   @@unique([companyId, number])
@@ -871,36 +869,32 @@ model SalesOrderLine {
   salesOrder        SalesOrder       @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
   productVariant    ProductVariant   @relation(fields: [productVariantId], references: [id])
   productionOrder   ProductionOrder? @relation(fields: [productionOrderId], references: [id])
-  pickPackLine       PickPackLine?
+  pickPackLine      PickPackLine?
 
   @@index([salesOrderId, productVariantId])
   @@map("sales_order_lines")
 }
 
 model PickPackOrder {
-  id               String           @id @default(uuid()) @db.Uuid
-  companyId        String           @map("company_id") @db.Uuid
-  salesOrderId     String           @unique @map("sales_order_id") @db.Uuid
-  warehouseId      String           @map("warehouse_id") @db.Uuid
-  pickerId         String?          @map("picker_id") @db.Uuid
-  packerId         String?          @map("packer_id") @db.Uuid
+  id               String            @id @default(uuid()) @db.Uuid
+  companyId        String            @map("company_id") @db.Uuid
+  salesOrderId     String            @unique @map("sales_order_id") @db.Uuid
+  warehouseId      String            @map("warehouse_id") @db.Uuid
   number           String
-  priority         PickPackPriority @default(NORMAL)
-  status           PickPackStatus   @default(PENDING)
-  startedAt        DateTime?        @map("started_at")
-  packingStartedAt DateTime?        @map("packing_started_at")
-  readyAt          DateTime?        @map("ready_at")
-  dispatchedAt     DateTime?        @map("dispatched_at")
+  priority         PickPackPriority  @default(NORMAL)
+  status           PickPackStatus    @default(PENDING)
+  startedAt        DateTime?         @map("started_at")
+  packingStartedAt DateTime?         @map("packing_started_at")
+  readyAt          DateTime?         @map("ready_at")
+  dispatchedAt     DateTime?         @map("dispatched_at")
   carrier          String?
-  shippingDocument String?          @map("shipping_document")
+  shippingDocument String?           @map("shipping_document")
   notes            String?
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
-  company          Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  salesOrder       SalesOrder       @relation(fields: [salesOrderId], references: [id])
-  warehouse        Warehouse        @relation(fields: [warehouseId], references: [id])
-  picker           User?            @relation("PickPackPicker", fields: [pickerId], references: [id], onDelete: SetNull)
-  packer           User?            @relation("PickPackPacker", fields: [packerId], references: [id], onDelete: SetNull)
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  salesOrder       SalesOrder        @relation(fields: [salesOrderId], references: [id])
+  warehouse        Warehouse         @relation(fields: [warehouseId], references: [id])
   lines            PickPackLine[]
   packages         PickPackPackage[]
 
@@ -910,19 +904,19 @@ model PickPackOrder {
 }
 
 model PickPackLine {
-  id                String               @id @default(uuid()) @db.Uuid
-  pickPackOrderId   String               @map("pick_pack_order_id") @db.Uuid
-  salesOrderLineId  String               @unique @map("sales_order_line_id") @db.Uuid
-  warehouseLocation String?              @map("warehouse_location")
-  lotCode           String?              @map("lot_code")
-  requestedQuantity Decimal              @map("requested_quantity") @db.Decimal(18, 6)
-  pickedQuantity    Decimal              @default(0) @map("picked_quantity") @db.Decimal(18, 6)
-  packedQuantity    Decimal              @default(0) @map("packed_quantity") @db.Decimal(18, 6)
+  id                String                @id @default(uuid()) @db.Uuid
+  pickPackOrderId   String                @map("pick_pack_order_id") @db.Uuid
+  salesOrderLineId  String                @unique @map("sales_order_line_id") @db.Uuid
+  warehouseLocation String?               @map("warehouse_location")
+  lotCode           String?               @map("lot_code")
+  requestedQuantity Decimal               @map("requested_quantity") @db.Decimal(18, 6)
+  pickedQuantity    Decimal               @default(0) @map("picked_quantity") @db.Decimal(18, 6)
+  packedQuantity    Decimal               @default(0) @map("packed_quantity") @db.Decimal(18, 6)
   incidentType      PickPackIncidentType? @map("incident_type")
-  incidentReason    String?              @map("incident_reason")
+  incidentReason    String?               @map("incident_reason")
   notes             String?
-  pickPackOrder     PickPackOrder        @relation(fields: [pickPackOrderId], references: [id], onDelete: Cascade)
-  salesOrderLine    SalesOrderLine       @relation(fields: [salesOrderLineId], references: [id])
+  pickPackOrder     PickPackOrder         @relation(fields: [pickPackOrderId], references: [id], onDelete: Cascade)
+  salesOrderLine    SalesOrderLine        @relation(fields: [salesOrderLineId], references: [id])
 
   @@index([pickPackOrderId])
   @@map("pick_pack_lines")

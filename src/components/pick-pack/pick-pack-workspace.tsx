@@ -10,13 +10,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 
-type Person = { id: string; name: string; username: string };
 type PickLine = { id: string; requestedQuantity: string; pickedQuantity: string; packedQuantity: string; warehouseLocation?: string; lotCode?: string; incidentType?: string; incidentReason?: string; notes?: string; salesOrderLine: { productVariant: { sku: string; product: { code: string; name: string }; size: { name: string }; color: { name: string }; inventoryItem: { unit: { symbol: string } } } } };
 type Package = { id: string; packageNumber: number; packageType?: string; weight?: string; length?: string; width?: string; height?: string; notes?: string };
-type PickPack = { id: string; number: string; priority: "NORMAL" | "URGENT"; status: string; carrier?: string; shippingDocument?: string; notes?: string; createdAt: string; picker?: Person; packer?: Person; warehouse: { code: string; name: string }; salesOrder: { id: string; number: string; requestedAt: string; promisedAt?: string; customer: { code: string; name: string } }; lines: PickLine[]; packages: Package[] };
-type Options = { orders: { id: string; number: string; requestedAt: string; promisedAt?: string; customer: { code: string; name: string }; lines: { quantity: string }[] }[]; users: Person[] };
-type CreateForm = { salesOrderId: string; priority: "NORMAL" | "URGENT"; pickerId?: string; packerId?: string; notes?: string };
-type EditForm = { priority: "NORMAL" | "URGENT"; pickerId?: string; packerId?: string; carrier?: string; shippingDocument?: string; notes?: string; lines: { id: string; pickedQuantity: number; packedQuantity: number; warehouseLocation?: string; lotCode?: string; incidentType?: string; incidentReason?: string; notes?: string }[]; packages: { packageType?: string; weight?: number; length?: number; width?: number; height?: number; notes?: string }[] };
+type PickPack = { id: string; number: string; priority: "NORMAL" | "URGENT"; status: string; carrier?: string; shippingDocument?: string; notes?: string; createdAt: string; warehouse: { code: string; name: string }; salesOrder: { id: string; number: string; requestedAt: string; promisedAt?: string; customer: { code: string; name: string } }; lines: PickLine[]; packages: Package[] };
+type Options = { orders: { id: string; number: string; requestedAt: string; promisedAt?: string; customer: { code: string; name: string }; lines: { quantity: string }[] }[] };
+type CreateForm = { salesOrderId: string; priority: "NORMAL" | "URGENT"; notes?: string };
+type EditForm = { priority: "NORMAL" | "URGENT"; carrier?: string; shippingDocument?: string; notes?: string; lines: { id: string; pickedQuantity: number; packedQuantity: number; warehouseLocation?: string; lotCode?: string; incidentType?: string; incidentReason?: string; notes?: string }[]; packages: { packageType?: string; weight?: number; length?: number; width?: number; height?: number; notes?: string }[] };
 
 const statuses: Record<string, [string, string]> = { PENDING: ["Pendiente", "default"], PICKING: ["En picking", "blue"], PACKING: ["En packing", "purple"], READY: ["Listo para despacho", "green"], DISPATCHED: ["Despachado", "cyan"], CANCELLED: ["Cancelado", "default"] };
 const incidents = [{ value: "SHORTAGE", label: "Faltante" }, { value: "DAMAGED", label: "Producto dañado" }, { value: "SUBSTITUTION", label: "Sustitución" }, { value: "OTHER", label: "Otro" }];
@@ -38,7 +37,7 @@ export function PickPackWorkspace({ permissions }: { permissions: string[] }) {
 
   const openEdit = (record: PickPack) => {
     setEditing(record);
-    editForm.setFieldsValue({ priority: record.priority, pickerId: record.picker?.id, packerId: record.packer?.id, carrier: record.carrier, shippingDocument: record.shippingDocument, notes: record.notes, lines: record.lines.map((line) => ({ id: line.id, pickedQuantity: Number(line.pickedQuantity), packedQuantity: Number(line.packedQuantity), warehouseLocation: line.warehouseLocation, lotCode: line.lotCode, incidentType: line.incidentType, incidentReason: line.incidentReason, notes: line.notes })), packages: record.packages.map((item) => ({ packageType: item.packageType, weight: item.weight ? Number(item.weight) : undefined, length: item.length ? Number(item.length) : undefined, width: item.width ? Number(item.width) : undefined, height: item.height ? Number(item.height) : undefined, notes: item.notes })) });
+    editForm.setFieldsValue({ priority: record.priority, carrier: record.carrier, shippingDocument: record.shippingDocument, notes: record.notes, lines: record.lines.map((line) => ({ id: line.id, pickedQuantity: Number(line.pickedQuantity), packedQuantity: Number(line.packedQuantity), warehouseLocation: line.warehouseLocation, lotCode: line.lotCode, incidentType: line.incidentType, incidentReason: line.incidentReason, notes: line.notes })), packages: record.packages.map((item) => ({ packageType: item.packageType, weight: item.weight ? Number(item.weight) : undefined, length: item.length ? Number(item.length) : undefined, width: item.width ? Number(item.width) : undefined, height: item.height ? Number(item.height) : undefined, notes: item.notes })) });
   };
   const next = editing?.status === "PENDING" ? ["PICKING", "Iniciar picking"] : editing?.status === "PICKING" ? ["PACKING", "Pasar a packing"] : editing?.status === "PACKING" ? ["READY", "Marcar listo"] : undefined;
   const canEdit = permissions.includes("pick_pack.update");
@@ -47,7 +46,6 @@ export function PickPackWorkspace({ permissions }: { permissions: string[] }) {
     { title: "Pick & Pack", dataIndex: "number", width: 170, render: (value, row) => <><strong>{value}</strong><br /><Typography.Text type="secondary">{dayjs(row.createdAt).format("DD/MM/YYYY HH:mm")}</Typography.Text></> },
     { title: "Pedido / cliente", width: 250, render: (_, row) => <><strong>{row.salesOrder.number}</strong><br /><Typography.Text type="secondary">{row.salesOrder.customer.code} · {row.salesOrder.customer.name}</Typography.Text></> },
     { title: "Almacén", width: 180, render: (_, row) => `${row.warehouse.code} · ${row.warehouse.name}` },
-    { title: "Responsables", width: 210, render: (_, row) => <><span>Picking: {row.picker?.name ?? "Sin asignar"}</span><br /><span>Packing: {row.packer?.name ?? "Sin asignar"}</span></> },
     { title: "Avance", width: 150, render: (_, row) => { const requested = row.lines.reduce((sum, line) => sum.add(line.requestedQuantity), new Decimal(0)); const packed = row.lines.reduce((sum, line) => sum.add(line.packedQuantity), new Decimal(0)); return `${packed.toFixed(0)} / ${requested.toFixed(0)} und.`; } },
     { title: "Prioridad", width: 100, render: (_, row) => <Tag color={row.priority === "URGENT" ? "red" : "default"}>{row.priority === "URGENT" ? "Urgente" : "Normal"}</Tag> },
     { title: "Estado", width: 150, render: (_, row) => { const [label, color] = statuses[row.status] ?? [row.status, "default"]; return <Tag color={color}>{label}</Tag>; } },
@@ -59,7 +57,7 @@ export function PickPackWorkspace({ permissions }: { permissions: string[] }) {
     <Alert type="info" showIcon message="El picking y packing no descuentan stock. El kardex se actualiza únicamente al despachar las cantidades realmente empacadas." style={{ marginBottom: 18 }} />
     <Card className="section-card" title="Órdenes de preparación" extra={permissions.includes("pick_pack.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { createForm.resetFields(); createForm.setFieldsValue({ priority: "NORMAL" }); setCreateOpen(true); }}>Generar Pick & Pack</Button> : null}>
       {records.error ? <Alert type="error" showIcon message={records.error.message} style={{ marginBottom: 16 }} /> : null}
-      <Table rowKey="id" loading={records.isLoading} columns={columns} dataSource={records.data?.items ?? []} scroll={{ x: 1450 }} pagination={{ pageSize: 15 }} locale={{ emptyText: <Empty description="Aún no hay órdenes de preparación" /> }} />
+      <Table rowKey="id" loading={records.isLoading} columns={columns} dataSource={records.data?.items ?? []} scroll={{ x: 1240 }} pagination={{ pageSize: 15 }} locale={{ emptyText: <Empty description="Aún no hay órdenes de preparación" /> }} />
     </Card>
 
     <Modal title="Generar orden de Pick & Pack" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} okText="Generar" confirmLoading={create.isPending} destroyOnHidden>
@@ -67,8 +65,6 @@ export function PickPackWorkspace({ permissions }: { permissions: string[] }) {
       <Form form={createForm} layout="vertical" onFinish={(values) => create.mutate(values)} initialValues={{ priority: "NORMAL" }}>
         <Form.Item name="salesOrderId" label="Pedido confirmado" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.orders.map((order) => ({ value: order.id, label: `${order.number} · ${order.customer.name} · ${order.lines.length} líneas` }))} /></Form.Item>
         <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}><Select options={[{ value: "NORMAL", label: "Normal" }, { value: "URGENT", label: "Urgente" }]} /></Form.Item>
-        <Form.Item name="pickerId" label="Responsable de picking"><Select allowClear showSearch optionFilterProp="label" options={options.data?.users.map((person) => ({ value: person.id, label: `${person.name} · @${person.username}` }))} /></Form.Item>
-        <Form.Item name="packerId" label="Responsable de packing"><Select allowClear showSearch optionFilterProp="label" options={options.data?.users.map((person) => ({ value: person.id, label: `${person.name} · @${person.username}` }))} /></Form.Item>
         <Form.Item name="notes" label="Observaciones"><Input.TextArea rows={3} /></Form.Item>
       </Form>
     </Modal>
@@ -77,8 +73,6 @@ export function PickPackWorkspace({ permissions }: { permissions: string[] }) {
       <Form form={editForm} layout="vertical">
         <div className="purchase-form-grid">
           <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}><Select options={[{ value: "NORMAL", label: "Normal" }, { value: "URGENT", label: "Urgente" }]} /></Form.Item>
-          <Form.Item name="pickerId" label="Responsable de picking"><Select allowClear showSearch optionFilterProp="label" options={options.data?.users.map((person) => ({ value: person.id, label: person.name }))} /></Form.Item>
-          <Form.Item name="packerId" label="Responsable de packing"><Select allowClear showSearch optionFilterProp="label" options={options.data?.users.map((person) => ({ value: person.id, label: person.name }))} /></Form.Item>
           <Form.Item name="carrier" label="Transportista"><Input /></Form.Item>
           <Form.Item name="shippingDocument" label="Documento / guía de salida"><Input /></Form.Item>
         </div>

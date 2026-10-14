@@ -9,7 +9,7 @@ const date = new Intl.DateTimeFormat("es-PE", { dateStyle: "short" });
 export default async function PickPackPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermission("pick_pack.print");
   const { id } = await params;
-  const record = await prisma.pickPackOrder.findFirst({ where: { id, companyId: user.companyId }, include: { company: true, warehouse: true, picker: true, packer: true, salesOrder: { include: { customer: true } }, lines: { include: { salesOrderLine: { include: { productVariant: { include: { product: true, size: true, color: true, inventoryItem: { include: { unit: true } } } } } } }, orderBy: { salesOrderLine: { productVariant: { sku: "asc" } } } }, packages: { orderBy: { packageNumber: "asc" } } } });
+  const record = await prisma.pickPackOrder.findFirst({ where: { id, companyId: user.companyId }, include: { company: true, warehouse: true, salesOrder: { include: { customer: true } }, lines: { include: { salesOrderLine: { include: { productVariant: { include: { product: true, size: true, color: true, inventoryItem: { include: { unit: true } } } } } } }, orderBy: { salesOrderLine: { productVariant: { sku: "asc" } } } }, packages: { orderBy: { packageNumber: "asc" } } } });
   if (!record) notFound();
   const totalRequested = record.lines.reduce((sum, line) => sum.add(line.requestedQuantity.toString()), new Decimal(0));
   const totalPacked = record.lines.reduce((sum, line) => sum.add(line.packedQuantity.toString()), new Decimal(0));
@@ -18,7 +18,7 @@ export default async function PickPackPrintPage({ params }: { params: Promise<{ 
     <header className="pick-pack-print-header"><div><span>LK INNOVACION</span><h1>ORDEN DE PICK &amp; PACK</h1></div><strong>{record.number}</strong></header>
     <section className="pick-pack-print-info">
       <div><span>Pedido</span><strong>{record.salesOrder.number}</strong></div><div><span>Cliente</span><strong>{record.salesOrder.customer.name}</strong></div><div><span>Fecha pedido</span><strong>{date.format(record.salesOrder.requestedAt)}</strong></div><div><span>Fecha prometida</span><strong>{record.salesOrder.promisedAt ? date.format(record.salesOrder.promisedAt) : "—"}</strong></div>
-      <div><span>Almacén</span><strong>{record.warehouse.code} · {record.warehouse.name}</strong></div><div><span>Prioridad</span><strong>{record.priority === "URGENT" ? "URGENTE" : "NORMAL"}</strong></div><div><span>Responsable picking</span><strong>{record.picker?.name ?? "Sin asignar"}</strong></div><div><span>Responsable packing</span><strong>{record.packer?.name ?? "Sin asignar"}</strong></div>
+      <div><span>Almacén</span><strong>{record.warehouse.code} · {record.warehouse.name}</strong></div><div><span>Prioridad</span><strong>{record.priority === "URGENT" ? "URGENTE" : "NORMAL"}</strong></div>
       <div><span>Transportista</span><strong>{record.carrier ?? "—"}</strong></div><div><span>Documento / guía</span><strong>{record.shippingDocument ?? "—"}</strong></div><div><span>Estado</span><strong>{record.status}</strong></div><div><span>Fecha emisión</span><strong>{date.format(record.createdAt)}</strong></div>
     </section>
     <h2>Productos</h2>
