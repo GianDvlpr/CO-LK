@@ -687,6 +687,41 @@ a {
 }
 
 @media (max-width: 720px) {
+  .exchange-rate-overlay.ant-popover,
+  .notification-overlay.ant-popover {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+  }
+
+  .exchange-rate-overlay .ant-popover-inner,
+  .notification-overlay .ant-popover-inner {
+    width: 100%;
+    max-width: 100%;
+    padding: 12px;
+    overflow: hidden;
+  }
+
+  .exchange-rate-popover,
+  .notification-popover {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .exchange-rate-popover {
+    max-height: calc(100dvh - 86px);
+    overflow: auto;
+  }
+
+  .notification-popover {
+    max-height: calc(100dvh - 86px);
+  }
+
+  .exchange-rate-popover .ant-table-wrapper,
+  .notification-popover .ant-list {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
   .app-header {
     width: 100%;
     min-width: 0;

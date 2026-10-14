@@ -35,7 +35,7 @@ export function ExchangeRateIndicator({ canManage }: { canManage: boolean }) {
     {rates.data?.stats.average !== null && rates.data?.stats.average !== undefined ? <Space wrap className="exchange-rate-stats"><Tag>Mín. {rates.data.stats.min?.toFixed(3)}</Tag><Tag>Prom. {rates.data.stats.average.toFixed(3)}</Tag><Tag>Máx. {rates.data.stats.max?.toFixed(3)}</Tag></Space> : null}
     {canManage ? <Space wrap style={{ marginTop: 12 }}><Button icon={<SyncOutlined />} loading={sync.isPending} onClick={() => sync.mutate("TODAY")}>Sincronizar hoy</Button><Button icon={<CloudDownloadOutlined />} loading={sync.isPending} onClick={() => sync.mutate("HISTORY")}>Cargar 90 días</Button></Space> : null}
   </div>;
-  return <Popover content={content} title={null} trigger="click" placement="bottomRight">
+  return <Popover content={content} title={null} trigger="click" placement="bottomRight" classNames={{ root: "exchange-rate-overlay" }}>
     <Button type="text" className="exchange-rate-indicator" loading={rates.isLoading} icon={<DollarOutlined />}>
       <span><small>TC USD</small><strong>{current ? `${current.buyRate?.toFixed(3) ?? "—"} / ${current.sellRate.toFixed(3)}` : "Sin TC"}</strong></span>
     </Button>

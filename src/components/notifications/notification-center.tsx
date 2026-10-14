@@ -76,5 +76,5 @@ export function NotificationCenter({ companyId, permissions }: { companyId: stri
     {notifications.isLoading ? <div className="notification-loading"><Spin /></div> : notifications.data?.items.length ? <List dataSource={notifications.data.items} renderItem={(item) => <List.Item className={item.readAt ? "" : "notification-unread"} onClick={() => { if (!item.readAt) markRead.mutate(item.id); }}><List.Item.Meta title={<Space><span>{item.title}</span>{!item.readAt ? <Badge status="processing" /> : null}</Space>} description={<><div>{item.message}</div><small>{dayjs(item.createdAt).format("DD/MM/YYYY HH:mm")}</small></>} /></List.Item>} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No hay notificaciones" />}
   </div>;
 
-  return <Popover placement="bottomRight" trigger="click" content={content} arrow={false}><Badge count={notifications.data?.unreadCount ?? 0} overflowCount={99} size="small"><Button type="text" aria-label="Notificaciones" icon={<BellOutlined />} /></Badge></Popover>;
+  return <Popover placement="bottomRight" trigger="click" content={content} arrow={false} classNames={{ root: "notification-overlay" }}><Badge count={notifications.data?.unreadCount ?? 0} overflowCount={99} size="small"><Button type="text" aria-label="Notificaciones" icon={<BellOutlined />} /></Badge></Popover>;
 }
