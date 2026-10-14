@@ -1,8 +1,8 @@
 "use client";
 
-import { HistoryOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { HistoryOutlined, MoreOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tag } from "antd";
+import { Alert, Button, Card, DatePicker, Dropdown, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import Decimal from "decimal.js";
@@ -44,7 +44,7 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock }: { p
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Almacén" eyebrow="Operativo" description="Administra materias primas, productos terminados, existencias, costo promedio y stock mínimo." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => inventory.refetch()}>Actualizar</Button><ModuleImportButton module="inventory" permissions={permissions} /><Link href="/dashboard/inventory/kardex"><Button icon={<HistoryOutlined />}>Ver kardex</Button></Link>{canOpenStock ? <Button onClick={() => setOpeningOpen(true)}>Stock inicial</Button> : null}</Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Almacén" eyebrow="Operativo" description="Administra materias primas, productos terminados, existencias, costo promedio y stock mínimo." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => inventory.refetch()}>Actualizar</Button><ModuleImportButton module="inventory" permissions={permissions} /><Link href="/dashboard/inventory/kardex"><Button icon={<HistoryOutlined />}>Ver kardex</Button></Link>{canOpenStock ? <Dropdown menu={{ items: [{ key: "opening", label: "Registrar saldo inicial" }], onClick: ({ key }) => { if (key === "opening") setOpeningOpen(true); } }} trigger={["click"]}><Button icon={<MoreOutlined />}>Más acciones</Button></Dropdown> : null}</Space></div>
     <Card className="section-card" title="Ítems y existencias" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => setItemOpen(true)}>Nuevo ítem</Button> : null}>{inventory.error ? <Alert type="error" showIcon message={inventory.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={inventory.isLoading} columns={columns} dataSource={inventory.data?.items ?? []} scroll={{ x: 1250 }} pagination={{ pageSize: 20 }} locale={{ emptyText: <Empty description="Aún no hay ítems registrados" /> }} /></Card>
     <Modal title="Nuevo ítem de almacén" open={itemOpen} onCancel={() => setItemOpen(false)} onOk={() => itemForm.submit()} okText="Crear ítem" confirmLoading={createItem.isPending} destroyOnHidden>
       <Form form={itemForm} layout="vertical" onFinish={(values) => createItem.mutate(values)} initialValues={{ type: "RAW_MATERIAL", minimumStock: 0, lotTrackingMode: "NONE" }}>
@@ -55,11 +55,11 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock }: { p
         <Form.Item name="lotTrackingMode" label="Control de lotes" rules={[{ required: true }]}><Select options={[{ value: "NONE", label: "Sin lotes" }, { value: "OPTIONAL", label: "Opcional" }, { value: "REQUIRED", label: "Obligatorio" }]} /></Form.Item>
       </Form>
     </Modal>
-    <Modal title="Registrar stock inicial" open={openingOpen} onCancel={() => setOpeningOpen(false)} onOk={() => openingForm.submit()} okText="Contabilizar" confirmLoading={createOpening.isPending} destroyOnHidden>
-      <Alert type="info" showIcon message="Cada número de apertura solo puede contabilizarse una vez." style={{ marginBottom: 16 }} />
+    <Modal title="Registrar saldo inicial" open={openingOpen} onCancel={() => setOpeningOpen(false)} onOk={() => openingForm.submit()} okText="Registrar saldo" confirmLoading={createOpening.isPending} destroyOnHidden>
+      <Alert type="warning" showIcon message="Uso excepcional de implementación" description="Registra aquí únicamente las existencias que ya tenía la fábrica antes de usar el sistema. Si el ítem ya tiene movimientos en el almacén o lote seleccionado, la operación será rechazada. Las correcciones posteriores deben realizarse mediante ajustes de inventario." style={{ marginBottom: 16 }} />
       <Form form={openingForm} layout="vertical" onFinish={(values) => createOpening.mutate(values)} initialValues={{ occurredAt: dayjs(), quantity: 1, unitCost: 0 }}>
-        <Form.Item name="referenceNumber" label="Número de apertura" rules={[{ required: true }]}><Input placeholder="APER-0001" /></Form.Item>
-        <Form.Item name="occurredAt" label="Fecha" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>
+        <Form.Item name="referenceNumber" label="Referencia del saldo inicial" rules={[{ required: true }]}><Input placeholder="SALDO-2026-0001" /></Form.Item>
+        <Form.Item name="occurredAt" label="Fecha de corte" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>
         <Form.Item name="itemId" label="Ítem" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.items.map((item) => ({ value: item.id, label: `${item.code} · ${item.name} (${item.unit.symbol})` }))} /></Form.Item>
         <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select options={options.data?.warehouses.map((warehouse) => ({ value: warehouse.id, label: `${warehouse.code} · ${warehouse.name}` }))} /></Form.Item>
         <Form.Item name="quantity" label="Cantidad" rules={[{ required: true }]}><InputNumber min={0.001} precision={3} style={{ width: "100%" }} /></Form.Item>

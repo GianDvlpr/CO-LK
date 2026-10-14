@@ -60,12 +60,20 @@ export async function createOpeningStock(database: PrismaClient, command: Create
     if (item.lotTrackingMode === "REQUIRED" && !command.lotCode) throw new InventoryApplicationError("INVENTORY_INVALID_LOT", "El ítem requiere un código de lote.");
     if (item.lotTrackingMode === "NONE" && command.lotCode) throw new InventoryApplicationError("INVENTORY_INVALID_LOT", "El ítem no admite control por lote.");
 
+    const previousMovement = await tx.stockMovement.findFirst({
+      where: command.lotCode
+        ? { itemId: command.itemId, warehouseId: command.warehouseId, lot: { lotCode: command.lotCode } }
+        : { itemId: command.itemId, warehouseId: command.warehouseId },
+      select: { id: true },
+    });
+    if (previousMovement) throw new InventoryApplicationError("INVENTORY_OPENING_ALREADY_EXISTS", command.lotCode ? "Ese lote ya tiene movimientos y no admite un saldo inicial." : "El ítem ya tiene movimientos en este almacén y no admite un saldo inicial.");
+
     const adjustment = await tx.inventoryAdjustment.create({
       data: {
         companyId: command.companyId,
         warehouseId: command.warehouseId,
         number: command.referenceNumber,
-        reason: "Stock inicial",
+        reason: "Saldo inicial de implementación",
         status: "APPROVED",
         lines: { create: { itemId: command.itemId, quantity, unitCost } },
       },

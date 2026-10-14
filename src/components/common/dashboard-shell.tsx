@@ -133,7 +133,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
       </Sider>
       <Layout>
         <Header className="app-header">
-          <Space size={14}>
+          <Space size={14} className="header-navigation">
             <Button
               type="text"
               aria-label={collapsed ? "Abrir menú" : "Cerrar menú"}
@@ -147,7 +147,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
               </h2>
             </div>
           </Space>
-          <Space size={10}>
+          <Space size={10} className="header-actions">
             <ExchangeRateIndicator canManage={user.permissions.includes("catalogs.manage")} />
             <ThemeToggle />
             <NotificationCenter companyId={user.companyId} permissions={user.permissions} />
@@ -174,7 +174,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
                     {user.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
                   </Avatar>
                   <span className="desktop-only user-identity"><strong>{user.name}</strong><small>@{user.username}</small></span>
-                  <MoreOutlined />
+                  <MoreOutlined className="user-more-icon" />
                 </Space>
               </Button>
             </Dropdown>

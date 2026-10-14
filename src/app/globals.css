@@ -631,8 +631,55 @@ a {
 }
 
 @media (max-width: 720px) {
+  .app-header {
+    height: 62px;
+    gap: 4px;
+    padding-inline: 8px;
+  }
+
+  .header-navigation,
+  .header-actions {
+    gap: 3px !important;
+  }
+
+  .header-navigation {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .header-actions {
+    flex: 0 0 auto;
+  }
+
+  .header-context {
+    min-width: 0;
+    max-width: 112px;
+  }
+
+  .header-kicker {
+    display: none;
+  }
+
+  .header-title {
+    overflow: hidden;
+    max-width: 100%;
+    font-size: 15px;
+    text-overflow: ellipsis;
+  }
+
+  .app-header .ant-btn {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    padding-inline: 0;
+  }
+
+  .user-more-icon {
+    display: none;
+  }
+
   .exchange-rate-indicator {
-    width: 38px;
+    width: 34px;
     padding-inline: 0;
   }
 
