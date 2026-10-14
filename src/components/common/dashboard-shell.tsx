@@ -19,7 +19,7 @@ import {
   ToolOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { Avatar, Button, Dropdown, Layout, Menu, Space } from "antd";
+import { Avatar, Button, Dropdown, Layout, Menu } from "antd";
 import type { MenuProps } from "antd";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo } from "react";
@@ -136,7 +136,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
       </Sider>
       <Layout>
         <Header className="app-header">
-          <Space size={14} className="header-navigation">
+          <div className="header-navigation">
             <Button
               type="text"
               aria-label={collapsed ? "Abrir menú" : "Cerrar menú"}
@@ -149,8 +149,8 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
                 {currentModule?.label ?? "LK INNOVACION"}
               </h2>
             </div>
-          </Space>
-          <Space size={10} className="header-actions">
+          </div>
+          <div className="header-actions">
             <ExchangeRateIndicator canManage={user.permissions.includes("catalogs.manage")} />
             <ThemeToggle />
             <NotificationCenter companyId={user.companyId} permissions={user.permissions} />
@@ -171,17 +171,17 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
               }}
               trigger={["click"]}
             >
-              <Button type="text">
-                <Space>
+              <Button type="text" className="user-menu-trigger" aria-label={`Cuenta de ${user.name}`}>
+                <span className="user-trigger-content">
                   <Avatar size="small" style={{ background: "#1d6f55" }}>
                     {user.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
                   </Avatar>
                   <span className="desktop-only user-identity"><strong>{user.name}</strong><small>@{user.username}</small></span>
                   <MoreOutlined className="user-more-icon" />
-                </Space>
+                </span>
               </Button>
             </Dropdown>
-          </Space>
+          </div>
         </Header>
         <Content>
           <main className="app-content">{children}</main>

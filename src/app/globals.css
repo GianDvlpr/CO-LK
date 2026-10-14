@@ -129,6 +129,27 @@ a {
   backdrop-filter: blur(14px);
 }
 
+.header-navigation,
+.header-actions,
+.user-trigger-content {
+  display: flex;
+  align-items: center;
+}
+
+.header-navigation {
+  min-width: 0;
+  gap: 14px;
+}
+
+.header-actions {
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+.user-trigger-content {
+  gap: 8px;
+}
+
 .header-context {
   display: flex;
   min-width: 0;
@@ -714,12 +735,26 @@ a {
     padding-inline: 0;
   }
 
-  .header-actions > .ant-space-item {
+  .header-actions > * {
+    width: 34px;
+    min-width: 34px;
+    max-width: 34px;
     flex: 0 0 34px;
   }
 
-  .header-actions .ant-space-item > * {
-    max-width: 34px;
+  .header-actions > .ant-badge {
+    display: inline-grid;
+    place-items: center;
+  }
+
+  .header-actions .ant-btn {
+    overflow: hidden;
+  }
+
+  .user-trigger-content {
+    width: 24px;
+    justify-content: center;
+    gap: 0;
   }
 
   .user-more-icon {
