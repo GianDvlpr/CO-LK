@@ -1,6 +1,6 @@
 # Estado de implementación
 
-Actualizado: 13/10/2026.
+Actualizado: 14/10/2026.
 
 ## Completado
 
@@ -41,7 +41,11 @@ Actualizado: 13/10/2026.
 - Consumo de materias primas con costo promedio congelado y asignación FIFO automática de lotes; el costo real consumido se transfiere al producto terminado.
 - Cada orden conserva la versión exacta de receta, ejecuciones, cantidades planificadas y consumidas, auditoría y eventos outbox.
 - Módulo operativo de Pedidos con cliente, fechas, variantes SKU, cantidades, precios e importes.
-- Confirmación transaccional con reserva de producto terminado y despacho valorizado contra el almacén principal, liberando reservas y registrando el kardex.
+- Confirmación transaccional de pedidos con reserva de producto terminado.
+- Módulo Pick & Pack con correlativo, prioridad, responsables, picking, packing, ubicaciones, lotes, incidencias, paquetes, transportista y documento de salida.
+- Flujo obligatorio `CONFIRMED → PICKING → PACKING → READY → DISPATCHED`; el despacho directo queda bloqueado.
+- Formato A4 apaisado imprimible o guardable como PDF, sin firmas, con cabecera, detalle de productos, verificación, incidencias, paquetes y observaciones.
+- Despacho valorizado de las cantidades realmente empacadas, liberación de diferencias reservadas, actualización del kardex, auditoría y notificaciones Pusher.
 - Módulo operativo de Usuarios con alta, asignación de múltiples roles, contraseña temporal mínima de 6 caracteres y cambio obligatorio en el primer ingreso.
 - Activación y desactivación segura de usuarios; al desactivar una cuenta se revocan de inmediato todas sus sesiones y se registra la operación en auditoría.
 - Módulo operativo de Roles y Permisos con creación de roles personalizados y selección de permisos atómicos agrupados por módulo.
@@ -78,6 +82,6 @@ Actualizado: 13/10/2026.
 2. Ejecutar `neon skills -y` desde una terminal normal.
 3. Configurar `WORKER_SECRET` y un programador externo para procesar alertas aun cuando no haya usuarios conectados.
 4. Ejecutar Playwright en un entorno que permita crear procesos; este sandbox bloquea sus workers con `spawn EPERM`.
-5. Preparar datos UAT y ejecutar una ronda funcional con usuarios de negocio para Compras, Almacén, Recetas, Producción, Productos y Pedidos.
+5. Preparar datos UAT y ejecutar una ronda funcional con usuarios de negocio para Compras, Almacén, Recetas, Producción, Productos, Pedidos y Pick & Pack.
 
 Nunca versionar `.env.local`, credenciales de Neon ni secretos de Pusher.

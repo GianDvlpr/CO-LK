@@ -49,9 +49,31 @@ export async function confirmSalesOrder(database: PrismaClient, command: { compa
 
 export async function dispatchSalesOrder(database: PrismaClient, command: { companyId: string; userId: string; orderId: string }) {
   return database.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM sales_orders WHERE id = ${command.orderId}::uuid FOR UPDATE`; const order = await tx.salesOrder.findFirst({ where: { id: command.orderId, companyId: command.companyId }, include: { lines: { include: { productVariant: true } } } });
-    if (!order) throw new OrderError("ORDER_NOT_FOUND", "El pedido no existe."); if (!(["CONFIRMED", "READY"] as string[]).includes(order.status)) throw new OrderError("ORDER_INVALID_STATE", "Solo puede despacharse un pedido confirmado o listo."); const warehouse = await mainWarehouse(tx, command.companyId); if (!warehouse) throw new OrderError("ORDER_NO_WAREHOUSE", "No existe un almacén activo para despachar.");
-    for (const line of order.lines) { const itemId = line.productVariant.inventoryItemId; const quantity = new Decimal(line.quantity.toString()); await lock(tx, warehouse.id, itemId); const balance = await tx.stockBalance.findFirst({ where: { warehouseId: warehouse.id, itemId, lotId: null } }); if (!balance || new Decimal(balance.onHandQuantity.toString()).lessThan(quantity) || new Decimal(balance.reservedQuantity.toString()).lessThan(quantity)) throw new OrderError("ORDER_INSUFFICIENT_STOCK", `El saldo reservado de ${line.productVariant.sku} ya no es suficiente.`); const unitCost = new Decimal(balance.averageUnitCost.toString()); const nextQty = new Decimal(balance.onHandQuantity.toString()).sub(quantity); const movementValue = quantity.mul(unitCost).toDecimalPlaces(4); const nextValue = nextQty.isZero() ? new Decimal(0) : new Decimal(balance.inventoryValue.toString()).sub(movementValue).toDecimalPlaces(4); await tx.stockBalance.update({ where: { id: balance.id }, data: { onHandQuantity: nextQty, reservedQuantity: { decrement: quantity }, inventoryValue: nextValue, averageUnitCost: nextQty.isZero() ? 0 : unitCost } }); await tx.stockMovement.create({ data: { itemId, warehouseId: warehouse.id, type: "SALES_DISPATCH", quantity: quantity.neg(), unitCost, movementValue: movementValue.neg(), balanceAfter: nextQty, valueAfter: nextValue, averageCostAfter: nextQty.isZero() ? 0 : unitCost, referenceType: "SALES_ORDER", referenceId: order.id, postingSequence: await sequence(tx, command.companyId), createdById: command.userId } }); }
-    await tx.stockReservation.updateMany({ where: { referenceType: "SALES_ORDER", referenceId: order.id, active: true }, data: { active: false } }); const result = await tx.salesOrder.update({ where: { id: order.id }, data: { status: "DISPATCHED" } }); await register(tx, command.companyId, command.userId, order.id, "DISPATCH", "DISPATCHED"); return result;
+    await tx.$queryRaw`SELECT id FROM sales_orders WHERE id = ${command.orderId}::uuid FOR UPDATE`;
+    const order = await tx.salesOrder.findFirst({ where: { id: command.orderId, companyId: command.companyId }, include: { lines: { include: { productVariant: true } }, pickPackOrder: { include: { lines: true } } } });
+    if (!order) throw new OrderError("ORDER_NOT_FOUND", "El pedido no existe.");
+    if (order.status !== "READY" || order.pickPackOrder?.status !== "READY") throw new OrderError("ORDER_INVALID_STATE", "El pedido debe completar Pick & Pack antes del despacho.");
+    const warehouse = await tx.warehouse.findFirst({ where: { id: order.pickPackOrder.warehouseId, companyId: command.companyId, active: true } });
+    if (!warehouse) throw new OrderError("ORDER_NO_WAREHOUSE", "El almacén de preparación no está disponible.");
+    const packedByLine = new Map(order.pickPackOrder.lines.map((line) => [line.salesOrderLineId, new Decimal(line.packedQuantity.toString())]));
+    for (const line of order.lines) {
+      const itemId = line.productVariant.inventoryItemId;
+      const reservedQuantity = new Decimal(line.quantity.toString());
+      const quantity = packedByLine.get(line.id) ?? new Decimal(0);
+      await lock(tx, warehouse.id, itemId);
+      const balance = await tx.stockBalance.findFirst({ where: { warehouseId: warehouse.id, itemId, lotId: null } });
+      if (!balance || new Decimal(balance.onHandQuantity.toString()).lessThan(quantity) || new Decimal(balance.reservedQuantity.toString()).lessThan(reservedQuantity)) throw new OrderError("ORDER_INSUFFICIENT_STOCK", `El saldo reservado de ${line.productVariant.sku} ya no es suficiente.`);
+      const unitCost = new Decimal(balance.averageUnitCost.toString());
+      const nextQty = new Decimal(balance.onHandQuantity.toString()).sub(quantity);
+      const movementValue = quantity.mul(unitCost).toDecimalPlaces(4);
+      const nextValue = nextQty.isZero() ? new Decimal(0) : new Decimal(balance.inventoryValue.toString()).sub(movementValue).toDecimalPlaces(4);
+      await tx.stockBalance.update({ where: { id: balance.id }, data: { onHandQuantity: nextQty, reservedQuantity: { decrement: reservedQuantity }, inventoryValue: nextValue, averageUnitCost: nextQty.isZero() ? 0 : unitCost } });
+      if (quantity.greaterThan(0)) await tx.stockMovement.create({ data: { itemId, warehouseId: warehouse.id, type: "SALES_DISPATCH", quantity: quantity.neg(), unitCost, movementValue: movementValue.neg(), balanceAfter: nextQty, valueAfter: nextValue, averageCostAfter: nextQty.isZero() ? 0 : unitCost, referenceType: "SALES_ORDER", referenceId: order.id, postingSequence: await sequence(tx, command.companyId), createdById: command.userId } });
+    }
+    await tx.stockReservation.updateMany({ where: { referenceType: "SALES_ORDER", referenceId: order.id, active: true }, data: { active: false } });
+    await tx.pickPackOrder.update({ where: { id: order.pickPackOrder.id }, data: { status: "DISPATCHED", dispatchedAt: new Date() } });
+    const result = await tx.salesOrder.update({ where: { id: order.id }, data: { status: "DISPATCHED" } });
+    await register(tx, command.companyId, command.userId, order.id, "DISPATCH", "DISPATCHED");
+    return result;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }

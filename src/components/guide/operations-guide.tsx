@@ -40,7 +40,8 @@ const dependencies = [
   { key: "purchases", label: "Compras", children: <p>Necesita proveedor, moneda, almacén y materias primas previamente registradas. Solo una compra aprobada incrementa el stock.</p> },
   { key: "recipes", label: "Recetas", children: <p>Necesita un producto y materias primas del Almacén. Crear o activar una receta no descuenta stock.</p> },
   { key: "production", label: "Producción", children: <p>Necesita una variante de producto, una receta activa, un almacén y stock suficiente. Al iniciar consume materiales; al completar ingresa producto terminado.</p> },
-  { key: "orders", label: "Pedidos", children: <p>Necesita un cliente y variantes de Productos. Al confirmar reserva stock de producto terminado y al despachar registra la salida del kardex.</p> },
+  { key: "orders", label: "Pedidos", children: <p>Necesita un cliente y variantes de Productos. Al confirmar reserva el stock de producto terminado y queda disponible para preparación.</p> },
+  { key: "pick-pack", label: "Pick & Pack y despacho", children: <p>Necesita un pedido confirmado. Picking registra lo recogido, packing registra lo empacado y cualquier diferencia exige una incidencia. Solo al despachar se descuenta del kardex la cantidad realmente empacada.</p> },
 ];
 
 export function OperationsGuide() {
@@ -61,13 +62,14 @@ export function OperationsGuide() {
               { color: "green", children: <><strong>2. Almacén y Productos</strong><br />Materias primas, productos terminados, tallas, colores y SKU.</> },
               { color: "green", children: <><strong>3. Compras</strong><br />Registra y aprueba recepciones para alimentar el stock.</> },
               { color: "green", children: <><strong>4. Recetas</strong><br />Vincula productos con las materias primas requeridas.</> },
-              { color: "green", children: <><strong>5. Producción y Pedidos</strong><br />Consume materiales, produce y atiende pedidos.</> },
+              { color: "green", children: <><strong>5. Producción y Pedidos</strong><br />Consume materiales, produce y confirma pedidos para reservar stock.</> },
+              { color: "blue", children: <><strong>6. Pick & Pack y despacho</strong><br />Recoge, empaca, imprime el formato y contabiliza la salida final.</> },
             ]} />
           </Card>
         </Col>
         <Col xs={24} lg={14}>
           <Card className="section-card" title={<Space><LinkOutlined />Dependencias por módulo</Space>}>
-            <Collapse items={dependencies} defaultActiveKey={["purchases", "recipes", "orders"]} />
+            <Collapse items={dependencies} defaultActiveKey={["purchases", "recipes", "orders", "pick-pack"]} />
           </Card>
         </Col>
       </Row>

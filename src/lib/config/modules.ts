@@ -73,6 +73,14 @@ export const appModules = [
     phase: 5,
   },
   {
+    key: "pick-pack",
+    label: "Pick & Pack",
+    href: "/dashboard/pick-pack",
+    description: "Preparación, empaque, formato imprimible y despacho.",
+    permission: "pick_pack.read",
+    phase: 5,
+  },
+  {
     key: "catalogs",
     label: "Catálogos",
     href: "/dashboard/catalogs",

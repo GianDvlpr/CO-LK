@@ -451,6 +451,114 @@ a {
   border-radius: 8px 8px 0 0;
 }
 
+.pick-pack-line-grid,
+.pick-pack-package-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+.pick-pack-line-grid > :last-child,
+.pick-pack-package-grid > :last-child {
+  grid-column: span 2;
+}
+
+.pick-pack-print-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px;
+  color: #111827;
+  background: white;
+}
+
+.print-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.pick-pack-print-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 22px;
+  border: 2px solid #17352d;
+  background: #e8f3ee;
+}
+
+.pick-pack-print-header span,
+.pick-pack-print-info span,
+.pick-pack-print-notes span {
+  display: block;
+  color: #52645d;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.pick-pack-print-header h1 {
+  margin: 3px 0 0;
+  font-size: 28px;
+}
+
+.pick-pack-print-header > strong {
+  font-size: 20px;
+}
+
+.pick-pack-print-info {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-right: 1px solid #9ca3af;
+  border-bottom: 1px solid #9ca3af;
+}
+
+.pick-pack-print-info > div {
+  min-height: 58px;
+  padding: 10px;
+  border-top: 1px solid #9ca3af;
+  border-left: 1px solid #9ca3af;
+}
+
+.pick-pack-print-page h2 {
+  margin: 18px 0 8px;
+  font-size: 15px;
+  text-transform: uppercase;
+}
+
+.pick-pack-print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.pick-pack-print-table th,
+.pick-pack-print-table td {
+  padding: 7px 6px;
+  border: 1px solid #6b7280;
+  text-align: left;
+  vertical-align: top;
+}
+
+.pick-pack-print-table th,
+.pick-pack-print-table tfoot {
+  background: #e8f3ee;
+  font-weight: 800;
+}
+
+.pick-pack-print-notes,
+.pick-pack-print-empty {
+  min-height: 70px;
+  margin-top: 18px;
+  padding: 12px;
+  border: 1px solid #9ca3af;
+}
+
+.pick-pack-print-notes p {
+  margin: 8px 0 0;
+}
+
 .notification-popover {
   width: min(390px, calc(100vw - 32px));
   max-height: 520px;
@@ -599,7 +707,9 @@ a {
   }
 
   .purchase-form-grid,
-  .purchase-line-grid {
+  .purchase-line-grid,
+  .pick-pack-line-grid,
+  .pick-pack-package-grid {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -757,13 +867,39 @@ a {
   }
 
   .purchase-form-grid,
-  .purchase-line-grid {
+  .purchase-line-grid,
+  .pick-pack-line-grid,
+  .pick-pack-package-grid {
     grid-template-columns: 1fr;
   }
 
   .purchase-line-grid > :first-child,
-  .purchase-line-grid > :nth-last-child(-n + 2) {
+  .purchase-line-grid > :nth-last-child(-n + 2),
+  .pick-pack-line-grid > :last-child,
+  .pick-pack-package-grid > :last-child {
     grid-column: auto;
+  }
+
+  .pick-pack-print-page {
+    padding: 12px;
+  }
+
+  .pick-pack-print-header,
+  .pick-pack-print-info {
+    grid-template-columns: 1fr;
+  }
+
+  .pick-pack-print-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pick-pack-print-info {
+    display: grid;
+  }
+
+  .print-table-scroll {
+    overflow-x: auto;
   }
 
   .purchase-total {
@@ -1108,6 +1244,51 @@ a {
     display: flex;
     min-width: 0;
     justify-content: flex-end;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  .app-sider,
+  .app-header,
+  .mobile-sider-backdrop,
+  .print-controls,
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+
+  .app-layout,
+  .app-layout > .ant-layout,
+  .app-content {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  .pick-pack-print-page {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .pick-pack-print-header,
+  .pick-pack-print-info,
+  .pick-pack-print-table,
+  .pick-pack-print-notes {
+    break-inside: avoid;
   }
 }
 
