@@ -22,6 +22,7 @@ type SheetValues = {
 };
 type Order = {
   id: string; number: string; status: string; recipeRuns: string; plannedQuantity: string; producedQuantity: string; plannedAt?: string;
+  machine?: { id: string; code: string; name: string; type: string; status: string };
   warehouse: { code: string; name: string }; productVariant: { id?: string; sku: string; product: { code: string; name: string }; size: { name: string }; color: { name: string } };
   recipeVersion: { version: number; recipe: { code: string; name: string } }; materials: Material[];
   machineEquipment?: string; operatorName?: string; modelLogo?: string; materialLoad?: string; seriesLot?: string; processType?: "PRENSA" | "INYECTORA";
@@ -32,8 +33,9 @@ type Options = {
   warehouses: { id: string; code: string; name: string }[];
   variants: { id: string; sku: string; productId: string; product: { id: string; code: string; name: string }; size: { name: string }; color: { name: string } }[];
   recipes: { id: string; productId: string; code: string; name: string; product: { id: string; code: string; name: string }; versions: { id: string; version: number; yieldQuantity: string }[] }[];
+  machines: { id: string; code: string; name: string; type: string; status: string }[];
 };
-type FormValues = SheetValues & { number: string; warehouseId: string; productVariantId: string; recipeVersionId: string; recipeRuns: number; plannedAt?: Dayjs };
+type FormValues = SheetValues & { number: string; warehouseId: string; productVariantId: string; recipeVersionId: string; machineId?: string; recipeRuns: number; plannedAt?: Dayjs };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -49,7 +51,6 @@ function SheetFields({ form }: { form: FormInstance }) {
   return <>
     <Divider titlePlacement="left">Datos de la ficha</Divider>
     <div className="purchase-form-grid">
-      <Form.Item name="machineEquipment" label="Máquina / Equipo"><Input maxLength={150} /></Form.Item>
       <Form.Item name="operatorName" label="Operario"><Input maxLength={150} /></Form.Item>
       <Form.Item name="modelLogo" label="Modelo / Logo"><Input maxLength={150} /></Form.Item>
       <Form.Item name="materialLoad" label="Material / Carga"><Input maxLength={150} /></Form.Item>
@@ -125,7 +126,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   const columns: ColumnsType<Order> = [
     { title: "Orden", dataIndex: "number", width: 130, render: (value) => <strong>{value}</strong> },
     { title: "Producto / variante", width: 260, render: (_, row) => <><strong>{row.productVariant.product.name}</strong><br /><Typography.Text type="secondary">{row.productVariant.sku} · {row.productVariant.size.name} · {row.productVariant.color.name}</Typography.Text></> },
-    { title: "Proceso", width: 120, render: (_, row) => row.processType === "PRENSA" ? "Prensa" : row.processType === "INYECTORA" ? "Inyectora" : "—" },
+    { title: "Máquina / proceso", width: 180, render: (_, row) => <>{row.machine ? `${row.machine.code} · ${row.machine.name}` : row.machineEquipment || "—"}<br /><span className="table-secondary">{row.processType === "PRENSA" ? "Prensa" : row.processType === "INYECTORA" ? "Inyectora" : "Sin proceso"}</span></> },
     { title: "Planificado", dataIndex: "plannedQuantity", width: 110, align: "right", render: (value) => new Decimal(value).toFixed(2) },
     { title: "Producido", dataIndex: "producedQuantity", width: 110, align: "right", render: (value) => new Decimal(value).toFixed(2) },
     { title: "Estado", dataIndex: "status", width: 120, render: (value) => { const [label, color] = statuses[value] ?? [value, "default"]; return <Tag color={color}>{label}</Tag>; } },
@@ -158,6 +159,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
           <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select options={options.data?.warehouses.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
           <Form.Item name="plannedAt" label="Fecha"><DatePicker style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="recipeRuns" label="Ejecuciones de receta" rules={[{ required: true }]}><InputNumber min={0.001} precision={3} style={{ width: "100%" }} /></Form.Item>
+          <Form.Item name="machineId" label="Máquina / Equipo"><Select allowClear showSearch optionFilterProp="label" placeholder="Selecciona una máquina registrada" onChange={(id) => { const machine = options.data?.machines.find((item) => item.id === id); if (machine?.type === "PRESS") form.setFieldValue("processType", "PRENSA"); if (machine?.type === "INJECTOR") form.setFieldValue("processType", "INYECTORA"); }} options={options.data?.machines.map((machine) => ({ value: machine.id, label: `${machine.code} · ${machine.name}${machine.status === "MAINTENANCE" ? " · En mantenimiento" : ""}` }))} /></Form.Item>
         </div>
         <Form.Item name="recipeVersionId" label="Receta activa" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" onChange={() => form.setFieldValue("productVariantId", undefined)} options={options.data?.recipes.filter((recipe) => recipe.versions[0]).map((recipe) => ({ value: recipe.versions[0].id, label: `${recipe.code} · ${recipe.name} · v${recipe.versions[0].version}` }))} /></Form.Item>
         <Form.Item name="productVariantId" label="Variante principal" rules={[{ required: true }]}><Select disabled={!selectedRecipe} showSearch optionFilterProp="label" onChange={(id) => { const variant = options.data?.variants.find((item) => item.id === id); if (variant) form.setFieldsValue({ modelLogo: variant.product.name, brandColor: variant.color.name, sizeProgram: [{ size: variant.size.name, requestedPairs: Number(planned.toString()) || 1 }] }); }} options={allowedVariants?.map((variant) => ({ value: variant.id, label: `${variant.sku} · ${variant.product.name} · ${variant.size.name} · ${variant.color.name}` }))} /></Form.Item>

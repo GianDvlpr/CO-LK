@@ -18,6 +18,26 @@ export async function createSalesOrder(database: PrismaClient, command: { compan
   });
 }
 
+export async function updateSalesOrder(database: PrismaClient, command: { companyId: string; userId: string; orderId: string; number: string; customerId: string; requestedAt: Date; promisedAt?: Date; notes?: string; lines: { productVariantId: string; quantity: Decimal.Value; unitPrice: Decimal.Value }[] }) {
+  if (!command.lines.length || new Set(command.lines.map((line) => line.productVariantId)).size !== command.lines.length) throw new OrderError("ORDER_INVALID_LINES", "El pedido requiere variantes únicas.");
+  for (const line of command.lines) if (!new Decimal(line.quantity).greaterThan(0) || new Decimal(line.unitPrice).isNegative()) throw new OrderError("ORDER_INVALID_LINES", "Las cantidades deben ser positivas y los precios no pueden ser negativos.");
+  return database.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM sales_orders WHERE id = ${command.orderId}::uuid FOR UPDATE`;
+    const current = await tx.salesOrder.findFirst({ where: { id: command.orderId, companyId: command.companyId } });
+    if (!current) throw new OrderError("ORDER_NOT_FOUND", "El pedido no existe.");
+    if (current.status !== "DRAFT") throw new OrderError("ORDER_INVALID_STATE", "Solo se puede editar un pedido en borrador.");
+    const [customer, variants] = await Promise.all([
+      tx.customer.findFirst({ where: { id: command.customerId, companyId: command.companyId } }),
+      tx.productVariant.findMany({ where: { id: { in: command.lines.map((line) => line.productVariantId) }, active: true, product: { companyId: command.companyId, active: true } } }),
+    ]);
+    if (!customer || variants.length !== command.lines.length) throw new OrderError("ORDER_INVALID_REFERENCE", "El cliente o alguna variante no es válida.");
+    await tx.salesOrderLine.deleteMany({ where: { salesOrderId: current.id } });
+    const order = await tx.salesOrder.update({ where: { id: current.id }, data: { number: command.number, customerId: customer.id, requestedAt: command.requestedAt, promisedAt: command.promisedAt ?? null, notes: command.notes ?? null, lines: { create: command.lines.map((line) => ({ productVariantId: line.productVariantId, quantity: new Decimal(line.quantity), unitPrice: new Decimal(line.unitPrice) })) } } });
+    await register(tx, command.companyId, command.userId, order.id, "UPDATE", "DRAFT");
+    return order;
+  });
+}
+
 export async function confirmSalesOrder(database: PrismaClient, command: { companyId: string; userId: string; orderId: string }) {
   return database.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM sales_orders WHERE id = ${command.orderId}::uuid FOR UPDATE`; const order = await tx.salesOrder.findFirst({ where: { id: command.orderId, companyId: command.companyId }, include: { lines: { include: { productVariant: true } } } });

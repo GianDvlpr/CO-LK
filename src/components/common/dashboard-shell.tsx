@@ -10,6 +10,7 @@ import {
   MoreOutlined,
   ProductOutlined,
   QuestionCircleOutlined,
+  RobotOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
   ShoppingCartOutlined,
@@ -44,6 +45,7 @@ const moduleIcons: Record<string, React.ReactNode> = {
   inventory: <DatabaseOutlined />,
   recipes: <BookOutlined />,
   production: <ToolOutlined />,
+  machinery: <RobotOutlined />,
   products: <ProductOutlined />,
   orders: <TagsOutlined />,
   catalogs: <SettingOutlined />,
@@ -103,6 +105,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
 
   return (
     <Layout className="app-layout">
+      {!collapsed ? <button className="mobile-sider-backdrop" type="button" aria-label="Cerrar menú" onClick={() => setCollapsed(true)} /> : null}
       <Sider
         className="app-sider"
         width={254}

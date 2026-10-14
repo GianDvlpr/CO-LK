@@ -58,6 +58,24 @@ enum ProductionOrderStatus {
   CANCELLED
 }
 
+enum MachineType {
+  PRESS
+  INJECTOR
+  OTHER
+}
+
+enum MachineStatus {
+  ACTIVE
+  MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+enum MaintenanceType {
+  PREVENTIVE
+  CORRECTIVE
+  REPAIR
+}
+
 enum SalesOrderStatus {
   DRAFT
   CONFIRMED
@@ -110,6 +128,7 @@ model Company {
   outboxEvents         OutboxEvent[]
   correlativeCounters  CorrelativeCounter[]
   inventoryAdjustments InventoryAdjustment[]
+  machines             Machine[]
 
   @@unique([taxId])
   @@map("companies")
@@ -688,6 +707,7 @@ model ProductionOrder {
   warehouseId      String                @map("warehouse_id") @db.Uuid
   productVariantId String                @map("product_variant_id") @db.Uuid
   recipeVersionId  String                @map("recipe_version_id") @db.Uuid
+  machineId        String?               @map("machine_id") @db.Uuid
   number           String
   recipeRuns       Decimal               @map("recipe_runs") @db.Decimal(18, 6)
   plannedQuantity  Decimal               @map("planned_quantity") @db.Decimal(18, 6)
@@ -715,12 +735,56 @@ model ProductionOrder {
   warehouse        Warehouse             @relation(fields: [warehouseId], references: [id])
   productVariant   ProductVariant        @relation(fields: [productVariantId], references: [id])
   recipeVersion    RecipeVersion         @relation(fields: [recipeVersionId], references: [id])
+  machine           Machine?              @relation(fields: [machineId], references: [id])
   materials        ProductionMaterial[]
   salesOrderLines  SalesOrderLine[]
 
   @@unique([companyId, number])
   @@index([companyId, status, plannedAt])
   @@map("production_orders")
+}
+
+model Machine {
+  id                 String                     @id @default(uuid()) @db.Uuid
+  companyId          String                     @map("company_id") @db.Uuid
+  code               String
+  name               String
+  type               MachineType
+  brand              String?
+  model              String?
+  serialNumber       String?                    @map("serial_number")
+  location           String?
+  status             MachineStatus              @default(ACTIVE)
+  purchaseDate       DateTime?                  @map("purchase_date") @db.Date
+  notes              String?
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+  company            Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  maintenanceRecords MachineMaintenanceRecord[]
+  productionOrders   ProductionOrder[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status, type])
+  @@map("machines")
+}
+
+model MachineMaintenanceRecord {
+  id            String          @id @default(uuid()) @db.Uuid
+  machineId     String          @map("machine_id") @db.Uuid
+  type          MaintenanceType
+  performedAt   DateTime        @map("performed_at") @db.Date
+  nextDueAt     DateTime?       @map("next_due_at") @db.Date
+  provider      String?
+  description   String
+  cost          Decimal         @default(0) @db.Decimal(18, 4)
+  downtimeHours Decimal         @default(0) @map("downtime_hours") @db.Decimal(10, 2)
+  notes         String?
+  createdAt     DateTime        @default(now()) @map("created_at")
+  machine       Machine         @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@index([machineId, performedAt])
+  @@index([nextDueAt])
+  @@map("machine_maintenance_records")
 }
 
 model ProductionMaterial {

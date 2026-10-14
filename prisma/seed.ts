@@ -14,6 +14,7 @@ const permissionCodes = [
   "inventory.read", "inventory.create_item", "inventory.adjust_request", "inventory.adjust_approve", "inventory.adjust_value_request", "inventory.adjust_value_approve", "inventory.opening_import", "inventory.export",
   "recipes.read", "recipes.create", "recipes.update", "recipes.activate", "recipes.archive", "recipes.export",
   "production.read", "production.create", "production.release", "production.start", "production.complete", "production.cancel", "production.scrap",
+  "machinery.read", "machinery.create", "machinery.maintenance",
   "products.read", "products.create", "products.update", "products.image_manage", "products.export",
   "orders.read", "orders.create", "orders.update", "orders.confirm", "orders.link_production", "orders.dispatch", "orders.deliver", "orders.cancel", "orders.export",
   "imports.read", "imports.preview", "imports.confirm",

@@ -49,6 +49,14 @@ export const appModules = [
     phase: 4,
   },
   {
+    key: "machinery",
+    label: "Maquinaria",
+    href: "/dashboard/machinery",
+    description: "Equipos, mantenimientos, reparaciones y costos.",
+    permission: "machinery.read",
+    phase: 4,
+  },
+  {
     key: "products",
     label: "Productos",
     href: "/dashboard/products",

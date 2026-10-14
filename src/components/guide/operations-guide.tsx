@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircleOutlined, LinkOutlined, OrderedListOutlined } from "@ant-design/icons";
+import { AuditOutlined, CheckCircleOutlined, LinkOutlined, OrderedListOutlined } from "@ant-design/icons";
 import { Alert, Card, Col, Collapse, Row, Space, Table, Tag, Timeline, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
@@ -71,6 +71,26 @@ export function OperationsGuide() {
           </Card>
         </Col>
       </Row>
+
+      <Card className="section-card guide-fields-card" title={<Space><AuditOutlined />Puesta en marcha del stock</Space>}>
+        <Alert
+          type="warning"
+          showIcon
+          message="No cargues cantidades antiguas si ya hubo consumo"
+          description="Registra los ítems con stock cero y utiliza como saldo inicial únicamente la cantidad que resulte del conteo o pesaje físico actual."
+          style={{ marginBottom: 18 }}
+        />
+        <Timeline items={[
+          { color: "green", children: <><strong>1. Registra el catálogo en cero</strong><br />Crea materias primas, insumos y productos terminados sin inventar existencias.</> },
+          { color: "green", children: <><strong>2. Define una fecha de corte</strong><br />Realiza el conteo o pesaje físico y evita movimientos mientras termina el levantamiento.</> },
+          { color: "green", children: <><strong>3. Registra el saldo verificado</strong><br />En Almacén abre Más acciones → Registrar saldo inicial. Indica almacén, cantidad, costo y lote cuando corresponda.</> },
+          { color: "green", children: <><strong>4. Revisa el kardex</strong><br />Confirma que cada ítem tenga la cantidad y valoración correctas antes de iniciar Compras y Producción.</> },
+          { color: "blue", children: <><strong>5. Continúa con la operación normal</strong><br />Desde la fecha de corte, el stock cambia mediante compras aprobadas, consumos y terminaciones de producción.</> },
+        ]} />
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+          El saldo inicial se usa una sola vez por existencia. No sirve para corregir diferencias posteriores y será rechazado si el ítem o lote ya tiene movimientos.
+        </Typography.Paragraph>
+      </Card>
 
       <Card className="section-card guide-fields-card" title={<Space><CheckCircleOutlined />Campos obligatorios de Almacén</Space>}>
         <Table rowKey="key" size="small" columns={fieldColumns} dataSource={inventoryFields} pagination={false} scroll={{ x: 620 }} />
