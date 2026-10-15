@@ -658,18 +658,39 @@ a {
   .ant-table-wrapper .ant-table-content,
   .ant-table-wrapper .ant-table-body {
     overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
 
   .ant-table-wrapper .ant-table-cell-fix-left,
-  .ant-table-wrapper .ant-table-cell-fix-right {
+  .ant-table-wrapper .ant-table-cell-fix-left-first,
+  .ant-table-wrapper .ant-table-cell-fix-left-last,
+  .ant-table-wrapper .ant-table-cell-fix-right,
+  .ant-table-wrapper .ant-table-cell-fix-right-first,
+  .ant-table-wrapper .ant-table-cell-fix-right-last {
     position: static !important;
+    z-index: auto !important;
+    inset-inline-start: auto !important;
+    inset-inline-end: auto !important;
+    left: auto !important;
+    right: auto !important;
   }
 
   .ant-table-wrapper .ant-table-cell-fix-left-first::after,
   .ant-table-wrapper .ant-table-cell-fix-left-last::after,
   .ant-table-wrapper .ant-table-cell-fix-right-first::after,
   .ant-table-wrapper .ant-table-cell-fix-right-last::after {
-    display: none;
+    display: none !important;
+    box-shadow: none !important;
+  }
+
+  .ant-table-wrapper .ant-table-thead > tr > th,
+  .ant-table-wrapper .ant-table-tbody > tr > td {
+    padding: 9px 10px !important;
+    white-space: nowrap;
+  }
+
+  .ant-table-wrapper .ant-table-tbody > tr > td .ant-space {
+    flex-wrap: nowrap;
   }
 
   .ant-table-wrapper .ant-pagination {
@@ -1325,8 +1346,8 @@ a {
   border-radius: 10px;
   background: var(--panel);
   box-shadow: 0 5px 14px rgb(15 23 42 / 6%);
-  cursor: grab;
-  touch-action: manipulation;
+  cursor: default;
+  touch-action: auto;
   user-select: none;
 }
 
@@ -1358,6 +1379,41 @@ a {
 
 .production-kanban-card-head > span {
   color: var(--muted);
+}
+
+.kanban-drag-handle {
+  display: inline-grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--canvas) 72%, var(--panel));
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.kanban-drag-handle:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.kanban-drag-handle:active {
+  cursor: grabbing;
+}
+
+.kanban-drag-handle:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.kanban-drag-handle.is-preview {
+  pointer-events: none;
 }
 
 .production-kanban-product {
@@ -1441,8 +1497,8 @@ a {
   border-radius: 10px;
   background: var(--panel);
   box-shadow: 0 5px 14px rgb(15 23 42 / 6%);
-  cursor: grab;
-  touch-action: manipulation;
+  cursor: default;
+  touch-action: auto;
   user-select: none;
 }
 

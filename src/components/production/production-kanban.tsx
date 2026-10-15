@@ -1,7 +1,7 @@
 "use client";
 
 import { DragOutlined, SearchOutlined } from "@ant-design/icons";
-import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { Empty, Input, Select, Tag } from "antd";
 import dayjs from "dayjs";
 import Decimal from "decimal.js";
@@ -15,12 +15,22 @@ const columns = [
   { status: "COMPLETED", label: "Finalizado", hint: "Ingresó al almacén", color: "#15803d" },
 ] as const;
 
-function KanbanCard({ order, overlay = false }: { order: Order; overlay?: boolean }) {
+function KanbanCard({ order }: { order: Order }) {
   const disabled = ["COMPLETED", "CANCELLED"].includes(order.status);
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: order.id, disabled });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } = useDraggable({ id: order.id, disabled });
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
-  return <article ref={overlay ? undefined : setNodeRef} style={overlay ? undefined : style} className={`production-kanban-card${isDragging ? " dragging" : ""}${overlay ? " overlay" : ""}`} {...(overlay ? {} : attributes)} {...(overlay ? {} : listeners)}>
-    <div className="production-kanban-card-head"><strong>{order.number}</strong>{!disabled ? <DragOutlined aria-hidden /> : <Tag>{order.status === "COMPLETED" ? "Cerrada" : "Cancelada"}</Tag>}</div>
+  return <article ref={setNodeRef} style={style} className={`production-kanban-card${isDragging ? " dragging" : ""}`}>
+    <div className="production-kanban-card-head"><strong>{order.number}</strong>{!disabled ? <button ref={setActivatorNodeRef} type="button" className="kanban-drag-handle" aria-label={`Mover ${order.number}`} title="Mantén presionado y arrastra" {...attributes} {...listeners}><DragOutlined aria-hidden /></button> : <Tag>{order.status === "COMPLETED" ? "Cerrada" : "Cancelada"}</Tag>}</div>
+    <span className="production-kanban-product">{order.productVariant.product.name}</span>
+    <small>{order.productVariant.sku} · Talla {order.productVariant.size.name} · {order.productVariant.color.name}</small>
+    <div className="production-kanban-progress"><span>Producido</span><strong>{new Decimal(order.producedQuantity).toFixed(0)} / {new Decimal(order.plannedQuantity).toFixed(0)}</strong></div>
+    <div className="production-kanban-meta"><span>{order.machine ? `${order.machine.code} · ${order.machine.name}` : order.machineEquipment || "Sin máquina"}</span><span>{order.plannedAt ? dayjs(order.plannedAt).format("DD/MM/YYYY") : "Sin fecha"}</span></div>
+  </article>;
+}
+
+function KanbanCardOverlay({ order }: { order: Order }) {
+  return <article className="production-kanban-card overlay">
+    <div className="production-kanban-card-head"><strong>{order.number}</strong><span className="kanban-drag-handle is-preview"><DragOutlined aria-hidden /></span></div>
     <span className="production-kanban-product">{order.productVariant.product.name}</span>
     <small>{order.productVariant.sku} · Talla {order.productVariant.size.name} · {order.productVariant.color.name}</small>
     <div className="production-kanban-progress"><span>Producido</span><strong>{new Decimal(order.producedQuantity).toFixed(0)} / {new Decimal(order.plannedQuantity).toFixed(0)}</strong></div>
@@ -40,7 +50,7 @@ export function ProductionKanban({ orders, onMove, onOpen }: { orders: Order[]; 
   const [activeId, setActiveId] = useState<string>();
   const [search, setSearch] = useState("");
   const [machineId, setMachineId] = useState<string>();
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }), useSensor(KeyboardSensor));
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 12 } }), useSensor(KeyboardSensor));
   const machines = useMemo(() => [...new Map(orders.filter((order) => order.machine).map((order) => [order.machine!.id, order.machine!])).values()], [orders]);
   const filtered = useMemo(() => orders.filter((order) => {
     const term = search.trim().toLowerCase();
@@ -61,7 +71,7 @@ export function ProductionKanban({ orders, onMove, onOpen }: { orders: Order[]; 
     <div className="production-kanban-tools"><Input allowClear prefix={<SearchOutlined />} placeholder="Buscar orden, producto, SKU o máquina" value={search} onChange={(event) => setSearch(event.target.value)} /><Select allowClear showSearch optionFilterProp="label" placeholder="Todas las máquinas" value={machineId} onChange={setMachineId} options={machines.map((machine) => ({ value: machine.id, label: `${machine.code} · ${machine.name}` }))} /></div>
     <DndContext sensors={sensors} onDragStart={handleStart} onDragCancel={() => setActiveId(undefined)} onDragEnd={handleEnd}>
       <div className="production-kanban-board">{columns.map((column) => <KanbanColumn key={column.status} column={column} orders={filtered.filter((order) => productionBoardColumnStatus(order.status) === column.status)} active={Boolean(activeId)} onOpen={onOpen} />)}</div>
-      <DragOverlay>{activeOrder ? <KanbanCard order={activeOrder} overlay /> : null}</DragOverlay>
+      <DragOverlay>{activeOrder ? <KanbanCardOverlay order={activeOrder} /> : null}</DragOverlay>
     </DndContext>
   </>;
 }

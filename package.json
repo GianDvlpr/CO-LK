@@ -30,6 +30,8 @@
     "db:bootstrap-neon": "node scripts/bootstrap-neon.mjs",
     "db:seed": "prisma db seed",
     "db:seed-neon": "node scripts/seed-neon.mjs",
+    "demo:seed": "node --experimental-strip-types prisma/demo-data.ts",
+    "demo:cleanup": "node --experimental-strip-types prisma/demo-data.ts --cleanup",
     "exchange-rates:sync": "node scripts/sync-exchange-rates-neon.mjs",
     "db:studio": "prisma studio"
   },

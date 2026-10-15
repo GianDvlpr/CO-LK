@@ -1,7 +1,7 @@
 "use client";
 
 import { DragOutlined } from "@ant-design/icons";
-import { DndContext, DragOverlay, PointerSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { Empty, Tag } from "antd";
 import dayjs from "dayjs";
 import { useState } from "react";
@@ -15,12 +15,22 @@ const columns = [
 
 const priorities: Record<string, [string, string]> = { LOW: ["Baja", "default"], NORMAL: ["Normal", "blue"], HIGH: ["Alta", "orange"], URGENT: ["Urgente", "red"] };
 
-function TaskCard({ event, overlay = false }: { event: CalendarEvent; overlay?: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: event.id });
+function TaskCard({ event }: { event: CalendarEvent }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } = useDraggable({ id: event.id });
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
   const [priority, color] = priorities[event.priority] ?? [event.priority, "default"];
-  return <article ref={overlay ? undefined : setNodeRef} style={overlay ? undefined : style} className={`task-kanban-card${isDragging ? " dragging" : ""}${overlay ? " overlay" : ""}`} {...(overlay ? {} : attributes)} {...(overlay ? {} : listeners)}>
-    <div><Tag color={color}>{priority}</Tag><DragOutlined /></div>
+  return <article ref={setNodeRef} style={style} className={`task-kanban-card${isDragging ? " dragging" : ""}`}>
+    <div><Tag color={color}>{priority}</Tag><button ref={setActivatorNodeRef} type="button" className="kanban-drag-handle" aria-label={`Mover ${event.title}`} title="Mantén presionado y arrastra" {...attributes} {...listeners}><DragOutlined aria-hidden /></button></div>
+    <strong>{event.title}</strong>
+    <span>{event.subtitle || "Sin descripción"}</span>
+    <small>{event.allDay ? dayjs(event.startAt).format("DD/MM/YYYY") : dayjs(event.startAt).format("DD/MM/YYYY HH:mm")}</small>
+  </article>;
+}
+
+function TaskCardOverlay({ event }: { event: CalendarEvent }) {
+  const [priority, color] = priorities[event.priority] ?? [event.priority, "default"];
+  return <article className="task-kanban-card overlay">
+    <div><Tag color={color}>{priority}</Tag><span className="kanban-drag-handle is-preview"><DragOutlined aria-hidden /></span></div>
     <strong>{event.title}</strong>
     <span>{event.subtitle || "Sin descripción"}</span>
     <small>{event.allDay ? dayjs(event.startAt).format("DD/MM/YYYY") : dayjs(event.startAt).format("DD/MM/YYYY HH:mm")}</small>
@@ -37,7 +47,7 @@ function TaskColumn({ column, events, active }: { column: typeof columns[number]
 
 export function CalendarTaskKanban({ events, onMove }: { events: CalendarEvent[]; onMove: (event: CalendarEvent, status: "PENDING" | "COMPLETED" | "CANCELLED") => void }) {
   const [activeId, setActiveId] = useState<string>();
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }));
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 12 } }));
   const activeEvent = events.find((event) => event.id === activeId);
   const handleStart = ({ active }: DragStartEvent) => setActiveId(String(active.id));
   const handleEnd = ({ active, over }: DragEndEvent) => {
@@ -49,6 +59,6 @@ export function CalendarTaskKanban({ events, onMove }: { events: CalendarEvent[]
   };
   return <DndContext sensors={sensors} onDragStart={handleStart} onDragCancel={() => setActiveId(undefined)} onDragEnd={handleEnd}>
     <div className="task-kanban-board">{columns.map((column) => <TaskColumn key={column.status} column={column} events={events.filter((event) => event.status === column.status)} active={Boolean(activeId)} />)}</div>
-    <DragOverlay>{activeEvent ? <TaskCard event={activeEvent} overlay /> : null}</DragOverlay>
+    <DragOverlay>{activeEvent ? <TaskCardOverlay event={activeEvent} /> : null}</DragOverlay>
   </DndContext>;
 }

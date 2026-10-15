@@ -1,4 +1,3 @@
-import { hash } from "@node-rs/argon2";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/database/prisma";
@@ -7,7 +6,7 @@ import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
 
-const schema = z.object({ username: z.string().trim().min(3).max(50).regex(/^[a-zA-Z0-9._-]+$/), name: z.string().trim().min(1).max(150), roleIds: z.array(z.uuid()).min(1), temporaryPassword: z.string().min(6).optional().or(z.literal("")) });
+const schema = z.object({ username: z.string().trim().min(3).max(50).regex(/^[a-zA-Z0-9._-]+$/), name: z.string().trim().min(1).max(150), roleIds: z.array(z.uuid()).min(1) });
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -22,11 +21,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (roles.length !== new Set(parsed.data.roleIds).size) return apiError("USER_INVALID_ROLES", "Uno o más roles no son válidos.", 422);
     const username = parsed.data.username.toLowerCase();
     const updated = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.update({ where: { id }, data: { username, email: `${username}@internal.lkinnovacion`, name: parsed.data.name, ...(parsed.data.temporaryPassword ? { passwordHash: await hash(parsed.data.temporaryPassword), mustChangePassword: true } : {}) } });
+      const user = await tx.user.update({ where: { id }, data: { username, email: `${username}@internal.lkinnovacion`, name: parsed.data.name } });
       await tx.userRole.deleteMany({ where: { userId: id } });
       await tx.userRole.createMany({ data: roles.map((role) => ({ userId: id, roleId: role.id })) });
-      if (parsed.data.temporaryPassword) await tx.session.deleteMany({ where: { userId: id } });
-      await tx.auditLog.create({ data: { companyId: actor.companyId, userId: actor.id, entity: "User", entityId: id, action: parsed.data.temporaryPassword ? "UPDATE_AND_RESET_PASSWORD" : "UPDATE", afterData: { username, name: parsed.data.name, roles: roles.map((role) => role.code) } } });
+      await tx.auditLog.create({ data: { companyId: actor.companyId, userId: actor.id, entity: "User", entityId: id, action: "UPDATE", afterData: { username, name: parsed.data.name, roles: roles.map((role) => role.code) } } });
       return user;
     });
     return apiSuccess(updated);
