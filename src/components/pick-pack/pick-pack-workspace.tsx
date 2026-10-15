@@ -2,13 +2,14 @@
 
 import { CarOutlined, EditOutlined, PlusOutlined, PrinterOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import Decimal from "decimal.js";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
+import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 
 type PickLine = { id: string; requestedQuantity: string; pickedQuantity: string; packedQuantity: string; warehouseLocation?: string; lotCode?: string; incidentType?: string; incidentReason?: string; notes?: string; salesOrderLine: { productVariant: { sku: string; product: { code: string; name: string }; size: { name: string }; color: { name: string }; inventoryItem: { unit: { symbol: string } } } } };
 type Package = { id: string; packageNumber: number; packageType?: string; weight?: string; length?: string; width?: string; height?: string; notes?: string };

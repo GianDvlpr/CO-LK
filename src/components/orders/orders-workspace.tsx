@@ -2,7 +2,7 @@
 
 import { CheckOutlined, EditOutlined, InboxOutlined, PlusOutlined, ReloadOutlined, SendOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import Decimal from "decimal.js";
@@ -10,6 +10,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ModuleImportButton } from "@/components/imports/module-import-button";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
+import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 
 type Variant = { id: string; sku: string; product: { code: string; name: string }; size: { name: string }; color: { name: string }; inventoryItem: { unit: { symbol: string } } };
 type Options = { customers: { id: string; code: string; name: string; taxId?: string }[]; variants: Variant[] };

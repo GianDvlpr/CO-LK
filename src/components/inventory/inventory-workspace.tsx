@@ -2,12 +2,13 @@
 
 import { EditOutlined, HistoryOutlined, MoreOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Checkbox, DatePicker, Dropdown, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tag } from "antd";
+import { Alert, Button, Card, Checkbox, DatePicker, Dropdown, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import Decimal from "decimal.js";
 import { ModuleImportButton } from "@/components/imports/module-import-button";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
+import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";

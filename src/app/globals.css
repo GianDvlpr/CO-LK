@@ -685,12 +685,35 @@ a {
 
   .ant-table-wrapper .ant-table-thead > tr > th,
   .ant-table-wrapper .ant-table-tbody > tr > td {
+    max-width: 320px;
+    overflow: hidden;
     padding: 9px 10px !important;
-    white-space: nowrap;
+    vertical-align: top;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .ant-table-wrapper .ant-table-cell > *,
+  .ant-table-wrapper .ant-table-cell .ant-typography,
+  .ant-table-wrapper .ant-table-cell a {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .ant-table-wrapper .ant-table-tbody > tr > td .ant-space {
-    flex-wrap: nowrap;
+    max-width: 100%;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .ant-table-wrapper .ant-table-cell .ant-btn {
+    max-width: 100%;
+    height: auto;
+    min-height: 24px;
+    white-space: normal;
   }
 
   .ant-table-wrapper .ant-pagination {

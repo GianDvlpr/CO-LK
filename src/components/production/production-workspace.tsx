@@ -2,7 +2,7 @@
 
 import { AppstoreOutlined, CheckOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, PlusOutlined, ReloadOutlined, RocketOutlined, UnorderedListOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, DatePicker, Divider, Empty, Form, Input, InputNumber, Modal, Radio, Segmented, Select, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, DatePicker, Divider, Empty, Form, Input, InputNumber, Modal, Radio, Segmented, Select, Space, Tag, Typography } from "antd";
 import type { FormInstance } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
@@ -10,6 +10,7 @@ import Decimal from "decimal.js";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
+import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 import { ProductionKanban } from "@/components/production/production-kanban";
 import { productionBoardTransition } from "@/modules/production/domain/production-board";
 

@@ -2,12 +2,13 @@
 
 import { PlusOutlined, ReloadOutlined, ToolOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Select, Space, Statistic, Table, Tag } from "antd";
+import { Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Select, Space, Statistic, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
+import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 
 type Maintenance = { id: string; type: string; performedAt: string; nextDueAt?: string; provider?: string; description: string; cost: string; downtimeHours: string; notes?: string };
 type Machine = { id: string; code: string; name: string; type: string; brand?: string; model?: string; serialNumber?: string; location?: string; status: string; purchaseDate?: string; notes?: string; maintenanceRecords: Maintenance[]; _count: { productionOrders: number } };

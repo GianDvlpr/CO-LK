@@ -2,13 +2,14 @@
 
 import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Select, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Select, Space, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import Decimal from "decimal.js";
 import Link from "next/link";
 import { useState } from "react";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
+import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 
 type Movement = { id: string; type: string; quantity: string; unitCost: string; movementValue: string; balanceAfter: string; valueAfter: string; averageCostAfter: string; referenceType: string; postingSequence: string; postedAt: string; item: { code: string; name: string; unit: { symbol: string } }; warehouse: { code: string; name: string }; lot: { lotCode: string } | null };
 type Options = { warehouses: { id: string; code: string; name: string }[]; items: { id: string; code: string; name: string; unit: { symbol: string } }[] };
