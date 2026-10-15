@@ -6,6 +6,7 @@ describe("contenido y reintentos de notificaciones", () => {
   it("genera avisos para eventos operativos", () => {
     expect(notificationContent("purchase.approved.v1")?.title).toBe("Compra aprobada");
     expect(notificationContent("production.complete.v1")?.type).toBe("PRODUCTION_COMPLETED");
+    expect(notificationContent("calendar.reminder.v1")?.type).toBe("CALENDAR_REMINDER");
     expect(notificationContent("product.image-added.v1")).toBeNull();
   });
 
@@ -22,5 +23,6 @@ describe("contenido y reintentos de notificaciones", () => {
       "private-company-company-1-orders",
     ]);
     expect(notificationTypesForPermissions(["orders.read"])).toEqual(["ORDER_CONFIRMED", "ORDER_DISPATCHED"]);
+    expect(channelForEvent("company-1", "calendar.reminder.v1")).toBe("private-company-company-1-calendar");
   });
 });

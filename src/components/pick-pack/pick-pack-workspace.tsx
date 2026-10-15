@@ -53,8 +53,7 @@ export function PickPackWorkspace({ permissions }: { permissions: string[] }) {
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Pick & Pack" eyebrow="Preparación y despacho" description="Controla la recolección, empaque, incidencias, paquetes y salida final de cada pedido." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => records.refetch()}>Actualizar</Button></Space></div>
-    <Alert type="info" showIcon message="El picking y packing no descuentan stock. El kardex se actualiza únicamente al despachar las cantidades realmente empacadas." style={{ marginBottom: 18 }} />
+    <div className="page-heading"><ModuleHeadingIntro title="Pick & Pack" eyebrow="Preparación y despacho" description="Controla la recolección, empaque, incidencias y salida final. Picking y packing no descuentan stock; el kardex se actualiza al despachar lo realmente empacado." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => records.refetch()}>Actualizar</Button></Space></div>
     <Card className="section-card" title="Órdenes de preparación" extra={permissions.includes("pick_pack.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { createForm.resetFields(); createForm.setFieldsValue({ priority: "NORMAL" }); setCreateOpen(true); }}>Generar Pick & Pack</Button> : null}>
       {records.error ? <Alert type="error" showIcon message={records.error.message} style={{ marginBottom: 16 }} /> : null}
       <Table rowKey="id" loading={records.isLoading} columns={columns} dataSource={records.data?.items ?? []} scroll={{ x: 1240 }} pagination={{ pageSize: 15 }} locale={{ emptyText: <Empty description="Aún no hay órdenes de preparación" /> }} />

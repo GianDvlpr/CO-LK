@@ -1,8 +1,8 @@
 "use client";
 
-import { CheckOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, PlusOutlined, ReloadOutlined, RocketOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, CheckOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, PlusOutlined, ReloadOutlined, RocketOutlined, UnorderedListOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, DatePicker, Divider, Empty, Form, Input, InputNumber, Modal, Radio, Select, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, DatePicker, Divider, Empty, Form, Input, InputNumber, Modal, Radio, Segmented, Select, Space, Table, Tag, Typography } from "antd";
 import type { FormInstance } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
@@ -10,6 +10,8 @@ import Decimal from "decimal.js";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
+import { ProductionKanban } from "@/components/production/production-kanban";
+import { productionBoardTransition } from "@/modules/production/domain/production-board";
 
 type Material = { id: string; plannedQuantity: string; consumedQuantity: string; item: { code: string; name: string; unit: { symbol: string } } };
 type SizeProgram = { size: string; requestedPairs: number };
@@ -20,7 +22,7 @@ type SheetValues = {
   injectorNumber?: string; curve?: string; sizeProgram: SizeProgram[];
   dailyProduction: { date: Dayjs; size: string; quantity: number; observations?: string }[];
 };
-type Order = {
+export type Order = {
   id: string; number: string; status: string; recipeRuns: string; plannedQuantity: string; producedQuantity: string; plannedAt?: string;
   machine?: { id: string; code: string; name: string; type: string; status: string };
   warehouse: { code: string; name: string }; productVariant: { id?: string; sku: string; product: { code: string; name: string }; size: { name: string }; color: { name: string } };
@@ -108,6 +110,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   const [open, setOpen] = useState(false);
   const [editOrder, setEditOrder] = useState<Order>();
   const [completeOrder, setCompleteOrder] = useState<Order>();
+  const [viewMode, setViewMode] = useState<"list" | "board">("list");
   const [form] = Form.useForm<FormValues>();
   const [editForm] = Form.useForm<SheetValues>();
   const [completeForm] = Form.useForm<{ producedQuantity: number }>();
@@ -118,10 +121,11 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   const selectedRecipe = options.data?.recipes.find((recipe) => recipe.versions[0]?.id === recipeVersionId);
   const allowedVariants = selectedRecipe ? options.data?.variants.filter((variant) => variant.product.id === selectedRecipe.product.id) : options.data?.variants;
   const planned = selectedRecipe ? new Decimal(selectedRecipe.versions[0].yieldQuantity).mul(runs) : new Decimal(0);
-  const refresh = async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ["production"] }), queryClient.invalidateQueries({ queryKey: ["inventory"] }), queryClient.invalidateQueries({ queryKey: ["kardex"] })]); };
+  const refresh = async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ["production"] }), queryClient.invalidateQueries({ queryKey: ["inventory"] }), queryClient.invalidateQueries({ queryKey: ["kardex"] }), queryClient.invalidateQueries({ queryKey: ["calendar"] })]); };
   const create = useMutation({ mutationFn: (values: FormValues) => api("/api/v1/production", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...sheetPayload(values), plannedAt: values.plannedAt?.format("YYYY-MM-DD") }) }), onSuccess: async () => { toast.success("Orden creada en borrador."); setOpen(false); form.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
   const update = useMutation({ mutationFn: ({ id, values }: { id: string; values: SheetValues }) => api(`/api/v1/production/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(sheetPayload(values)) }), onSuccess: async () => { toast.success("Ficha de producción actualizada."); setEditOrder(undefined); editForm.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
   const transition = useMutation({ mutationFn: ({ id, action, body }: { id: string; action: string; body?: object }) => api(`/api/v1/production/${id}/${action}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body ?? {}) }), onSuccess: async (_, variables) => { toast.success(variables.action === "release" ? "Materiales reservados." : variables.action === "start" ? "Materiales consumidos y orden iniciada." : "Producción completada e ingresada al almacén."); setCompleteOrder(undefined); completeForm.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
+  const startFromBoard = useMutation({ mutationFn: async (order: Order) => { if (order.status === "DRAFT") await api(`/api/v1/production/${order.id}/release`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); return api(`/api/v1/production/${order.id}/start`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); }, onSuccess: async () => { toast.success("Orden iniciada y materiales descontados del kardex."); await refresh(); }, onError: (error) => toast.error(error.message) });
 
   const columns: ColumnsType<Order> = [
     { title: "Orden", dataIndex: "number", width: 130, render: (value) => <strong>{value}</strong> },
@@ -144,11 +148,26 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
     { title: "Consumido", align: "right", render: (_, row) => `${new Decimal(row.consumedQuantity).toFixed(3)} ${row.item.unit.symbol}` },
   ];
 
+  const moveOrder = (order: Order, targetStatus: string) => {
+    if (transition.isPending || startFromBoard.isPending) return toast.info("Espera a que termine el movimiento anterior.");
+    if (targetStatus === "IN_PROGRESS" && ["DRAFT", "RELEASED"].includes(order.status)) {
+      const requiredPermissions = order.status === "DRAFT" ? ["production.release", "production.start"] : ["production.start"];
+      if (requiredPermissions.some((permission) => !permissions.includes(permission))) return toast.error("No tienes permiso para iniciar esta orden.");
+      return Modal.confirm({ title: `¿Iniciar ${order.number}?`, content: order.status === "DRAFT" ? "Se reservarán y consumirán los materiales necesarios, y se actualizará el kardex." : "Se consumirán los materiales reservados y se actualizará el kardex.", okText: "Iniciar y mover", onOk: () => startFromBoard.mutateAsync(order) });
+    }
+    const boardTransition = productionBoardTransition(order.status, targetStatus);
+    if (!["DRAFT", "RELEASED", "IN_PROGRESS"].includes(order.status)) return toast.info("Esta columna es solo de consulta.");
+    if (!boardTransition) return toast.info("Las órdenes deben avanzar una columna a la vez; no se puede omitir ni revertir una etapa.");
+    if (!permissions.includes(boardTransition.permission)) return toast.error("No tienes permiso para realizar esta transición.");
+    setCompleteOrder(order);
+    completeForm.setFieldsValue({ producedQuantity: Number(order.plannedQuantity) });
+  };
+
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Producción" eyebrow="Manufactura" description="Registra la ficha de producción, reserva y consume materiales e ingresa el producto terminado al kardex." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => orders.refetch()}>Actualizar</Button></Space></div>
-    <Card className="section-card" title="Órdenes de producción" extra={permissions.includes("production.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Nueva orden</Button> : null}>
+    <div className="page-heading"><ModuleHeadingIntro title="Producción" eyebrow="Manufactura" description="Gestiona el flujo Pendiente → En curso → Finalizado. Al iniciar se reservan y consumen los materiales; al finalizar ingresa el producto al almacén." /><Space wrap className="module-actions"><Segmented value={viewMode} onChange={(value) => setViewMode(value as "list" | "board")} options={[{ value: "list", label: "Lista", icon: <UnorderedListOutlined /> }, { value: "board", label: "Tablero", icon: <AppstoreOutlined /> }]} /><Button icon={<ReloadOutlined />} onClick={() => orders.refetch()}>Actualizar</Button></Space></div>
+    <Card className="section-card production-board-card" title={viewMode === "list" ? "Órdenes de producción" : "Tablero de producción"} extra={permissions.includes("production.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Nueva orden</Button> : null}>
       {orders.error ? <Alert type="error" showIcon message={orders.error.message} style={{ marginBottom: 16 }} /> : null}
-      <Table rowKey="id" loading={orders.isLoading} columns={columns} dataSource={orders.data?.items ?? []} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" pagination={false} columns={materialColumns} dataSource={row.materials} /> }} scroll={{ x: 1450 }} pagination={{ pageSize: 15 }} locale={{ emptyText: <Empty description="Aún no hay órdenes de producción" /> }} />
+      {viewMode === "list" ? <Table rowKey="id" loading={orders.isLoading} columns={columns} dataSource={orders.data?.items ?? []} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" pagination={false} columns={materialColumns} dataSource={row.materials} /> }} scroll={{ x: 1450 }} pagination={{ pageSize: 15 }} locale={{ emptyText: <Empty description="Aún no hay órdenes de producción" /> }} /> : <ProductionKanban orders={orders.data?.items ?? []} onMove={moveOrder} onOpen={(order) => { if (!permissions.includes("production.create")) return; setEditOrder(order); editForm.setFieldsValue(orderToSheet(order)); }} />}
     </Card>
 
     <Modal title="Nueva orden de producción" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Crear borrador" confirmLoading={create.isPending} width={1100} destroyOnHidden>

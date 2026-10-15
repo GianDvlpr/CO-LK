@@ -22,7 +22,9 @@ export async function processCompanyOutbox(database: PrismaClient, companyId: st
     });
     if (!claimed.count) continue;
     const attempt = candidate.attempts + 1;
-    const content = notificationContent(candidate.eventName);
+    const baseContent = notificationContent(candidate.eventName);
+    const reminderTitle = candidate.eventName === "calendar.reminder.v1" && candidate.payload && typeof candidate.payload === "object" && !Array.isArray(candidate.payload) && typeof candidate.payload.title === "string" ? candidate.payload.title : null;
+    const content = baseContent && reminderTitle ? { ...baseContent, message: `${reminderTitle} está próximo.` } : baseContent;
     const channel = channelForEvent(companyId, candidate.eventName);
     const eventPayload = {
       eventId: candidate.id,

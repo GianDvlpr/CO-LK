@@ -6,6 +6,7 @@ const domainPermissions = {
   products: "products.read",
   orders: "orders.read",
   pick_pack: "pick_pack.read",
+  calendar: "calendar.read",
   imports: "imports.read",
   catalogs: "catalogs.read",
   users: "users.read",

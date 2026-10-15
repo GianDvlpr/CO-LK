@@ -27,6 +27,7 @@
 | Productos | `products.read`, `products.create`, `products.update`, `products.image_manage`, `products.export` |
 | Pedidos | `orders.read`, `orders.create`, `orders.update`, `orders.confirm`, `orders.link_production`, `orders.dispatch`, `orders.deliver`, `orders.cancel`, `orders.export` |
 | Pick & Pack | `pick_pack.read`, `pick_pack.create`, `pick_pack.update`, `pick_pack.ready`, `pick_pack.print` |
+| Calendario | `calendar.read`, `calendar.create`, `calendar.update`, `calendar.delete` |
 | Importaciones | `imports.read`, `imports.preview`, `imports.confirm` |
 | Auditoría | `audit.read` |
 

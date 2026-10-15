@@ -12,6 +12,7 @@ export function notificationContent(eventName: string): NotificationContent | nu
     "pick_pack.picking.v1": { type: "PICK_PACK_PICKING", title: "Picking iniciado", message: "El área de almacén inició la recolección del pedido." },
     "pick_pack.packing.v1": { type: "PICK_PACK_PACKING", title: "Packing iniciado", message: "El pedido pasó a la etapa de empaque." },
     "pick_pack.ready.v1": { type: "PICK_PACK_READY", title: "Pedido listo para despacho", message: "El Pick & Pack terminó y el pedido puede despacharse." },
+    "calendar.reminder.v1": { type: "CALENDAR_REMINDER", title: "Recordatorio de calendario", message: "Tienes una actividad operativa próxima." },
     "import.completed.v1": { type: "IMPORT_COMPLETED", title: "Importación completada", message: "La carga masiva finalizó correctamente." },
     "inventory.opening-posted.v1": { type: "INVENTORY_OPENING", title: "Stock inicial registrado", message: "El saldo inicial fue contabilizado en el kardex." },
   };
@@ -29,6 +30,7 @@ const notificationPermissions: Record<string, string> = {
   PICK_PACK_PICKING: "pick_pack.read",
   PICK_PACK_PACKING: "pick_pack.read",
   PICK_PACK_READY: "pick_pack.read",
+  CALENDAR_REMINDER: "calendar.read",
   IMPORT_COMPLETED: "imports.read",
   INVENTORY_OPENING: "inventory.read",
 };

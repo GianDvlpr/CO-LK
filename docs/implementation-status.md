@@ -1,6 +1,6 @@
 # Estado de implementación
 
-Actualizado: 14/10/2026.
+Actualizado: 15/10/2026.
 
 ## Completado
 
@@ -38,6 +38,7 @@ Actualizado: 14/10/2026.
 - Módulo operativo de Recetas con borradores, versiones, rendimiento, materias primas y porcentaje de merma.
 - Activación transaccional de la última versión con auditoría y outbox; crear o activar una receta no genera movimientos de inventario.
 - Flujo operativo de Producción: crear orden, reservar materiales, iniciar consumiendo inventario y completar ingresando producto terminado.
+- Vista Kanban de Producción con tarjetas arrastrables, filtros por texto y máquina, columnas de estado y transiciones reales que respetan permisos, reservas, consumos y cierre con cantidad producida.
 - Consumo de materias primas con costo promedio congelado y asignación FIFO automática de lotes; el costo real consumido se transfiere al producto terminado.
 - Cada orden conserva la versión exacta de receta, ejecuciones, cantidades planificadas y consumidas, auditoría y eventos outbox.
 - Módulo operativo de Pedidos con cliente, fechas, variantes SKU, cantidades, precios e importes.
@@ -46,6 +47,7 @@ Actualizado: 14/10/2026.
 - Flujo obligatorio `CONFIRMED → PICKING → PACKING → READY → DISPATCHED`; el despacho directo queda bloqueado.
 - Formato A4 apaisado imprimible o guardable como PDF, sin firmas, con cabecera, detalle de productos, verificación, incidencias, paquetes y observaciones.
 - Despacho valorizado de las cantidades realmente empacadas, liberación de diferencias reservadas, actualización del kardex, auditoría y notificaciones Pusher.
+- Calendario operativo integrado con pedidos, producción, Pick & Pack, mantenimientos y eventos manuales; incluye agenda móvil, tablero arrastrable de tareas, filtros, vencimientos y recordatorios Pusher.
 - Módulo operativo de Usuarios con alta, asignación de múltiples roles, contraseña temporal mínima de 6 caracteres y cambio obligatorio en el primer ingreso.
 - Activación y desactivación segura de usuarios; al desactivar una cuenta se revocan de inmediato todas sus sesiones y se registra la operación en auditoría.
 - Módulo operativo de Roles y Permisos con creación de roles personalizados y selección de permisos atómicos agrupados por módulo.

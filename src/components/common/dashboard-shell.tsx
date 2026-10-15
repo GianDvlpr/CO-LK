@@ -3,6 +3,7 @@
 import {
   AppstoreOutlined,
   BookOutlined,
+  CalendarOutlined,
   DatabaseOutlined,
   FileExcelOutlined,
   InboxOutlined,
@@ -50,6 +51,7 @@ const moduleIcons: Record<string, React.ReactNode> = {
   products: <ProductOutlined />,
   orders: <TagsOutlined />,
   "pick-pack": <InboxOutlined />,
+  calendar: <CalendarOutlined />,
   catalogs: <SettingOutlined />,
   users: <TeamOutlined />,
   roles: <SafetyCertificateOutlined />,

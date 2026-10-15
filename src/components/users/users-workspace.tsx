@@ -1,6 +1,6 @@
 "use client";
 
-import { EditOutlined, PlusOutlined, ReloadOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
+import { EditOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Empty, Form, Input, Modal, Select, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -64,8 +64,7 @@ export function UsersWorkspace({ canCreate, canUpdate, canDeactivate }: { canCre
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Usuarios" eyebrow="Seguridad" description="Administra cuentas, acceso, roles asignados y el cambio inicial obligatorio de contraseña." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => users.refetch()}>Actualizar</Button></Space></div>
-    <Alert type="info" showIcon icon={<SafetyCertificateOutlined />} message="Las cuentas nuevas deben cambiar su contraseña en el primer ingreso. La contraseña debe tener al menos 6 caracteres." style={{ marginBottom: 18 }} />
+    <div className="page-heading"><ModuleHeadingIntro title="Usuarios" eyebrow="Seguridad" description="Administra cuentas y roles. Las cuentas nuevas deben cambiar su contraseña en el primer ingreso y usar al menos 6 caracteres." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => users.refetch()}>Actualizar</Button></Space></div>
     <Card className="section-card" title="Usuarios registrados" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(undefined); form.resetFields(); setOpen(true); }}>Nuevo usuario</Button> : null}>{users.error ? <Alert type="error" showIcon message={users.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={users.isLoading} columns={columns} dataSource={users.data?.items ?? []} scroll={{ x: 1100 }} pagination={{ pageSize: 15 }} locale={{ emptyText: <Empty description="Aún no hay usuarios registrados" /> }} /></Card>
     <Modal title={editing ? "Editar usuario" : "Nuevo usuario"} open={open} onCancel={() => { setOpen(false); setEditing(undefined); }} onOk={() => form.submit()} okText={editing ? "Guardar cambios" : "Crear usuario"} confirmLoading={create.isPending || update.isPending} width={720} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={(values) => editing ? update.mutate(values) : create.mutate(values)}>

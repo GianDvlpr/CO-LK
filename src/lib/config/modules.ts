@@ -81,6 +81,14 @@ export const appModules = [
     phase: 5,
   },
   {
+    key: "calendar",
+    label: "Calendario",
+    href: "/dashboard/calendar",
+    description: "Agenda operativa, vencimientos y recordatorios.",
+    permission: "calendar.read",
+    phase: 5,
+  },
+  {
     key: "catalogs",
     label: "Catálogos",
     href: "/dashboard/catalogs",

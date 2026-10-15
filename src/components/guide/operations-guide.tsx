@@ -39,9 +39,10 @@ const dependencies = [
   { key: "products", label: "Productos", children: <p>Necesita unidades, tallas y colores. Cada variante genera o vincula un ítem de producto terminado en Almacén.</p> },
   { key: "purchases", label: "Compras", children: <p>Necesita proveedor, moneda, almacén y materias primas previamente registradas. Solo una compra aprobada incrementa el stock.</p> },
   { key: "recipes", label: "Recetas", children: <p>Necesita un producto y materias primas del Almacén. Crear o activar una receta no descuenta stock.</p> },
-  { key: "production", label: "Producción", children: <p>Necesita una variante de producto, una receta activa, un almacén y stock suficiente. Al iniciar consume materiales; al completar ingresa producto terminado.</p> },
+  { key: "production", label: "Producción", children: <p>Necesita una variante de producto, una receta activa, un almacén y stock suficiente. Puede operarse como lista o tablero Kanban. En el tablero cada orden avanza una columna: reservar materiales, iniciar consumiendo el kardex y finalizar ingresando el producto terminado.</p> },
   { key: "orders", label: "Pedidos", children: <p>Necesita un cliente y variantes de Productos. Al confirmar reserva el stock de producto terminado y queda disponible para preparación.</p> },
   { key: "pick-pack", label: "Pick & Pack y despacho", children: <p>Necesita un pedido confirmado. Picking registra lo recogido, packing registra lo empacado y cualquier diferencia exige una incidencia. Solo al despachar se descuenta del kardex la cantidad realmente empacada.</p> },
+  { key: "calendar", label: "Calendario", children: <p>Se alimenta automáticamente de Pedidos, Producción, Pick & Pack y Mantenimiento. Los eventos manuales sirven para inventarios físicos, reuniones y tareas internas; en la vista Tareas pueden arrastrarse entre Pendiente, Finalizado y Cancelado.</p> },
 ];
 
 export function OperationsGuide() {
@@ -64,12 +65,13 @@ export function OperationsGuide() {
               { color: "green", children: <><strong>4. Recetas</strong><br />Vincula productos con las materias primas requeridas.</> },
               { color: "green", children: <><strong>5. Producción y Pedidos</strong><br />Consume materiales, produce y confirma pedidos para reservar stock.</> },
               { color: "blue", children: <><strong>6. Pick & Pack y despacho</strong><br />Recoge, empaca, imprime el formato y contabiliza la salida final.</> },
+              { color: "blue", children: <><strong>7. Calendario</strong><br />Supervisa compromisos, vencimientos, mantenimientos y recordatorios en una agenda común.</> },
             ]} />
           </Card>
         </Col>
         <Col xs={24} lg={14}>
           <Card className="section-card" title={<Space><LinkOutlined />Dependencias por módulo</Space>}>
-            <Collapse items={dependencies} defaultActiveKey={["purchases", "recipes", "orders", "pick-pack"]} />
+            <Collapse items={dependencies} defaultActiveKey={["purchases", "recipes", "orders", "pick-pack", "calendar"]} />
           </Card>
         </Col>
       </Row>
