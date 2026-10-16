@@ -28,15 +28,15 @@ function optionalText(value: unknown) {
 export function mapApisNetPeDni(payload: unknown, consultedAt = new Date().toISOString()): DniLookupResult {
   if (!payload || typeof payload !== "object") throw new DniLookupError("DNI_PROVIDER_UNAVAILABLE", "El servicio de consulta DNI devolvió una respuesta inválida.", 502);
   const data = payload as Record<string, unknown>;
-  const dni = optionalText(data.numeroDocumento) ?? optionalText(data.numero);
-  const name = optionalText(data.nombre) ?? optionalText(data.nombre_completo);
+  const dni = optionalText(data.document_number) ?? optionalText(data.numeroDocumento) ?? optionalText(data.numero);
+  const name = optionalText(data.full_name) ?? optionalText(data.nombre) ?? optionalText(data.nombre_completo);
   if (!dni || !name) throw new DniLookupError("DNI_PROVIDER_UNAVAILABLE", "El servicio de consulta DNI devolvió datos incompletos.", 502);
   return {
     dni,
     name,
-    firstNames: optionalText(data.nombres),
-    paternalSurname: optionalText(data.apellidoPaterno) ?? optionalText(data.apellido_paterno),
-    maternalSurname: optionalText(data.apellidoMaterno) ?? optionalText(data.apellido_materno),
+    firstNames: optionalText(data.first_name) ?? optionalText(data.nombres),
+    paternalSurname: optionalText(data.first_last_name) ?? optionalText(data.apellidoPaterno) ?? optionalText(data.apellido_paterno),
+    maternalSurname: optionalText(data.second_last_name) ?? optionalText(data.apellidoMaterno) ?? optionalText(data.apellido_materno),
     source: "APIS.NET.PE",
     consultedAt,
   };

@@ -27,6 +27,23 @@ describe("consulta de DNI", () => {
     expect(result.name).toBe("PEREZ GARCIA JUAN CARLOS");
   });
 
+  it("acepta la respuesta vigente de Decolecta", () => {
+    const result = mapApisNetPeDni({
+      document_number: "46027897",
+      full_name: "HUAMANI MENDOZA ERACLEO JUAN",
+      first_name: "ERACLEO JUAN",
+      first_last_name: "HUAMANI",
+      second_last_name: "MENDOZA",
+    });
+    expect(result).toMatchObject({
+      dni: "46027897",
+      name: "HUAMANI MENDOZA ERACLEO JUAN",
+      firstNames: "ERACLEO JUAN",
+      paternalSurname: "HUAMANI",
+      maternalSurname: "MENDOZA",
+    });
+  });
+
   it("rechaza respuestas incompletas", () => {
     expect(() => mapApisNetPeDni({ numeroDocumento: "46027897" })).toThrow(DniLookupError);
   });
