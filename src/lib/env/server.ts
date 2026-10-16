@@ -15,6 +15,7 @@ export const serverEnvSchema = z.object({
   PUSHER_SECRET: optionalSecret,
   PUSHER_CLUSTER: optionalSecret,
   SUNAT_RUC_API_URL: z.string().url().default("https://api.apis.net.pe/v2/sunat/ruc"),
+  SUNAT_DNI_API_URL: z.string().url().default("https://api.decolecta.com/v1/reniec/dni"),
   SUNAT_RUC_API_TOKEN: optionalSecret,
   WORKER_SECRET: optionalSecret,
 });

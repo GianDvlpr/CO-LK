@@ -2,7 +2,7 @@
 
 import { CheckCircleOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Checkbox, Empty, Form, Input, InputNumber, Modal, Space, Tabs, Tag } from "antd";
+import { Alert, Button, Card, Checkbox, Empty, Form, Input, InputNumber, Modal, Select, Space, Tabs, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -10,10 +10,12 @@ import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 
 type CatalogType = "SUPPLIER" | "CUSTOMER" | "WAREHOUSE" | "UNIT" | "CURRENCY";
+type DocumentType = "DNI" | "RUC";
 type Common = {
   id: string;
   code: string;
   name: string;
+  documentType?: DocumentType | null;
   taxId?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -39,6 +41,7 @@ type Catalogs = { suppliers: Contact[]; customers: Contact[]; warehouses: Wareho
 type CatalogForm = {
   code?: string;
   name: string;
+  documentType?: DocumentType;
   taxId?: string;
   email?: string;
   phone?: string;
@@ -68,6 +71,15 @@ type RucLookup = {
   source: "APIS.NET.PE";
   consultedAt: string;
 };
+type DniLookup = {
+  dni: string;
+  name: string;
+  firstNames: string | null;
+  paternalSurname: string | null;
+  maternalSurname: string | null;
+  source: "APIS.NET.PE";
+  consultedAt: string;
+};
 
 const labels: Record<CatalogType, { singular: string; plural: string }> = {
   SUPPLIER: { singular: "proveedor", plural: "Proveedores" },
@@ -91,7 +103,7 @@ const commonColumns: ColumnsType<Common> = [
 ];
 const contactColumns: ColumnsType<Common> = [
   ...commonColumns,
-  { title: "RUC / documento", dataIndex: "taxId", width: 150, render: (value) => value || "—" },
+  { title: "Documento", dataIndex: "taxId", width: 190, render: (value, row) => value ? <Space size={4}><Tag>{row.documentType ?? (value.length === 8 ? "DNI" : "RUC")}</Tag><span>{value}</span></Space> : "—" },
   { title: "Estado", dataIndex: "active", width: 100, render: (value) => value === false ? <Tag>Inactivo</Tag> : <Tag color="green">Activo</Tag> },
 ];
 
@@ -100,9 +112,10 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
   const [active, setActive] = useState<CatalogType>("SUPPLIER");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Common>();
-  const [checkedRuc, setCheckedRuc] = useState<string>();
+  const [checkedDocument, setCheckedDocument] = useState<string>();
   const [form] = Form.useForm<CatalogForm>();
   const taxId = Form.useWatch("taxId", form);
+  const documentType = Form.useWatch("documentType", form) ?? "RUC";
 
   const catalogs = useQuery({ queryKey: ["catalogs"], queryFn: () => api<Catalogs>("/api/v1/catalogs") });
   const refreshCatalogDependencies = async () => Promise.all([
@@ -121,7 +134,7 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
     onSuccess: async () => { toast.success("Registro actualizado."); setOpen(false); setEditing(undefined); form.resetFields(); await refreshCatalogDependencies(); },
     onError: (error) => toast.error(error.message),
   });
-  const lookup = useMutation({
+  const rucLookup = useMutation({
     mutationFn: (ruc: string) => api<RucLookup>("/api/v1/taxpayers/ruc", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ruc }) }),
     onSuccess: (result) => {
       form.setFieldsValue({
@@ -137,8 +150,29 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
         sunatSource: result.source,
         sunatCheckedAt: result.consultedAt,
       });
-      setCheckedRuc(result.ruc);
+      setCheckedDocument(result.ruc);
       toast.success("Datos del RUC encontrados. Revísalos antes de guardar.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const dniLookup = useMutation({
+    mutationFn: (dni: string) => api<DniLookup>("/api/v1/taxpayers/dni", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dni }) }),
+    onSuccess: (result) => {
+      form.setFieldsValue({
+        taxId: result.dni,
+        name: result.name,
+        fiscalAddress: undefined,
+        ubigeo: undefined,
+        department: undefined,
+        province: undefined,
+        district: undefined,
+        rucStatus: undefined,
+        rucCondition: undefined,
+        sunatSource: result.source,
+        sunatCheckedAt: result.consultedAt,
+      });
+      setCheckedDocument(result.dni);
+      toast.success("Nombre encontrado. Revísalo antes de guardar.");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -153,18 +187,21 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
 
   const openCreate = () => {
     setEditing(undefined);
-    setCheckedRuc(undefined);
-    lookup.reset();
+    setCheckedDocument(undefined);
+    rucLookup.reset();
+    dniLookup.reset();
     form.resetFields();
-    form.setFieldsValue(active === "UNIT" ? { decimalPlaces: 3 } : active === "CURRENCY" ? { isBase: false } : {});
+    form.setFieldsValue(active === "UNIT" ? { decimalPlaces: 3 } : active === "CURRENCY" ? { isBase: false } : (active === "SUPPLIER" || active === "CUSTOMER") ? { documentType: "RUC" } : {});
     setOpen(true);
   };
   const openEdit = (record: Common) => {
     setEditing(record);
-    setCheckedRuc(record.sunatCheckedAt ? record.taxId ?? undefined : undefined);
-    lookup.reset();
+    setCheckedDocument(record.sunatCheckedAt ? record.taxId ?? undefined : undefined);
+    rucLookup.reset();
+    dniLookup.reset();
     form.setFieldsValue({
       ...record,
+      documentType: record.documentType ?? (record.taxId?.length === 8 ? "DNI" : "RUC"),
       taxId: record.taxId ?? undefined,
       email: record.email ?? undefined,
       phone: record.phone ?? undefined,
@@ -238,7 +275,7 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
       title={`${editing ? "Editar" : "Nuevo"} ${labels[active].singular}`}
       width={760}
       open={open}
-      onCancel={() => { setOpen(false); setEditing(undefined); setCheckedRuc(undefined); }}
+      onCancel={() => { setOpen(false); setEditing(undefined); setCheckedDocument(undefined); }}
       onOk={() => form.submit()}
       okText={editing ? "Guardar cambios" : "Crear"}
       confirmLoading={create.isPending || update.isPending}
@@ -249,7 +286,7 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
         layout="vertical"
         onFinish={(values) => editing ? update.mutate(values) : create.mutate(values)}
         onValuesChange={(changed) => {
-          if ("taxId" in changed && changed.taxId !== checkedRuc) {
+          if ("taxId" in changed && changed.taxId !== checkedDocument) {
             form.setFieldsValue({ rucStatus: undefined, rucCondition: undefined, sunatSource: undefined, sunatCheckedAt: undefined });
           }
         }}
@@ -260,15 +297,38 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
           <Form.Item name="sunatSource" hidden><Input /></Form.Item>
           <Form.Item name="sunatCheckedAt" hidden><Input /></Form.Item>
           {editing ? <Form.Item label="Código"><Input disabled value={editing.code} /></Form.Item> : null}
-          <Form.Item label="RUC / documento" extra="Para autocompletar, ingresa un RUC peruano de 11 dígitos. También puedes registrar los datos manualmente.">
-            <Space.Compact block>
-              <Form.Item name="taxId" noStyle normalize={(value) => typeof value === "string" ? value.replace(/\D/g, "").slice(0, 11) : value}>
-                <Input inputMode="numeric" maxLength={11} placeholder="20131312955" />
-              </Form.Item>
-              <Button icon={<SearchOutlined />} loading={lookup.isPending} disabled={!/^\d{11}$/.test(taxId ?? "")} onClick={() => lookup.mutate(taxId!)}>Consultar SUNAT</Button>
-            </Space.Compact>
-          </Form.Item>
-          <Form.Item name="name" label="Nombre o razón social" rules={[{ required: true }]}><Input /></Form.Item>
+          <div className="catalog-document-grid">
+            <Form.Item name="documentType" label="Tipo de documento" rules={[{ required: true }]}>
+              <Select
+                options={[{ value: "DNI", label: "DNI" }, { value: "RUC", label: "RUC" }]}
+                onChange={() => {
+                  setCheckedDocument(undefined);
+                  rucLookup.reset();
+                  dniLookup.reset();
+                  form.setFieldsValue({ taxId: undefined, fiscalAddress: undefined, ubigeo: undefined, department: undefined, province: undefined, district: undefined, rucStatus: undefined, rucCondition: undefined, sunatSource: undefined, sunatCheckedAt: undefined });
+                }}
+              />
+            </Form.Item>
+            <Form.Item label="Número de documento">
+              <Space.Compact block>
+                <Form.Item
+                  name="taxId"
+                  noStyle
+                  normalize={(value) => typeof value === "string" ? value.replace(/\D/g, "").slice(0, documentType === "DNI" ? 8 : 11) : value}
+                  rules={[{ pattern: documentType === "DNI" ? /^\d{8}$/ : /^\d{11}$/, message: `Ingresa un ${documentType} válido.` }]}
+                >
+                  <Input inputMode="numeric" maxLength={documentType === "DNI" ? 8 : 11} placeholder={documentType === "DNI" ? "44556677" : "20131312955"} />
+                </Form.Item>
+                <Button
+                  icon={<SearchOutlined />}
+                  loading={rucLookup.isPending || dniLookup.isPending}
+                  disabled={documentType === "DNI" ? !/^\d{8}$/.test(taxId ?? "") : !/^\d{11}$/.test(taxId ?? "")}
+                  onClick={() => documentType === "DNI" ? dniLookup.mutate(taxId!) : rucLookup.mutate(taxId!)}
+                >Consultar {documentType}</Button>
+              </Space.Compact>
+            </Form.Item>
+          </div>
+          <Form.Item name="name" label={documentType === "DNI" ? "Nombre completo" : "Nombre o razón social"} rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="fiscalAddress" label="Dirección fiscal"><Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} /></Form.Item>
           <div className="catalog-location-grid">
             <Form.Item name="department" label="Departamento"><Input /></Form.Item>

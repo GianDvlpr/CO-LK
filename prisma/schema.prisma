@@ -15,6 +15,11 @@ enum UserStatus {
   BLOCKED
 }
 
+enum TaxDocumentType {
+  DNI
+  RUC
+}
+
 enum SessionEndReason {
   LOGOUT
   REVOKED
@@ -525,24 +530,25 @@ model InventoryAdjustmentLine {
 }
 
 model Supplier {
-  id             String     @id @default(uuid()) @db.Uuid
-  companyId      String     @map("company_id") @db.Uuid
+  id             String          @id @default(uuid()) @db.Uuid
+  companyId      String          @map("company_id") @db.Uuid
   code           String
   name           String
-  taxId          String?    @map("tax_id")
+  taxId          String?         @map("tax_id")
+  documentType   TaxDocumentType @default(RUC) @map("document_type")
   email          String?
   phone          String?
-  fiscalAddress  String?    @map("fiscal_address")
-  ubigeo         String?    @db.VarChar(6)
+  fiscalAddress  String?         @map("fiscal_address")
+  ubigeo         String?         @db.VarChar(6)
   department     String?
   province       String?
   district       String?
-  rucStatus      String?    @map("ruc_status")
-  rucCondition   String?    @map("ruc_condition")
-  sunatSource    String?    @map("sunat_source")
-  sunatCheckedAt DateTime?  @map("sunat_checked_at")
-  active         Boolean    @default(true)
-  company        Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rucStatus      String?         @map("ruc_status")
+  rucCondition   String?         @map("ruc_condition")
+  sunatSource    String?         @map("sunat_source")
+  sunatCheckedAt DateTime?       @map("sunat_checked_at")
+  active         Boolean         @default(true)
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   purchases      Purchase[]
 
   @@unique([companyId, code])
@@ -877,24 +883,25 @@ model ProductionMaterial {
 }
 
 model Customer {
-  id             String       @id @default(uuid()) @db.Uuid
-  companyId      String       @map("company_id") @db.Uuid
+  id             String          @id @default(uuid()) @db.Uuid
+  companyId      String          @map("company_id") @db.Uuid
   code           String
   name           String
-  taxId          String?      @map("tax_id")
+  taxId          String?         @map("tax_id")
+  documentType   TaxDocumentType @default(RUC) @map("document_type")
   email          String?
   phone          String?
-  fiscalAddress  String?      @map("fiscal_address")
-  ubigeo         String?      @db.VarChar(6)
+  fiscalAddress  String?         @map("fiscal_address")
+  ubigeo         String?         @db.VarChar(6)
   department     String?
   province       String?
   district       String?
-  rucStatus      String?      @map("ruc_status")
-  rucCondition   String?      @map("ruc_condition")
-  sunatSource    String?      @map("sunat_source")
-  sunatCheckedAt DateTime?    @map("sunat_checked_at")
-  active         Boolean      @default(true)
-  company        Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rucStatus      String?         @map("ruc_status")
+  rucCondition   String?         @map("ruc_condition")
+  sunatSource    String?         @map("sunat_source")
+  sunatCheckedAt DateTime?       @map("sunat_checked_at")
+  active         Boolean         @default(true)
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   salesOrders    SalesOrder[]
 
   @@unique([companyId, code])

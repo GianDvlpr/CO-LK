@@ -12,6 +12,7 @@ const commonName = z.string().trim().min(1).max(150);
 const optionalText = (max: number) => z.string().trim().max(max).optional();
 const taxpayerFields = {
   name: commonName,
+  documentType: z.enum(["DNI", "RUC"]).default("RUC"),
   taxId: optionalText(30),
   email: optionalText(150),
   phone: optionalText(30),
@@ -31,7 +32,11 @@ const createSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("WAREHOUSE"), code: commonCode, name: commonName }),
   z.object({ type: z.literal("UNIT"), code: commonCode, name: commonName, symbol: z.string().trim().min(1).max(20), decimalPlaces: z.number().int().min(0).max(6) }),
   z.object({ type: z.literal("CURRENCY"), code: z.string().trim().length(3).transform((value) => value.toUpperCase()), name: commonName, symbol: z.string().trim().min(1).max(10), isBase: z.boolean().default(false) }),
-]);
+]).superRefine((data, context) => {
+  if ((data.type !== "SUPPLIER" && data.type !== "CUSTOMER") || !data.taxId) return;
+  const pattern = data.documentType === "DNI" ? /^\d{8}$/ : /^\d{11}$/;
+  if (!pattern.test(data.taxId)) context.addIssue({ code: "custom", path: ["taxId"], message: `El ${data.documentType} no tiene la cantidad de dígitos correcta.` });
+});
 
 function clean(value?: string) { return value || undefined; }
 function knownError(error: unknown) {
@@ -63,8 +68,8 @@ export async function POST(request: Request) {
     const result = await prisma.$transaction(async (tx) => {
       const input = parsed.data;
       let created: { id: string; code?: string };
-      if (input.type === "SUPPLIER") created = await tx.supplier.create({ data: { companyId: user.companyId, code: await nextBusinessCode(tx, user.companyId, "SUPPLIER"), name: input.name, taxId: clean(input.taxId), email: clean(input.email), phone: clean(input.phone), fiscalAddress: clean(input.fiscalAddress), ubigeo: clean(input.ubigeo), department: clean(input.department), province: clean(input.province), district: clean(input.district), rucStatus: clean(input.rucStatus), rucCondition: clean(input.rucCondition), sunatSource: input.sunatSource, sunatCheckedAt: input.sunatCheckedAt } });
-      else if (input.type === "CUSTOMER") created = await tx.customer.create({ data: { companyId: user.companyId, code: await nextBusinessCode(tx, user.companyId, "CUSTOMER"), name: input.name, taxId: clean(input.taxId), email: clean(input.email), phone: clean(input.phone), fiscalAddress: clean(input.fiscalAddress), ubigeo: clean(input.ubigeo), department: clean(input.department), province: clean(input.province), district: clean(input.district), rucStatus: clean(input.rucStatus), rucCondition: clean(input.rucCondition), sunatSource: input.sunatSource, sunatCheckedAt: input.sunatCheckedAt } });
+      if (input.type === "SUPPLIER") created = await tx.supplier.create({ data: { companyId: user.companyId, code: await nextBusinessCode(tx, user.companyId, "SUPPLIER"), name: input.name, documentType: input.documentType, taxId: clean(input.taxId), email: clean(input.email), phone: clean(input.phone), fiscalAddress: clean(input.fiscalAddress), ubigeo: clean(input.ubigeo), department: clean(input.department), province: clean(input.province), district: clean(input.district), rucStatus: clean(input.rucStatus), rucCondition: clean(input.rucCondition), sunatSource: input.sunatSource, sunatCheckedAt: input.sunatCheckedAt } });
+      else if (input.type === "CUSTOMER") created = await tx.customer.create({ data: { companyId: user.companyId, code: await nextBusinessCode(tx, user.companyId, "CUSTOMER"), name: input.name, documentType: input.documentType, taxId: clean(input.taxId), email: clean(input.email), phone: clean(input.phone), fiscalAddress: clean(input.fiscalAddress), ubigeo: clean(input.ubigeo), department: clean(input.department), province: clean(input.province), district: clean(input.district), rucStatus: clean(input.rucStatus), rucCondition: clean(input.rucCondition), sunatSource: input.sunatSource, sunatCheckedAt: input.sunatCheckedAt } });
       else if (input.type === "WAREHOUSE") created = await tx.warehouse.create({ data: { companyId: user.companyId, code: input.code, name: input.name } });
       else if (input.type === "UNIT") created = await tx.unitOfMeasure.create({ data: { companyId: user.companyId, code: input.code, name: input.name, symbol: input.symbol, decimalPlaces: input.decimalPlaces } });
       else {

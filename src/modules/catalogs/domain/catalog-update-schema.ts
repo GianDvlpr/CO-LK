@@ -5,6 +5,7 @@ const optionalCheckedAt = z.string().datetime().nullish().transform((value) => v
 
 export const catalogUpdateSchema = z.object({
   name: z.string().trim().min(1).max(150),
+  documentType: z.enum(["DNI", "RUC"]).optional(),
   taxId: optionalContactText(30),
   email: optionalContactText(150),
   phone: optionalContactText(30),
@@ -20,4 +21,9 @@ export const catalogUpdateSchema = z.object({
   symbol: z.string().trim().max(20).optional(),
   decimalPlaces: z.number().int().min(0).max(6).optional(),
   isBase: z.boolean().optional(),
+}).superRefine((data, context) => {
+  if (!data.taxId) return;
+  const documentType = data.documentType ?? (/^\d{8}$/.test(data.taxId) ? "DNI" : "RUC");
+  const pattern = documentType === "DNI" ? /^\d{8}$/ : /^\d{11}$/;
+  if (!pattern.test(data.taxId)) context.addIssue({ code: "custom", path: ["taxId"], message: `El ${documentType} no tiene la cantidad de dígitos correcta.` });
 });

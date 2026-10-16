@@ -19,7 +19,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ type:
     const result = await prisma.$transaction(async (tx) => {
       const data = parsed.data;
       let count = 0;
-      const taxpayerData = { name: data.name, taxId: data.taxId || null, email: data.email || null, phone: data.phone || null, fiscalAddress: data.fiscalAddress || null, ubigeo: data.ubigeo || null, department: data.department || null, province: data.province || null, district: data.district || null, rucStatus: data.rucStatus || null, rucCondition: data.rucCondition || null, sunatSource: data.sunatSource || null, sunatCheckedAt: data.sunatCheckedAt || null };
+      const taxpayerData = { name: data.name, documentType: data.documentType ?? (data.taxId && /^\d{8}$/.test(data.taxId) ? "DNI" : "RUC"), taxId: data.taxId || null, email: data.email || null, phone: data.phone || null, fiscalAddress: data.fiscalAddress || null, ubigeo: data.ubigeo || null, department: data.department || null, province: data.province || null, district: data.district || null, rucStatus: data.rucStatus || null, rucCondition: data.rucCondition || null, sunatSource: data.sunatSource || null, sunatCheckedAt: data.sunatCheckedAt || null };
       if (type === "SUPPLIER") count = (await tx.supplier.updateMany({ where: { id: params.id, companyId: user.companyId }, data: taxpayerData })).count;
       else if (type === "CUSTOMER") count = (await tx.customer.updateMany({ where: { id: params.id, companyId: user.companyId }, data: taxpayerData })).count;
       else if (type === "WAREHOUSE") count = (await tx.warehouse.updateMany({ where: { id: params.id, companyId: user.companyId }, data: { name: data.name } })).count;
