@@ -5,9 +5,9 @@ import { apiError, apiSuccess } from "@/lib/http/api-response";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
+import { nextBusinessCode } from "@/lib/database/business-code";
 
 const schema = z.object({
-  code: z.string().trim().min(1).max(50).transform((value) => value.toUpperCase()),
   name: z.string().trim().min(1).max(150),
   type: z.enum(["PRESS", "INJECTOR", "OTHER"]),
   brand: z.string().trim().max(100).optional(), model: z.string().trim().max(100).optional(),
@@ -34,8 +34,9 @@ export async function POST(request: Request) {
     const parsed = schema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return apiError("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "La máquina contiene datos inválidos.", 400);
     const machine = await prisma.$transaction(async (tx) => {
-      const created = await tx.machine.create({ data: { companyId: user.companyId, ...parsed.data } });
-      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "Machine", entityId: created.id, action: "CREATE", afterData: parsed.data } });
+      const code = await nextBusinessCode(tx, user.companyId, "MACHINE");
+      const created = await tx.machine.create({ data: { companyId: user.companyId, code, ...parsed.data } });
+      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "Machine", entityId: created.id, action: "CREATE", afterData: { ...parsed.data, code } } });
       return created;
     });
     return apiSuccess(machine, 201);

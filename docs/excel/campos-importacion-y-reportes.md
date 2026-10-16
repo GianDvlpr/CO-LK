@@ -1,6 +1,6 @@
 # Campos de importación y reportes Excel
 
-Actualizado: 13/10/2026.
+Actualizado: 16/10/2026.
 
 ## Regla general
 
@@ -14,18 +14,32 @@ La misma hoja también incluye un ejemplo concreto por cada campo (códigos, fec
 
 | Módulo | Hoja | Campos obligatorios |
 | --- | --- | --- |
-| Compras | Compras | `codigo_compra`, `fecha_recepcion`, `proveedor_codigo`, `numero_documento`, `moneda` |
-| Compras | DetalleCompra | `codigo_compra`, `linea_numero`, `material_codigo`, `cantidad_presentaciones`, `contenido_por_presentacion`, `precio_neto_unidad_base` |
-| Almacén | Items | `accion`, `codigo`, `nombre`, `tipo_item`, `unidad_base` |
-| Almacén | MovimientosIniciales | `item_codigo`, `almacen_codigo`, `fecha`, `cantidad`, `costo_unitario_pen` |
-| Recetas | Recetas | `accion`, `receta_codigo`, `producto_codigo`, `version`, `rendimiento` |
-| Recetas | Ingredientes | `receta_codigo`, `version`, `material_codigo`, `cantidad` |
-| Productos | Productos | `accion`, `producto_codigo`, `nombre` |
-| Productos | Variantes | `producto_codigo`, `sku`, `talla`, `color`, `unidad` |
-| Pedidos | Pedidos | `numero_pedido`, `cliente_codigo`, `fecha` |
-| Pedidos | DetallePedido | `numero_pedido`, `linea_numero`, `sku`, `cantidad`, `precio_neto_unitario` |
+| Compras | Compras | `fecha_recepcion`, `proveedor_codigo`, `numero_documento`, `moneda`, `estado`, `linea_numero`, `material_codigo`, `cantidad_presentaciones`, `tipo_presentacion`, `contenido_por_presentacion`, `unidad_contenido`, `precio_neto_unidad_base`, `tasa_igv` |
+| Almacén | Almacén | `nombre`, `tipo_item`, `unidad_base` |
+| Recetas | Recetas | `referencia_carga`, `producto_codigo`, `version`, `rendimiento`, `material_codigo`, `cantidad` |
+| Productos | Productos | `referencia_carga`, `nombre` |
+| Pedidos | Pedidos | `referencia_carga`, `cliente_codigo`, `fecha`, `linea_numero`, `sku`, `cantidad`, `precio_neto_unitario` |
 
 Los demás campos pueden quedar vacíos. Algunos reciben valores predeterminados: IGV 18%, tipo de cambio 1, stock mínimo 0, merma 0, activo `SI`, modo de lote `NONE` y secuencias automáticas cuando corresponde.
+
+## Códigos automáticos
+
+Los códigos oficiales no se escriben al crear registros desde la aplicación. Se generan dentro de la misma transacción de guardado, por empresa, sin reutilizar números y con bloqueo para evitar duplicados concurrentes.
+
+| Registro | Formato | Ejemplo |
+| --- | --- | --- |
+| Compra | `CMP-AÑO-######` | `CMP-2026-000001` |
+| Materia prima | `MP-######` | `MP-000001` |
+| Producto terminado de almacén | `PT-######` | `PT-000001` |
+| Receta | `REC-######` | `REC-000001` |
+| Orden de producción | `OP-AÑO-######` | `OP-2026-000001` |
+| Maquinaria | `MAQ-######` | `MAQ-000001` |
+| Pedido | `PED-AÑO-######` | `PED-2026-000001` |
+| Pick & Pack | `PP-AÑO-######` | `PP-2026-000001` |
+| Proveedor | `PROV-######` | `PROV-000001` |
+| Cliente | `CLI-######` | `CLI-000001` |
+
+En una plantilla Excel, un código vacío significa “crear” y el sistema asigna el siguiente correlativo. Un código informado significa “registro existente” y permite reconocer una fila proveniente de un reporte. Los reportes siempre incluyen el código oficial.
 
 ## Columnas informativas o calculadas
 
@@ -43,10 +57,11 @@ Estas columnas se conservan para que el reporte tenga el mismo formato, pero no 
 - En ese modo, una clave que ya existe en la base de datos se omite: no se duplica y tampoco sobrescribe el registro existente.
 - El resultado de la confirmación separa cuántos registros nuevos fueron agregados y cuántos existentes fueron omitidos.
 - La validación previa detecta claves repetidas dentro del mismo libro, ignorando diferencias entre mayúsculas y minúsculas. Una fila completamente idéntica se omite con advertencia; la misma clave con datos diferentes es un conflicto bloqueante.
-- En una plantilla de carga manual se conserva el modo `CREAR/ACTUALIZAR`: Compras y Pedidos rechazan códigos/números existentes; Almacén, Productos y Recetas aplican las reglas de la columna `accion`.
-- Almacén y Productos exigen `CREAR` para un código nuevo y `ACTUALIZAR` para uno existente.
-- En variantes, si `accion` queda vacía, el sistema infiere `CREAR` o `ACTUALIZAR` usando el SKU.
-- En Recetas, `ACTUALIZAR` crea una nueva versión de la receta existente; no duplica la cabecera de receta.
+- En una plantilla de carga manual, el sistema infiere la operación: sin código crea; con código busca el registro existente.
+- Compras y Pedidos no sobrescriben un código o número ya registrado.
+- Almacén y Productos actualizan el registro cuando reciben un código existente.
+- En variantes, el sistema reconoce registros existentes usando el SKU.
+- En Recetas, un código existente crea una nueva versión; no duplica la cabecera de receta.
 - El stock inicial se rechaza cuando el ítem ya tiene movimientos.
 - La confirmación es transaccional: si una fila presenta conflicto, se revierte el archivo completo.
 - El mismo archivo validado no puede confirmarse dos veces; se comprueba su huella SHA-256 y el estado del trabajo de importación.

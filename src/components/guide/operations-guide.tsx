@@ -53,7 +53,7 @@ export function OperationsGuide() {
       </div>
 
       <Alert type="info" showIcon message="Orden recomendado para iniciar" description="Configura primero Catálogos y Almacén; después Productos, Compras y Recetas; finalmente Producción y Pedidos." style={{ marginBottom: 18 }} />
-      <Alert type="success" showIcon message="Códigos automáticos en Excel" description="Usa referencia_carga para relacionar las hojas. Al crear registros puedes dejar vacío el código oficial; el sistema lo genera. Si vuelves a subir un reporte, los códigos descargados permiten omitir los registros existentes y agregar solo los nuevos." style={{ marginBottom: 18 }} />
+      <Alert type="success" showIcon message="Códigos automáticos" description="Compras (CMP), materias primas (MP), productos terminados (PT), recetas (REC), producción (OP), maquinaria (MAQ), pedidos (PED), Pick & Pack (PP), proveedores (PROV) y clientes (CLI) reciben su código al guardar. En Excel deja el código vacío para crear; conserva el código del reporte para reconocer un registro existente." style={{ marginBottom: 18 }} />
 
       <Row gutter={[18, 18]}>
         <Col xs={24} lg={10}>

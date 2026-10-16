@@ -8,7 +8,7 @@ import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { OrderError, updateSalesOrder } from "@/modules/orders/application/order-service";
 
 const decimal = z.union([z.string().min(1), z.number()]);
-const schema = z.object({ number: z.string().trim().min(1).max(50), customerId: z.uuid(), requestedAt: z.coerce.date(), promisedAt: z.coerce.date().optional(), notes: z.string().trim().max(500).optional(), lines: z.array(z.object({ productVariantId: z.uuid(), quantity: decimal, unitPrice: decimal })).min(1) });
+const schema = z.object({ customerId: z.uuid(), requestedAt: z.coerce.date(), promisedAt: z.coerce.date().optional(), notes: z.string().trim().max(500).optional(), lines: z.array(z.object({ productVariantId: z.uuid(), quantity: decimal, unitPrice: decimal })).min(1) });
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try { requireSameOrigin(request); } catch (error) { if (error instanceof AuthError) return apiError(error.code, error.message, error.status); throw error; }

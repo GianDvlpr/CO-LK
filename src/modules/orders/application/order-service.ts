@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { nextBusinessCode } from "@/lib/database/business-code";
 
 export class OrderError extends Error { constructor(public readonly code: string, message: string) { super(message); this.name = "OrderError"; } }
 async function lock(tx: Prisma.TransactionClient, warehouseId: string, itemId: string) { const key = `${warehouseId}:${itemId}:GLOBAL`; await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`; }
@@ -7,18 +8,19 @@ async function sequence(tx: Prisma.TransactionClient, companyId: string) { const
 async function mainWarehouse(tx: Prisma.TransactionClient, companyId: string) { return (await tx.warehouse.findFirst({ where: { companyId, active: true, code: "PRINCIPAL" } })) ?? await tx.warehouse.findFirst({ where: { companyId, active: true }, orderBy: { name: "asc" } }); }
 async function register(tx: Prisma.TransactionClient, companyId: string, userId: string, orderId: string, action: string, status: string) { await tx.auditLog.create({ data: { companyId, userId, entity: "SalesOrder", entityId: orderId, action, afterData: { status } } }); await tx.outboxEvent.create({ data: { companyId, topic: `private-company-${companyId}`, eventName: `order.${action.toLowerCase()}.v1`, aggregateId: orderId, payload: { salesOrderId: orderId, status } } }); }
 
-export async function createSalesOrder(database: PrismaClient, command: { companyId: string; userId: string; number: string; customerId: string; requestedAt: Date; promisedAt?: Date; notes?: string; lines: { productVariantId: string; quantity: Decimal.Value; unitPrice: Decimal.Value }[] }) {
+export async function createSalesOrder(database: PrismaClient, command: { companyId: string; userId: string; number?: string; customerId: string; requestedAt: Date; promisedAt?: Date; notes?: string; lines: { productVariantId: string; quantity: Decimal.Value; unitPrice: Decimal.Value }[] }) {
   if (!command.lines.length || new Set(command.lines.map((line) => line.productVariantId)).size !== command.lines.length) throw new OrderError("ORDER_INVALID_LINES", "El pedido requiere variantes únicas.");
   for (const line of command.lines) if (!new Decimal(line.quantity).greaterThan(0) || new Decimal(line.unitPrice).isNegative()) throw new OrderError("ORDER_INVALID_LINES", "Las cantidades deben ser positivas y los precios no pueden ser negativos.");
   return database.$transaction(async (tx) => {
     const [customer, variants] = await Promise.all([tx.customer.findFirst({ where: { id: command.customerId, companyId: command.companyId } }), tx.productVariant.findMany({ where: { id: { in: command.lines.map((line) => line.productVariantId) }, active: true, product: { companyId: command.companyId, active: true } } })]);
     if (!customer || variants.length !== command.lines.length) throw new OrderError("ORDER_INVALID_REFERENCE", "El cliente o alguna variante no es válida.");
-    const order = await tx.salesOrder.create({ data: { companyId: command.companyId, customerId: customer.id, number: command.number, requestedAt: command.requestedAt, promisedAt: command.promisedAt, notes: command.notes, lines: { create: command.lines.map((line) => ({ productVariantId: line.productVariantId, quantity: new Decimal(line.quantity), unitPrice: new Decimal(line.unitPrice) })) } } });
+    const number = command.number ?? await nextBusinessCode(tx, command.companyId, "SALES_ORDER", command.requestedAt);
+    const order = await tx.salesOrder.create({ data: { companyId: command.companyId, customerId: customer.id, number, requestedAt: command.requestedAt, promisedAt: command.promisedAt, notes: command.notes, lines: { create: command.lines.map((line) => ({ productVariantId: line.productVariantId, quantity: new Decimal(line.quantity), unitPrice: new Decimal(line.unitPrice) })) } } });
     await register(tx, command.companyId, command.userId, order.id, "CREATE", "DRAFT"); return order;
   });
 }
 
-export async function updateSalesOrder(database: PrismaClient, command: { companyId: string; userId: string; orderId: string; number: string; customerId: string; requestedAt: Date; promisedAt?: Date; notes?: string; lines: { productVariantId: string; quantity: Decimal.Value; unitPrice: Decimal.Value }[] }) {
+export async function updateSalesOrder(database: PrismaClient, command: { companyId: string; userId: string; orderId: string; customerId: string; requestedAt: Date; promisedAt?: Date; notes?: string; lines: { productVariantId: string; quantity: Decimal.Value; unitPrice: Decimal.Value }[] }) {
   if (!command.lines.length || new Set(command.lines.map((line) => line.productVariantId)).size !== command.lines.length) throw new OrderError("ORDER_INVALID_LINES", "El pedido requiere variantes únicas.");
   for (const line of command.lines) if (!new Decimal(line.quantity).greaterThan(0) || new Decimal(line.unitPrice).isNegative()) throw new OrderError("ORDER_INVALID_LINES", "Las cantidades deben ser positivas y los precios no pueden ser negativos.");
   return database.$transaction(async (tx) => {
@@ -32,7 +34,7 @@ export async function updateSalesOrder(database: PrismaClient, command: { compan
     ]);
     if (!customer || variants.length !== command.lines.length) throw new OrderError("ORDER_INVALID_REFERENCE", "El cliente o alguna variante no es válida.");
     await tx.salesOrderLine.deleteMany({ where: { salesOrderId: current.id } });
-    const order = await tx.salesOrder.update({ where: { id: current.id }, data: { number: command.number, customerId: customer.id, requestedAt: command.requestedAt, promisedAt: command.promisedAt ?? null, notes: command.notes ?? null, lines: { create: command.lines.map((line) => ({ productVariantId: line.productVariantId, quantity: new Decimal(line.quantity), unitPrice: new Decimal(line.unitPrice) })) } } });
+    const order = await tx.salesOrder.update({ where: { id: current.id }, data: { customerId: customer.id, requestedAt: command.requestedAt, promisedAt: command.promisedAt ?? null, notes: command.notes ?? null, lines: { create: command.lines.map((line) => ({ productVariantId: line.productVariantId, quantity: new Decimal(line.quantity), unitPrice: new Decimal(line.unitPrice) })) } } });
     await register(tx, command.companyId, command.userId, order.id, "UPDATE", "DRAFT");
     return order;
   });

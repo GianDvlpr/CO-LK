@@ -55,19 +55,19 @@ function exampleValue(column: string): string | number {
   const examples: Record<string, string | number> = {
     referencia_carga: "REGISTRO-1", compra_referencia: "REGISTRO-1", item_referencia: "REGISTRO-1", receta_referencia: "REGISTRO-1", producto_referencia: "REGISTRO-1", pedido_referencia: "REGISTRO-1",
     codigo_compra: "(se genera)", referencia_orden_origen: "OC-0001", secuencia_recepcion: 1,
-    fecha_recepcion: "2026-10-13", proveedor_codigo: "PROV-001", tipo_documento: "FACTURA", serie_documento: "F001",
+    fecha_recepcion: "2026-10-13", proveedor_codigo: "PROV-000001", tipo_documento: "FACTURA", serie_documento: "F001",
     numero_documento: "00001234", moneda: "PEN", tipo_cambio_pen: 1, fecha_tipo_cambio: "2026-10-13",
     fuente_tipo_cambio: "SUNAT", estado: "PENDIENTE", observaciones: "Registro de ejemplo", linea_numero: 1,
-    lote_linea_numero: 1, material_codigo: "MP-001", lote_proveedor: "LOTE-2026-01", fecha_vencimiento: "2027-10-13",
+    lote_linea_numero: 1, material_codigo: "MP-000001", lote_proveedor: "LOTE-2026-01", fecha_vencimiento: "2027-10-13",
     cantidad_presentaciones: 25, tipo_presentacion: "SACO", contenido_por_presentacion: 20, unidad_contenido: "KG",
     cantidad_base: 500, precio_neto_unidad_base: 4.5, tasa_igv: 18, precio_unitario_con_igv: 5.31,
     subtotal_neto: 2250, igv: 405, total_linea: 2655, codigo: "(se genera)", nombre: "Cuero negro",
     tipo_item: "MATERIA_PRIMA", unidad_base: "KG", modo_lote: "OPTIONAL", almacen_codigo: "PRINCIPAL",
-    stock_minimo: 10, activo: "SI", producto_activo: "SI", variante_activa: "SI", stock_inicial: 100, fecha_inicial: "2026-10-13", item_codigo: "MP-001", lote: "LOTE-2026-01", fecha: "2026-10-13",
+    stock_minimo: 10, activo: "SI", producto_activo: "SI", variante_activa: "SI", stock_inicial: 100, fecha_inicial: "2026-10-13", item_codigo: "MP-000001", lote: "LOTE-2026-01", fecha: "2026-10-13",
     cantidad: 100, costo_unitario_pen: 4.5, receta_codigo: "(se genera)", producto_codigo: "(se genera)",
     variante_sku: "ZAP-001-40-NEG", version: 1, rendimiento: 1, unidad_salida: "PAR",
     unidad: "KG", merma_porcentaje: 3, categoria: "Calzado", descripcion: "Zapato clásico", sku: "ZAP-001-40-NEG",
-    talla: "40", color: "NEG", precio_venta: 120, numero_pedido: "(se genera)", cliente_codigo: "CLI-001",
+    talla: "40", color: "NEG", precio_venta: 120, numero_pedido: "(se genera)", cliente_codigo: "CLI-000001",
     fecha_requerida: "2026-10-20", precio_neto_unitario: 100,
   };
   return examples[column] ?? (column.includes("fecha") ? "2026-10-13" : column.includes("codigo") ? "COD-001" : "Ejemplo");

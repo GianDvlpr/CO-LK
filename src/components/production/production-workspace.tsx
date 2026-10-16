@@ -38,7 +38,7 @@ type Options = {
   recipes: { id: string; productId: string; code: string; name: string; product: { id: string; code: string; name: string }; versions: { id: string; version: number; yieldQuantity: string }[] }[];
   machines: { id: string; code: string; name: string; type: string; status: string }[];
 };
-type FormValues = SheetValues & { number: string; warehouseId: string; productVariantId: string; recipeVersionId: string; machineId?: string; recipeRuns: number; plannedAt?: Dayjs };
+type FormValues = SheetValues & { warehouseId: string; productVariantId: string; recipeVersionId: string; machineId?: string; recipeRuns: number; plannedAt?: Dayjs };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -175,7 +175,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
       <Form form={form} layout="vertical" onFinish={(values) => create.mutate(values)} initialValues={{ recipeRuns: 1, plannedAt: dayjs(), sizeProgram: [], dailyProduction: [] }}>
         <Divider titlePlacement="left">Orden y planificación</Divider>
         <div className="purchase-form-grid">
-          <Form.Item name="number" label="N.° de orden" rules={[{ required: true }]}><Input placeholder="OP-0001" /></Form.Item>
+          <Form.Item label="N.° de orden"><Input disabled value="Se generará automáticamente al guardar" /></Form.Item>
           <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select options={options.data?.warehouses.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
           <Form.Item name="plannedAt" label="Fecha"><DatePicker style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="recipeRuns" label="Ejecuciones de receta" rules={[{ required: true }]}><InputNumber min={0.001} precision={3} style={{ width: "100%" }} /></Form.Item>

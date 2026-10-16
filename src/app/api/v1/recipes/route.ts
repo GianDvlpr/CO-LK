@@ -6,10 +6,11 @@ import { apiError, apiSuccess } from "@/lib/http/api-response";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
+import { nextBusinessCode } from "@/lib/database/business-code";
 
 const decimal = z.union([z.string().min(1), z.number()]);
 const createSchema = z.object({
-  code: z.string().trim().min(1).max(50), name: z.string().trim().min(1).max(150), productId: z.uuid(), yieldQuantity: decimal, notes: z.string().trim().max(500).optional(),
+  name: z.string().trim().min(1).max(150), productId: z.uuid(), yieldQuantity: decimal, notes: z.string().trim().max(500).optional(),
   ingredients: z.array(z.object({ itemId: z.uuid(), quantity: decimal, wastePercentage: decimal.default(0) })).min(1),
 });
 
@@ -46,7 +47,8 @@ export async function POST(request: Request) {
         tx.inventoryItem.findMany({ where: { id: { in: itemIds }, companyId: user.companyId, active: true, type: "RAW_MATERIAL" } }),
       ]);
       if (!product || materials.length !== itemIds.length) throw new Error("RECIPE_INVALID_REFERENCE");
-      const created = await tx.recipe.create({ data: { companyId: user.companyId, productId: product.id, code: parsed.data.code, name: parsed.data.name, status: "DRAFT", versions: { create: { version: 1, yieldQuantity, notes: parsed.data.notes, isActive: false, ingredients: { create: parsed.data.ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: new Decimal(ingredient.quantity), wastePercentage: new Decimal(ingredient.wastePercentage) })) } } } } });
+      const code = await nextBusinessCode(tx, user.companyId, "RECIPE");
+      const created = await tx.recipe.create({ data: { companyId: user.companyId, productId: product.id, code, name: parsed.data.name, status: "DRAFT", versions: { create: { version: 1, yieldQuantity, notes: parsed.data.notes, isActive: false, ingredients: { create: parsed.data.ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: new Decimal(ingredient.quantity), wastePercentage: new Decimal(ingredient.wastePercentage) })) } } } } });
       await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "Recipe", entityId: created.id, action: "CREATE", afterData: { code: created.code, version: 1, ingredientCount: itemIds.length } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "recipe.created.v1", aggregateId: created.id, payload: { recipeId: created.id, code: created.code } } });
       return created;

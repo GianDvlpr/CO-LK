@@ -5,12 +5,13 @@ import { apiError, apiSuccess } from "@/lib/http/api-response";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
+import { nextBusinessCode } from "@/lib/database/business-code";
 
 const commonCode = z.string().trim().min(1).max(50);
 const commonName = z.string().trim().min(1).max(150);
 const createSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("SUPPLIER"), code: commonCode, name: commonName, taxId: z.string().trim().max(30).optional(), email: z.string().trim().max(150).optional(), phone: z.string().trim().max(30).optional() }),
-  z.object({ type: z.literal("CUSTOMER"), code: commonCode, name: commonName, taxId: z.string().trim().max(30).optional(), email: z.string().trim().max(150).optional(), phone: z.string().trim().max(30).optional() }),
+  z.object({ type: z.literal("SUPPLIER"), name: commonName, taxId: z.string().trim().max(30).optional(), email: z.string().trim().max(150).optional(), phone: z.string().trim().max(30).optional() }),
+  z.object({ type: z.literal("CUSTOMER"), name: commonName, taxId: z.string().trim().max(30).optional(), email: z.string().trim().max(150).optional(), phone: z.string().trim().max(30).optional() }),
   z.object({ type: z.literal("WAREHOUSE"), code: commonCode, name: commonName }),
   z.object({ type: z.literal("UNIT"), code: commonCode, name: commonName, symbol: z.string().trim().min(1).max(20), decimalPlaces: z.number().int().min(0).max(6) }),
   z.object({ type: z.literal("CURRENCY"), code: z.string().trim().length(3).transform((value) => value.toUpperCase()), name: commonName, symbol: z.string().trim().min(1).max(10), isBase: z.boolean().default(false) }),
@@ -45,16 +46,16 @@ export async function POST(request: Request) {
     const user = await requirePermission("catalogs.manage");
     const result = await prisma.$transaction(async (tx) => {
       const input = parsed.data;
-      let created: { id: string };
-      if (input.type === "SUPPLIER") created = await tx.supplier.create({ data: { companyId: user.companyId, code: input.code, name: input.name, taxId: clean(input.taxId), email: clean(input.email), phone: clean(input.phone) } });
-      else if (input.type === "CUSTOMER") created = await tx.customer.create({ data: { companyId: user.companyId, code: input.code, name: input.name, taxId: clean(input.taxId), email: clean(input.email), phone: clean(input.phone) } });
+      let created: { id: string; code?: string };
+      if (input.type === "SUPPLIER") created = await tx.supplier.create({ data: { companyId: user.companyId, code: await nextBusinessCode(tx, user.companyId, "SUPPLIER"), name: input.name, taxId: clean(input.taxId), email: clean(input.email), phone: clean(input.phone) } });
+      else if (input.type === "CUSTOMER") created = await tx.customer.create({ data: { companyId: user.companyId, code: await nextBusinessCode(tx, user.companyId, "CUSTOMER"), name: input.name, taxId: clean(input.taxId), email: clean(input.email), phone: clean(input.phone) } });
       else if (input.type === "WAREHOUSE") created = await tx.warehouse.create({ data: { companyId: user.companyId, code: input.code, name: input.name } });
       else if (input.type === "UNIT") created = await tx.unitOfMeasure.create({ data: { companyId: user.companyId, code: input.code, name: input.name, symbol: input.symbol, decimalPlaces: input.decimalPlaces } });
       else {
         if (input.isBase) await tx.currency.updateMany({ where: { companyId: user.companyId }, data: { isBase: false } });
         created = await tx.currency.create({ data: { companyId: user.companyId, code: input.code, name: input.name, symbol: input.symbol, isBase: input.isBase } });
       }
-      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: `Catalog:${input.type}`, entityId: created.id, action: "CREATE", afterData: input } });
+      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: `Catalog:${input.type}`, entityId: created.id, action: "CREATE", afterData: { ...input, code: created.code ?? ("code" in input ? input.code : undefined) } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "catalog.created.v1", aggregateId: created.id, payload: { catalogType: input.type, id: created.id } } });
       return created;
     });

@@ -1,6 +1,6 @@
 # Estado de implementación
 
-Actualizado: 15/10/2026.
+Actualizado: 16/10/2026.
 
 ## Completado
 
@@ -27,6 +27,7 @@ Actualizado: 15/10/2026.
 - Pantalla operativa de Compras conectada a API: listado, alta multilínea, presentaciones, lotes, cálculo de IGV/total y aprobación.
 - Endpoint protegido de opciones de Compras para proveedores, almacenes, monedas y materias primas.
 - Módulo operativo de Almacén: listado valorizado, disponibilidad, stock mínimo, alta de materias primas/productos y configuración de lotes.
+- Códigos de negocio autogenerados, inmutables y seguros ante concurrencia para Compras, Almacén (`MP`/`PT`), Recetas, Producción, Maquinaria, Pedidos, Pick & Pack, Proveedores y Clientes; los correlativos anuales se reinician por empresa y año, y los continuos no reutilizan números.
 - Registro transaccional e idempotente de stock inicial con saldo global/por lote, promedio ponderado, auditoría, outbox y secuencia de contabilización.
 - Kardex valorizado con filtros por ítem y almacén, lote, cantidades, costos, valor y saldo posterior a cada movimiento.
 - Catálogos maestros conectados a Neon para proveedores, clientes, almacenes, unidades y monedas, con alta transaccional, auditoría y outbox.
@@ -48,6 +49,7 @@ Actualizado: 15/10/2026.
 - Formato A4 apaisado imprimible o guardable como PDF, sin firmas, con cabecera, detalle de productos, verificación, incidencias, paquetes y observaciones.
 - Despacho valorizado de las cantidades realmente empacadas, liberación de diferencias reservadas, actualización del kardex, auditoría y notificaciones Pusher.
 - Calendario operativo integrado con pedidos, producción, Pick & Pack, mantenimientos y eventos manuales; incluye agenda móvil, tablero arrastrable de tareas, filtros, vencimientos y recordatorios Pusher.
+- Maquinaria rediseñada con indicadores compactos, búsqueda, filtros por tipo/estado, vista de tarjetas o tabla, paginación, edición y un panel lateral para el historial de mantenimiento.
 - Módulo operativo de Usuarios con alta, asignación de múltiples roles, contraseña temporal mínima de 6 caracteres y cambio obligatorio en el primer ingreso.
 - Activación y desactivación segura de usuarios; al desactivar una cuenta se revocan de inmediato todas sus sesiones y se registra la operación en auditoría.
 - Módulo operativo de Roles y Permisos con creación de roles personalizados y selección de permisos atómicos agrupados por módulo.

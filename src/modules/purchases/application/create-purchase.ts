@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import type { PrismaClient } from "@prisma/client";
+import { nextBusinessCode } from "@/lib/database/business-code";
 import { calculatePurchaseLine } from "@/modules/purchases/domain/calculate-purchase-line";
 import { PurchaseApplicationError } from "./purchase-errors";
 
@@ -25,7 +26,7 @@ type PurchaseLineInput = {
 export type CreatePurchaseCommand = {
   companyId: string;
   createdById: string;
-  code: string;
+  code?: string;
   supplierId: string;
   warehouseId: string;
   currencyId: string;
@@ -74,13 +75,14 @@ export async function createPurchase(database: PrismaClient, command: CreatePurc
     const taxAmount = calculated.reduce((sum, entry) => sum.add(entry.amounts.taxAmount), new Decimal(0));
     const total = subtotal.add(taxAmount);
 
+    const code = command.code ?? await nextBusinessCode(tx, command.companyId, "PURCHASE", command.receptionDate);
     const purchase = await tx.purchase.create({
       data: {
         companyId: command.companyId,
         supplierId: command.supplierId,
         warehouseId: command.warehouseId,
         currencyId: command.currencyId,
-        code: command.code,
+        code,
         receptionDate: command.receptionDate,
         documentNumber: command.documentNumber,
         sourceOrderReference: command.sourceOrderReference,

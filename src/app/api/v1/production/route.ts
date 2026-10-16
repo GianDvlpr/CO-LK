@@ -9,7 +9,6 @@ import { createProductionOrder, ProductionError } from "@/modules/production/app
 import { productionSheetSchema, serializeProductionSheet } from "@/modules/production/domain/production-sheet";
 
 const schema = productionSheetSchema.extend({
-  number: z.string().trim().min(1).max(50),
   warehouseId: z.uuid(),
   productVariantId: z.uuid(),
   recipeVersionId: z.uuid(),

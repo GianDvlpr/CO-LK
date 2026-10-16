@@ -1764,7 +1764,138 @@ a {
   text-transform: capitalize;
 }
 
+.machinery-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.machinery-metrics .ant-card-body {
+  padding: 14px 16px;
+}
+
+.machinery-metrics .ant-statistic-content {
+  font-size: 24px;
+}
+
+.machinery-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 180px 190px auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.machinery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.machine-card {
+  min-width: 0;
+  height: 100%;
+}
+
+.machine-card .ant-card-body {
+  display: flex;
+  min-height: 245px;
+  flex-direction: column;
+  padding: 16px;
+}
+
+.machine-card-head,
+.machine-card-footer,
+.machine-history-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.machine-card-head {
+  justify-content: space-between;
+}
+
+.machine-card-code {
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.machine-card-title.ant-typography {
+  margin: 10px 0 2px;
+  overflow-wrap: anywhere;
+}
+
+.machine-card-details {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.machine-card-details > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 7px;
+}
+
+.machine-card-details span {
+  overflow-wrap: anywhere;
+}
+
+.machine-due-overdue {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.machine-card-footer {
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.machinery-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.machinery-empty {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+}
+
+.machine-history-summary {
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 82%, var(--canvas));
+}
+
 @media (max-width: 1024px) {
+  .machinery-metrics,
+  .machinery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .machinery-toolbar {
+    grid-template-columns: minmax(220px, 1fr) 170px 180px;
+  }
+
+  .machinery-toolbar > .ant-segmented {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
   .calendar-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1785,6 +1916,46 @@ a {
 }
 
 @media (max-width: 720px) {
+  .machinery-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .machinery-metrics .ant-card-body {
+    padding: 12px;
+  }
+
+  .machinery-metrics .ant-statistic-title {
+    min-height: 38px;
+    font-size: 12px;
+  }
+
+  .machinery-metrics .ant-statistic-content {
+    font-size: 21px;
+  }
+
+  .machinery-toolbar,
+  .machinery-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .machinery-toolbar > .ant-segmented {
+    grid-column: auto;
+    width: 100%;
+  }
+
+  .machine-card .ant-card-body {
+    min-height: 0;
+  }
+
+  .machine-card-footer .ant-btn {
+    flex: 1 1 auto;
+  }
+
+  .machinery-pagination {
+    justify-content: center;
+  }
+
   .calendar-metrics {
     gap: 8px;
   }

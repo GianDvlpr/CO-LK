@@ -48,7 +48,7 @@ erDiagram
 | `StockBalance.reservedQuantity` | `Decimal` / `numeric(18,6)` | Entre 0 y stock físico |
 | `StockBalance.averageUnitCost` | `Decimal` / `numeric(18,6)` | PEN, sin IGV |
 | `StockMovement.postingSequence` | `BigInt` / `bigint` | Monótono por empresa |
-| `Purchase.code` | `String` / `varchar(24)` | `COM-YYYY-000001` |
+| `Purchase.code` | `String` / `varchar(24)` | `CMP-YYYY-000001` |
 | `Purchase.status` | enum / enum | `DRAFT`, `PENDING`, `APPROVED`, `REJECTED`, `CANCELLED` |
 | `PurchaseLine.baseQuantity` | `Decimal` / `numeric(18,6)` | Calculada por servidor |
 | `PurchaseLine.netUnitPrice` | `Decimal` / `numeric(18,6)` | Por unidad base |

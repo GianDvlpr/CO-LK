@@ -10,7 +10,6 @@ import { PurchaseApplicationError } from "@/modules/purchases/application/purcha
 
 const decimal = z.union([z.string().min(1), z.number()]);
 const createSchema = z.object({
-  code: z.string().trim().min(1).max(50),
   supplierId: z.uuid(), warehouseId: z.uuid(), currencyId: z.uuid(),
   receptionDate: z.coerce.date(), documentNumber: z.string().trim().min(1).max(100),
   sourceOrderReference: z.string().trim().max(100).optional(), receiptSequence: z.number().int().positive().default(1),

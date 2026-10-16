@@ -22,7 +22,7 @@ type Option = { id: string; code: string; name: string };
 type ItemOption = Option & { lotTrackingMode: "NONE" | "OPTIONAL" | "REQUIRED"; unit: { symbol: string } };
 type Options = { suppliers: Option[]; warehouses: Option[]; currencies: (Option & { isBase: boolean })[]; items: ItemOption[] };
 type LineForm = { itemId?: string; presentationType?: string; presentationQuantity?: number; contentPerUnit?: number; pricePerBaseUnit?: number; taxRate?: number; lotCode?: string; supplierLot?: string };
-type PurchaseForm = { code: string; supplierId: string; warehouseId: string; currencyId: string; receptionDate: Dayjs; documentNumber: string; exchangeRate: number; lines: LineForm[] };
+type PurchaseForm = { supplierId: string; warehouseId: string; currencyId: string; receptionDate: Dayjs; documentNumber: string; exchangeRate: number; lines: LineForm[] };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -122,7 +122,7 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
       {options.error ? <Alert type="error" showIcon message={options.error.message} style={{ marginBottom: 16 }} /> : null}
       <Form form={form} layout="vertical" onFinish={(values) => create.mutate(values)} initialValues={{ receptionDate: dayjs(), exchangeRate: 1, lines: [{ taxRate: 18 }] }}>
         <div className="purchase-form-grid">
-          <Form.Item name="code" label="Código" rules={[{ required: true }]}><Input placeholder="COM-000001" /></Form.Item>
+          <Form.Item label="Código"><Input disabled value="Se generará automáticamente al guardar" /></Form.Item>
           <Form.Item name="receptionDate" label="Fecha de recepción" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="supplierId" label="Proveedor" rules={[{ required: true }]}><Select loading={options.isLoading} showSearch optionFilterProp="label" options={options.data?.suppliers.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
           <Form.Item name="documentNumber" label="Documento / guía" rules={[{ required: true }]}><Input /></Form.Item>

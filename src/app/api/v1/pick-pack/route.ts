@@ -5,6 +5,7 @@ import { apiError, apiSuccess } from "@/lib/http/api-response";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
+import { nextBusinessCode } from "@/lib/database/business-code";
 
 const createSchema = z.object({ salesOrderId: z.uuid(), priority: z.enum(["NORMAL", "URGENT"]).default("NORMAL"), notes: z.string().trim().max(1000).optional() });
 const include = {
@@ -57,9 +58,7 @@ export async function POST(request: Request) {
       if (order.pickPackOrder) throw new Error("PICK_PACK_EXISTS");
       const reservation = await tx.stockReservation.findFirst({ where: { referenceType: "SALES_ORDER", referenceId: order.id, active: true }, select: { warehouseId: true } });
       if (!reservation) throw new Error("RESERVATION_NOT_FOUND");
-      const year = new Date().getFullYear();
-      const counter = await tx.correlativeCounter.upsert({ where: { companyId_scope_year: { companyId: user.companyId, scope: "PICK_PACK", year } }, update: { value: { increment: 1 } }, create: { companyId: user.companyId, scope: "PICK_PACK", year, value: 1 }, select: { value: true } });
-      const number = `PP-${year}-${String(counter.value).padStart(6, "0")}`;
+      const number = await nextBusinessCode(tx, user.companyId, "PICK_PACK");
       const created = await tx.pickPackOrder.create({ data: { companyId: user.companyId, salesOrderId: order.id, warehouseId: reservation.warehouseId, number, priority: parsed.data.priority, notes: parsed.data.notes, lines: { create: order.lines.map((line) => ({ salesOrderLineId: line.id, requestedQuantity: line.quantity })) } }, include });
       await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "PickPackOrder", entityId: created.id, action: "CREATE", afterData: { number, salesOrderId: order.id } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "pick_pack.created.v1", aggregateId: created.id, payload: { pickPackOrderId: created.id, number } } });

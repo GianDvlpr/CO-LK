@@ -5,9 +5,9 @@ import { apiError, apiSuccess } from "@/lib/http/api-response";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
+import { nextBusinessCode } from "@/lib/database/business-code";
 
 const createSchema = z.object({
-  code: z.string().trim().min(1).max(50),
   name: z.string().trim().min(1).max(150),
   type: z.enum(["RAW_MATERIAL", "FINISHED_PRODUCT"]),
   unitId: z.uuid(),
@@ -42,7 +42,8 @@ export async function POST(request: Request) {
     const unit = await prisma.unitOfMeasure.findFirst({ where: { id: parsed.data.unitId, companyId: user.companyId } });
     if (!unit) return apiError("INVENTORY_INVALID_UNIT", "La unidad de medida no es válida.", 422);
     const item = await prisma.$transaction(async (tx) => {
-      const created = await tx.inventoryItem.create({ data: { ...parsed.data, minimumStock: parsed.data.minimumStock, companyId: user.companyId } });
+      const code = await nextBusinessCode(tx, user.companyId, parsed.data.type === "RAW_MATERIAL" ? "INVENTORY_RAW" : "INVENTORY_FINISHED");
+      const created = await tx.inventoryItem.create({ data: { ...parsed.data, code, minimumStock: parsed.data.minimumStock, companyId: user.companyId } });
       await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "InventoryItem", entityId: created.id, action: "CREATE", afterData: { code: created.code, name: created.name } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "inventory.item-created.v1", aggregateId: created.id, payload: { itemId: created.id, code: created.code } } });
       return created;

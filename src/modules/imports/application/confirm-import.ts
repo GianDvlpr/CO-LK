@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import Decimal from "decimal.js";
 import { calculateMovingAverage } from "@/modules/inventory/domain/calculate-moving-average";
 import { calculatePurchaseLine } from "@/modules/purchases/domain/calculate-purchase-line";
+import { nextBusinessCode } from "@/lib/database/business-code";
 import type { ImportModule, ParsedWorkbookRow } from "./workbook";
 
 type ImportData = Record<string, ParsedWorkbookRow[]>;
@@ -64,17 +65,6 @@ async function nextSequence(tx: Prisma.TransactionClient, companyId: string) {
   return BigInt(result.value);
 }
 
-async function nextBusinessCode(tx: Prisma.TransactionClient, companyId: string, scope: string, prefix: string) {
-  const year = new Date().getUTCFullYear();
-  const result = await tx.correlativeCounter.upsert({
-    where: { companyId_scope_year: { companyId, scope, year } },
-    update: { value: { increment: 1 } },
-    create: { companyId, scope, year, value: 1 },
-    select: { value: true },
-  });
-  return `${prefix}-${year}-${String(result.value).padStart(6, "0")}`;
-}
-
 async function addBalance(tx: Prisma.TransactionClient, warehouseId: string, itemId: string, lotId: string | null, quantity: Decimal, unitCost: Decimal) {
   const key = `${warehouseId}:${itemId}:${lotId ?? "GLOBAL"}`;
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
@@ -92,6 +82,7 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
     const suppliedCode = text(row, "codigo").toUpperCase();
     const existing = suppliedCode ? await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code: suppliedCode } } }) : null;
     if (mode === "ONLY_NEW" && existing) { skipped(result); continue; }
+    if (mode === "ONLY_NEW" && suppliedCode && !existing) throw new ImportApplicationError("NOT_FOUND", `El código ${suppliedCode} no existe; deja la celda vacía para crear un ítem.`, row.rowNumber, "codigo");
     const unit = await tx.unitOfMeasure.findUnique({ where: { companyId_code: { companyId, code: text(row, "unidad_base").toUpperCase() } } });
     if (!unit) throw new ImportApplicationError("INVALID_REFERENCE", `No existe la unidad ${text(row, "unidad_base")}.`, row.rowNumber, "unidad_base");
     const rawType = text(row, "tipo_item").toUpperCase();
@@ -102,7 +93,7 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
     const op = inferredAction(suppliedCode, mode);
     if (op === "CREAR" && existing) throw new ImportApplicationError("DUPLICATE_CODE", `El ítem ${suppliedCode} ya existe.`, row.rowNumber, "codigo");
     if (op === "ACTUALIZAR" && !existing) throw new ImportApplicationError("NOT_FOUND", `El ítem ${suppliedCode} no existe.`, row.rowNumber, "codigo");
-    const code = suppliedCode || await nextBusinessCode(tx, companyId, "INVENTORY_ITEM", "ITM");
+    const code = suppliedCode || await nextBusinessCode(tx, companyId, type === "RAW_MATERIAL" ? "INVENTORY_RAW" : "INVENTORY_FINISHED");
     const values = { name: text(row, "nombre"), type: type as "RAW_MATERIAL" | "FINISHED_PRODUCT", unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo") };
     const item = existing
       ? await tx.inventoryItem.update({ where: { id: existing.id }, data: values })
@@ -149,10 +140,11 @@ async function importProducts(tx: Prisma.TransactionClient, data: ImportData, co
     const suppliedCode = text(row, "producto_codigo").toUpperCase();
     const existing = suppliedCode ? await tx.product.findUnique({ where: { companyId_code: { companyId, code: suppliedCode } } }) : null;
     if (mode === "ONLY_NEW" && existing) { skipped(result); continue; }
+    if (mode === "ONLY_NEW" && suppliedCode && !existing) throw new ImportApplicationError("NOT_FOUND", `El código ${suppliedCode} no existe; deja la celda vacía para crear un producto.`, row.rowNumber, "producto_codigo");
     const op = inferredAction(suppliedCode, mode);
     if (op === "CREAR" && existing) throw new ImportApplicationError("DUPLICATE_CODE", `El producto ${suppliedCode} ya existe.`, row.rowNumber);
     if (op === "ACTUALIZAR" && !existing) throw new ImportApplicationError("NOT_FOUND", `El producto ${suppliedCode} no existe.`, row.rowNumber);
-    const code = suppliedCode || await nextBusinessCode(tx, companyId, "PRODUCT", "PROD");
+    const code = suppliedCode || await nextBusinessCode(tx, companyId, "PRODUCT");
     const values = { name: text(row, "nombre"), description: text(row, "descripcion") || null, active: boolean(row, "producto_activo") };
     const product = existing
       ? await tx.product.update({ where: { id: existing.id }, data: values })
@@ -195,10 +187,11 @@ async function importRecipes(tx: Prisma.TransactionClient, data: ImportData, com
     ]);
     if (!product) throw new ImportApplicationError("INVALID_REFERENCE", "El producto de la receta no existe.", row.rowNumber, "producto_codigo");
     if (mode === "ONLY_NEW" && existing?.versions.some((version) => version.version === requestedVersion)) { skipped(result); continue; }
+    if (mode === "ONLY_NEW" && suppliedCode && !existing) throw new ImportApplicationError("NOT_FOUND", `La receta ${suppliedCode} no existe; deja la celda vacía para crear una receta.`, row.rowNumber, "receta_codigo");
     const op = inferredAction(suppliedCode, mode);
     if (op === "CREAR" && existing && mode !== "ONLY_NEW") throw new ImportApplicationError("DUPLICATE_CODE", `La receta ${suppliedCode} ya existe.`, row.rowNumber);
     if (op === "ACTUALIZAR" && !existing) throw new ImportApplicationError("NOT_FOUND", `La receta ${suppliedCode} no existe.`, row.rowNumber);
-    const code = suppliedCode || await nextBusinessCode(tx, companyId, "RECIPE", "REC");
+    const code = suppliedCode || await nextBusinessCode(tx, companyId, "RECIPE");
     const version = mode === "ONLY_NEW" ? requestedVersion : existing ? (existing.versions[0]?.version ?? 0) + 1 : requestedVersion;
     if (!ingredientRows.length) throw new ImportApplicationError("RECIPE_EMPTY", `La receta ${code} no tiene ingredientes.`, row.rowNumber);
     unique(ingredientRows.map((item) => text(item, "material_codigo")), `La receta ${code} contiene materias primas repetidas.`, row.rowNumber);
@@ -229,7 +222,9 @@ async function importPurchases(tx: Prisma.TransactionClient, data: ImportData, c
     if (!["PENDIENTE", "PENDING"].includes(requestedStatus)) throw new ImportApplicationError("INVALID_STATUS", "Las compras nuevas deben importarse con estado PENDIENTE.", row.rowNumber, "estado");
     const existingCode = suppliedCode ? await tx.purchase.findUnique({ where: { companyId_code: { companyId, code: suppliedCode } } }) : null;
     if (existingCode) { if (mode === "ONLY_NEW") { skipped(result); continue; } throw new ImportApplicationError("DUPLICATE_CODE", `La compra ${suppliedCode} ya existe.`, row.rowNumber); }
-    const code = suppliedCode || await nextBusinessCode(tx, companyId, "PURCHASE", "COM");
+    if (suppliedCode) throw new ImportApplicationError("NOT_FOUND", `La compra ${suppliedCode} no existe; deja la celda vacía para crear una compra.`, row.rowNumber, "codigo_compra");
+    const receptionDate = date(row, "fecha_recepcion");
+    const code = suppliedCode || await nextBusinessCode(tx, companyId, "PURCHASE", receptionDate);
     const [supplier, currency] = await Promise.all([
       tx.supplier.findUnique({ where: { companyId_code: { companyId, code: text(row, "proveedor_codigo") } } }),
       tx.currency.findUnique({ where: { companyId_code: { companyId, code: text(row, "moneda").toUpperCase() } } }),
@@ -265,11 +260,11 @@ async function importPurchases(tx: Prisma.TransactionClient, data: ImportData, c
     }
     const subtotal = calculatedLines.reduce((sum, line) => sum.add(line.amounts.subtotal), new Decimal(0));
     const taxAmount = calculatedLines.reduce((sum, line) => sum.add(line.amounts.taxAmount), new Decimal(0));
-    const purchase = await tx.purchase.create({ data: { companyId, supplierId: supplier.id, warehouseId: warehouse.id, currencyId: currency.id, code, receptionDate: date(row, "fecha_recepcion"), documentNumber, sourceOrderReference: text(row, "referencia_orden_origen") || null, receiptSequence, exchangeRate: positive(row, "tipo_cambio_pen", 1).toString(), subtotal: subtotal.toString(), taxAmount: taxAmount.toString(), total: subtotal.add(taxAmount).toString(), status: "PENDING" } });
+    const purchase = await tx.purchase.create({ data: { companyId, supplierId: supplier.id, warehouseId: warehouse.id, currencyId: currency.id, code, receptionDate, documentNumber, sourceOrderReference: text(row, "referencia_orden_origen") || null, receiptSequence, exchangeRate: positive(row, "tipo_cambio_pen", 1).toString(), subtotal: subtotal.toString(), taxAmount: taxAmount.toString(), total: subtotal.add(taxAmount).toString(), status: "PENDING" } });
     for (const line of calculatedLines) {
       const purchaseLine = await tx.purchaseLine.create({ data: { purchaseId: purchase.id, itemId: line.item.id, lineNumber: line.lineNumber, presentationType: line.presentationType, presentationQty: line.presentationQuantity.toString(), contentPerUnit: line.contentPerUnit.toString(), receivedQuantity: line.amounts.receivedQuantity.toString(), pricePerBaseUnit: line.pricePerBaseUnit.toString(), taxRate: line.taxRate.toString(), subtotal: line.amounts.subtotal.toString(), taxAmount: line.amounts.taxAmount.toString(), total: line.amounts.total.toString() } });
       for (const lotInput of line.lots) {
-        const lot = await tx.inventoryLot.upsert({ where: { warehouseId_itemId_lotCode: { warehouseId: warehouse.id, itemId: line.item.id, lotCode: lotInput.lotCode } }, update: { supplierLot: lotInput.lotCode, expiresAt: date(lotInput.row, "fecha_vencimiento", true) }, create: { warehouseId: warehouse.id, itemId: line.item.id, lotCode: lotInput.lotCode, supplierLot: lotInput.lotCode, receivedAt: date(row, "fecha_recepcion"), expiresAt: date(lotInput.row, "fecha_vencimiento", true) } });
+        const lot = await tx.inventoryLot.upsert({ where: { warehouseId_itemId_lotCode: { warehouseId: warehouse.id, itemId: line.item.id, lotCode: lotInput.lotCode } }, update: { supplierLot: lotInput.lotCode, expiresAt: date(lotInput.row, "fecha_vencimiento", true) }, create: { warehouseId: warehouse.id, itemId: line.item.id, lotCode: lotInput.lotCode, supplierLot: lotInput.lotCode, receivedAt: receptionDate, expiresAt: date(lotInput.row, "fecha_vencimiento", true) } });
         await tx.purchaseLineLot.create({ data: { purchaseLineId: purchaseLine.id, lotId: lot.id, lineNumber: lotInput.lineNumber, quantity: lotInput.quantity.toString() } });
       }
     }
@@ -285,7 +280,9 @@ async function importOrders(tx: Prisma.TransactionClient, data: ImportData, comp
     const suppliedNumber = text(row, "numero_pedido").toUpperCase();
     const existing = suppliedNumber ? await tx.salesOrder.findUnique({ where: { companyId_number: { companyId, number: suppliedNumber } } }) : null;
     if (existing) { if (mode === "ONLY_NEW") { skipped(result); continue; } throw new ImportApplicationError("DUPLICATE_CODE", `El pedido ${suppliedNumber} ya existe.`, row.rowNumber); }
-    const orderNumber = suppliedNumber || await nextBusinessCode(tx, companyId, "SALES_ORDER", "PED");
+    if (suppliedNumber) throw new ImportApplicationError("NOT_FOUND", `El pedido ${suppliedNumber} no existe; deja la celda vacía para crear un pedido.`, row.rowNumber, "numero_pedido");
+    const requestedAt = date(row, "fecha");
+    const orderNumber = suppliedNumber || await nextBusinessCode(tx, companyId, "SALES_ORDER", requestedAt);
     const customer = await tx.customer.findUnique({ where: { companyId_code: { companyId, code: text(row, "cliente_codigo") } } });
     if (!customer) throw new ImportApplicationError("INVALID_REFERENCE", "El cliente no existe.", row.rowNumber, "cliente_codigo");
     if (!detailRows.length) throw new ImportApplicationError("ORDER_EMPTY", `El pedido ${orderNumber} no tiene detalle.`, row.rowNumber);
@@ -296,7 +293,7 @@ async function importOrders(tx: Prisma.TransactionClient, data: ImportData, comp
       if (!variant || variant.inventoryItem.companyId !== companyId) throw new ImportApplicationError("INVALID_REFERENCE", "El SKU no existe.", detail.rowNumber, "sku");
       lines.push({ productVariantId: variant.id, quantity: positive(detail, "cantidad").toString(), unitPrice: positive(detail, "precio_neto_unitario").toString() });
     }
-    await tx.salesOrder.create({ data: { companyId, customerId: customer.id, number: orderNumber, status: "DRAFT", requestedAt: date(row, "fecha"), promisedAt: date(row, "fecha_requerida", true), notes: text(row, "observaciones") || null, lines: { create: lines } } });
+    await tx.salesOrder.create({ data: { companyId, customerId: customer.id, number: orderNumber, status: "DRAFT", requestedAt, promisedAt: date(row, "fecha_requerida", true), notes: text(row, "observaciones") || null, lines: { create: lines } } });
     created(result);
   }
 }
