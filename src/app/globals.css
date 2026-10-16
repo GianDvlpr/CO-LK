@@ -1764,19 +1764,49 @@ a {
   text-transform: capitalize;
 }
 
-.machinery-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.machinery-overview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
 }
 
-.machinery-metrics .ant-card-body {
-  padding: 14px 16px;
+.machinery-overview-counts {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
-.machinery-metrics .ant-statistic-content {
-  font-size: 24px;
+.machinery-overview-counts span {
+  padding: 0 12px;
+  border-left: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.machinery-overview-counts span:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.machinery-overview-counts strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.machinery-overview > .ant-tag {
+  max-width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .machinery-toolbar {
@@ -1882,7 +1912,6 @@ a {
 }
 
 @media (max-width: 1024px) {
-  .machinery-metrics,
   .machinery-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1916,22 +1945,25 @@ a {
 }
 
 @media (max-width: 720px) {
-  .machinery-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .machinery-overview {
+    align-items: stretch;
+    flex-direction: column;
     gap: 8px;
   }
 
-  .machinery-metrics .ant-card-body {
-    padding: 12px;
+  .machinery-overview-counts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .machinery-metrics .ant-statistic-title {
-    min-height: 38px;
-    font-size: 12px;
+  .machinery-overview-counts span {
+    padding: 0 8px;
+    text-align: center;
+    white-space: normal;
   }
 
-  .machinery-metrics .ant-statistic-content {
-    font-size: 21px;
+  .machinery-overview-counts strong {
+    display: block;
   }
 
   .machinery-toolbar,

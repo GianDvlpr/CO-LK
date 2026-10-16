@@ -39,7 +39,7 @@ const dependencies = [
   { key: "products", label: "Productos", children: <p>Necesita unidades, tallas y colores. Cada variante genera o vincula un ítem de producto terminado en Almacén.</p> },
   { key: "purchases", label: "Compras", children: <p>Necesita proveedor, moneda, almacén y materias primas previamente registradas. Solo una compra aprobada incrementa el stock.</p> },
   { key: "recipes", label: "Recetas", children: <p>Necesita un producto y materias primas del Almacén. Crear o activar una receta no descuenta stock.</p> },
-  { key: "production", label: "Producción", children: <p>Necesita una variante de producto, una receta activa, un almacén y stock suficiente. Puede operarse como lista o tablero Kanban. En el tablero cada orden avanza una columna: reservar materiales, iniciar consumiendo el kardex y finalizar ingresando el producto terminado.</p> },
+  { key: "production", label: "Producción", children: <p>Necesita una receta activa, un almacén, stock suficiente y al menos una variante del producto. La curva distribuye el total planificado entre combinaciones de talla y color. Al completar, registra la cantidad buena por combinación para ingresar cada resultado al SKU correcto. Antes de descargar el Excel puedes elegir si mostrará Prensa, Inyectora, ambos bloques o ninguno.</p> },
   { key: "orders", label: "Pedidos", children: <p>Necesita un cliente y variantes de Productos. Al confirmar reserva el stock de producto terminado y queda disponible para preparación.</p> },
   { key: "pick-pack", label: "Pick & Pack y despacho", children: <p>Necesita un pedido confirmado. Picking registra lo recogido, packing registra lo empacado y cualquier diferencia exige una incidencia. Solo al despachar se descuenta del kardex la cantidad realmente empacada.</p> },
   { key: "calendar", label: "Calendario", children: <p>Se alimenta automáticamente de Pedidos, Producción, Pick & Pack y Mantenimiento. Los eventos manuales sirven para inventarios físicos, reuniones y tareas internas; en la vista Tareas pueden arrastrarse entre Pendiente, Finalizado y Cancelado.</p> },
@@ -54,6 +54,7 @@ export function OperationsGuide() {
 
       <Alert type="info" showIcon message="Orden recomendado para iniciar" description="Configura primero Catálogos y Almacén; después Productos, Compras y Recetas; finalmente Producción y Pedidos." style={{ marginBottom: 18 }} />
       <Alert type="success" showIcon message="Códigos automáticos" description="Compras (CMP), materias primas (MP), productos terminados (PT), recetas (REC), producción (OP), maquinaria (MAQ), pedidos (PED), Pick & Pack (PP), proveedores (PROV) y clientes (CLI) reciben su código al guardar. En Excel deja el código vacío para crear; conserva el código del reporte para reconocer un registro existente." style={{ marginBottom: 18 }} />
+      <Alert type="info" showIcon message="Curvas y formato de producción" description="En cada orden distribuye los pares entre talla y color: esa cantidad por variante es la curva. La selección de bloques técnicos controla si el Excel imprimirá Prensa, Inyectora, ambos o ninguno." style={{ marginBottom: 18 }} />
 
       <Row gutter={[18, 18]}>
         <Col xs={24} lg={10}>

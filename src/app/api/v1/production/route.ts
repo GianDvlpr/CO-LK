@@ -10,7 +10,7 @@ import { productionSheetSchema, serializeProductionSheet } from "@/modules/produ
 
 const schema = productionSheetSchema.extend({
   warehouseId: z.uuid(),
-  productVariantId: z.uuid(),
+  productVariantId: z.uuid().optional(),
   recipeVersionId: z.uuid(),
   machineId: z.uuid().optional(),
   recipeRuns: z.union([z.string(), z.number()]),
@@ -31,7 +31,7 @@ export async function GET() {
       where: { companyId: user.companyId }, orderBy: { createdAt: "desc" },
       include: {
         warehouse: { select: { code: true, name: true } },
-        productVariant: { include: { product: { select: { code: true, name: true } }, size: { select: { name: true } }, color: { select: { name: true } } } },
+        productVariant: { include: { product: { select: { id: true, code: true, name: true } }, size: { select: { name: true } }, color: { select: { name: true } } } },
         recipeVersion: { include: { recipe: { select: { code: true, name: true } } } },
         machine: { select: { id: true, code: true, name: true, type: true, status: true } },
         materials: { include: { item: { select: { code: true, name: true, unit: { select: { symbol: true } } } } } },

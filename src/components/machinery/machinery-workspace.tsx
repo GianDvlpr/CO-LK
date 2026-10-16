@@ -28,7 +28,6 @@ import {
   Segmented,
   Select,
   Space,
-  Statistic,
   Tag,
   Typography,
 } from "antd";
@@ -175,12 +174,13 @@ export function MachineryWorkspace({ permissions }: { permissions: string[] }) {
 
   return <>
     <div className="page-heading"><ModuleHeadingIntro title="Maquinaria" eyebrow="Mantenimiento" description="Registra prensas, inyectoras y otros equipos; controla mantenimientos, reparaciones, costos y próximas fechas." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => machines.refetch()}>Actualizar</Button></Space></div>
-    {overdue.length ? <Alert type="warning" showIcon message={`${overdue.length} ${overdue.length === 1 ? "máquina tiene" : "máquinas tienen"} mantenimiento vencido`} description={overdue.map((item) => item.code).join(", ")} style={{ marginBottom: 16 }} /> : null}
-    <div className="machinery-metrics">
-      <Card size="small"><Statistic title="Registradas" value={items.length} /></Card>
-      <Card size="small"><Statistic title="Operativas" value={items.filter((item) => item.status === "ACTIVE").length} /></Card>
-      <Card size="small"><Statistic title="En mantenimiento" value={items.filter((item) => item.status === "MAINTENANCE").length} /></Card>
-      <Card size="small"><Statistic title="Mantenimiento vencido" value={overdue.length} valueStyle={overdue.length ? { color: "#cf1322" } : undefined} /></Card>
+    <div className="machinery-overview" aria-label="Resumen de maquinaria">
+      <div className="machinery-overview-counts">
+        <span><strong>{items.length}</strong> registradas</span>
+        <span><strong>{items.filter((item) => item.status === "ACTIVE").length}</strong> operativas</span>
+        <span><strong>{items.filter((item) => item.status === "MAINTENANCE").length}</strong> en mantenimiento</span>
+      </div>
+      {overdue.length ? <Tag color="error" icon={<CalendarOutlined />}>{overdue.length} {overdue.length === 1 ? "mantenimiento vencido" : "mantenimientos vencidos"} · {overdue.map((item) => item.code).join(", ")}</Tag> : <Tag color="success" icon={<CalendarOutlined />}>Mantenimientos al día</Tag>}
     </div>
     <Card className="section-card" title="Equipos registrados" extra={permissions.includes("machinery.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nueva máquina</Button> : null}>
       {machines.error ? <Alert type="error" showIcon message={machines.error.message} style={{ marginBottom: 16 }} /> : null}
@@ -222,7 +222,7 @@ export function MachineryWorkspace({ permissions }: { permissions: string[] }) {
 
     <Modal title={editingMachine ? `Editar ${editingMachine.code}` : "Nueva máquina"} open={machineOpen} onCancel={() => { setMachineOpen(false); setEditingMachine(undefined); }} onOk={() => machineForm.submit()} okText={editingMachine ? "Guardar cambios" : "Registrar"} confirmLoading={saveMachine.isPending} width={760} destroyOnHidden>
       <Form form={machineForm} layout="vertical" onFinish={(values) => saveMachine.mutate({ id: editingMachine?.id, values })} initialValues={{ type: "PRESS", status: "ACTIVE" }}><div className="purchase-form-grid">
-        <Form.Item label="Código"><Input disabled value={editingMachine?.code ?? "Se generará automáticamente al guardar"} /></Form.Item><Form.Item name="name" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
+        {editingMachine ? <Form.Item label="Código"><Input disabled value={editingMachine.code} /></Form.Item> : null}<Form.Item name="name" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
         <Form.Item name="type" label="Tipo" rules={[{ required: true }]}><Select options={[{ value: "PRESS", label: "Prensa" }, { value: "INJECTOR", label: "Inyectora" }, { value: "OTHER", label: "Otro equipo" }]} /></Form.Item><Form.Item name="status" label="Estado" rules={[{ required: true }]}><Select options={[{ value: "ACTIVE", label: "Operativa" }, { value: "MAINTENANCE", label: "En mantenimiento" }, { value: "OUT_OF_SERVICE", label: "Fuera de servicio" }]} /></Form.Item>
         <Form.Item name="brand" label="Marca"><Input /></Form.Item><Form.Item name="model" label="Modelo"><Input /></Form.Item><Form.Item name="serialNumber" label="Número de serie"><Input /></Form.Item><Form.Item name="location" label="Ubicación"><Input /></Form.Item><Form.Item name="purchaseDate" label="Fecha de compra"><DatePicker style={{ width: "100%" }} /></Form.Item>
       </div><Form.Item name="notes" label="Observaciones"><Input.TextArea rows={3} /></Form.Item></Form>
