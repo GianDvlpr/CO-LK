@@ -2140,19 +2140,11 @@ a {
   gap: 12px;
 }
 
-.catalog-sunat-alert {
-  margin-bottom: 18px;
-}
-
 @media (max-width: 700px) {
   .catalog-location-grid,
   .catalog-contact-grid {
     grid-template-columns: 1fr;
     gap: 0;
-  }
-
-  .catalog-sunat-alert .ant-alert-description {
-    overflow-wrap: anywhere;
   }
 }
 

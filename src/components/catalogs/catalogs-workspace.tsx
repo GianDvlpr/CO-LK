@@ -2,7 +2,7 @@
 
 import { CheckCircleOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Checkbox, Empty, Form, Input, InputNumber, Modal, Space, Tabs, Tag, Typography } from "antd";
+import { Alert, Button, Card, Checkbox, Empty, Form, Input, InputNumber, Modal, Space, Tabs, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -92,21 +92,6 @@ const commonColumns: ColumnsType<Common> = [
 const contactColumns: ColumnsType<Common> = [
   ...commonColumns,
   { title: "RUC / documento", dataIndex: "taxId", width: 150, render: (value) => value || "—" },
-  {
-    title: "SUNAT",
-    width: 180,
-    render: (_, row) => row.rucStatus || row.rucCondition ? (
-      <Space size={[4, 4]} wrap>
-        {row.rucStatus ? <Tag color={row.rucStatus === "ACTIVO" ? "green" : "orange"}>{row.rucStatus}</Tag> : null}
-        {row.rucCondition ? <Tag color={row.rucCondition === "HABIDO" ? "blue" : "red"}>{row.rucCondition}</Tag> : null}
-      </Space>
-    ) : "Sin consultar",
-  },
-  {
-    title: "Contacto",
-    width: 240,
-    render: (_, row) => <Space direction="vertical" size={0}><span>{row.email || "Sin correo"}</span><span>{row.phone || "Sin teléfono"}</span></Space>,
-  },
   { title: "Estado", dataIndex: "active", width: 100, render: (value) => value === false ? <Tag>Inactivo</Tag> : <Tag color="green">Activo</Tag> },
 ];
 
@@ -118,9 +103,6 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
   const [checkedRuc, setCheckedRuc] = useState<string>();
   const [form] = Form.useForm<CatalogForm>();
   const taxId = Form.useWatch("taxId", form);
-  const rucStatus = Form.useWatch("rucStatus", form);
-  const rucCondition = Form.useWatch("rucCondition", form);
-  const sunatCheckedAt = Form.useWatch("sunatCheckedAt", form);
 
   const catalogs = useQuery({ queryKey: ["catalogs"], queryFn: () => api<Catalogs>("/api/v1/catalogs") });
   const refreshCatalogDependencies = async () => Promise.all([
@@ -229,7 +211,7 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
       loading={catalogs.isLoading}
       dataSource={data}
       columns={[...columns, ...actionColumns]}
-      scroll={{ x: type === "SUPPLIER" || type === "CUSTOMER" ? 1320 : 720 }}
+      scroll={{ x: type === "SUPPLIER" || type === "CUSTOMER" ? 900 : 720 }}
       pagination={{ pageSize: 15 }}
       locale={{ emptyText: <Empty description={`No hay ${labels[type].plural.toLowerCase()}`} /> }}
     />;
@@ -242,7 +224,6 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
     { key: "CURRENCY", label: "Monedas", children: table("CURRENCY", catalogs.data?.currencies ?? [], [...commonColumns, { title: "Símbolo", dataIndex: "symbol", width: 120 }, { title: "Tipo", dataIndex: "isBase", width: 130, render: (value) => value ? <Tag color="gold">Moneda base</Tag> : "Alterna" }]) },
   ];
   const contactCatalog = active === "SUPPLIER" || active === "CUSTOMER";
-  const healthyRuc = rucStatus?.toUpperCase() === "ACTIVO" && rucCondition?.toUpperCase() === "HABIDO";
 
   return <>
     <div className="page-heading">
@@ -288,17 +269,6 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
             </Space.Compact>
           </Form.Item>
           <Form.Item name="name" label="Nombre o razón social" rules={[{ required: true }]}><Input /></Form.Item>
-          {rucStatus || rucCondition ? <Alert
-            className="catalog-sunat-alert"
-            showIcon
-            type={healthyRuc ? "success" : "warning"}
-            message={<Space size={[4, 4]} wrap>
-              <span>Resultado de la consulta:</span>
-              {rucStatus ? <Tag color={rucStatus.toUpperCase() === "ACTIVO" ? "green" : "orange"}>{rucStatus}</Tag> : null}
-              {rucCondition ? <Tag color={rucCondition.toUpperCase() === "HABIDO" ? "blue" : "red"}>{rucCondition}</Tag> : null}
-            </Space>}
-            description={sunatCheckedAt ? `Consultado el ${new Date(sunatCheckedAt).toLocaleString("es-PE")}. Los campos siguen siendo editables antes de guardar.` : undefined}
-          /> : null}
           <Form.Item name="fiscalAddress" label="Dirección fiscal"><Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} /></Form.Item>
           <div className="catalog-location-grid">
             <Form.Item name="department" label="Departamento"><Input /></Form.Item>
@@ -308,9 +278,8 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
           </div>
           <div className="catalog-contact-grid">
             <Form.Item name="email" label="Correo"><Input type="email" /></Form.Item>
-            <Form.Item name="phone" label="Teléfono" extra="SUNAT no publica este dato; se ingresa manualmente."><Input /></Form.Item>
+            <Form.Item name="phone" label="Teléfono"><Input /></Form.Item>
           </div>
-          <Typography.Text type="secondary">La consulta usa información pública del padrón de SUNAT mediante APIS.NET.PE. Confirma los datos antes de guardar.</Typography.Text>
         </> : <>
           <Form.Item name="code" label={active === "CURRENCY" ? "Código ISO" : "Código"} rules={[{ required: true }, ...(active === "CURRENCY" ? [{ len: 3, message: "Usa el código ISO de 3 letras" }] : [])]}>
             <Input disabled={Boolean(editing)} placeholder={active === "CURRENCY" ? "PEN" : undefined} />
