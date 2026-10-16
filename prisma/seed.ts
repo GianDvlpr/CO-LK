@@ -10,6 +10,7 @@ const permissionCodes = [
   "dashboard.read", "catalogs.read", "catalogs.manage",
   "users.read", "users.create", "users.update", "users.deactivate",
   "roles.read", "roles.manage",
+  "sessions.read", "sessions.revoke",
   "purchases.read", "purchases.create", "purchases.update", "purchases.submit", "purchases.approve", "purchases.reject", "purchases.reverse", "purchases.export",
   "inventory.read", "inventory.create_item", "inventory.adjust_request", "inventory.adjust_approve", "inventory.adjust_value_request", "inventory.adjust_value_approve", "inventory.opening_import", "inventory.export",
   "recipes.read", "recipes.create", "recipes.update", "recipes.activate", "recipes.archive", "recipes.export",
@@ -64,7 +65,7 @@ async function main() {
     create: { companyId: company.id, code: "ADMIN", name: "Administrador", description: "Administración operativa sin gestión de accesos", isSystem: true },
   });
   const adminPermissions = permissions.filter((permission) =>
-    !permission.code.startsWith("users.") && !permission.code.startsWith("roles."),
+    !permission.code.startsWith("users.") && !permission.code.startsWith("roles.") && !permission.code.startsWith("sessions."),
   );
   await prisma.rolePermission.createMany({
     data: adminPermissions.map((permission) => ({ roleId: adminRole.id, permissionId: permission.id })),

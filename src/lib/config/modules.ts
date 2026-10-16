@@ -116,6 +116,14 @@ export const administrationModules = [
     phase: 1,
   },
   {
+    key: "sessions",
+    label: "Sesiones",
+    href: "/dashboard/sessions",
+    description: "Accesos, actividad, duración y cierre remoto de sesiones.",
+    permission: "sessions.read",
+    phase: 1,
+  },
+  {
     key: "imports",
     label: "Importaciones",
     href: "/dashboard/imports",

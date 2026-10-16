@@ -289,7 +289,7 @@ async function importOrders(tx: Prisma.TransactionClient, data: ImportData, comp
     const requestedAt = date(row, "fecha");
     const orderNumber = suppliedNumber || await nextBusinessCode(tx, companyId, "SALES_ORDER", requestedAt);
     const customer = await tx.customer.findUnique({ where: { companyId_code: { companyId, code: text(row, "cliente_codigo") } } });
-    if (!customer) throw new ImportApplicationError("INVALID_REFERENCE", "El cliente no existe.", row.rowNumber, "cliente_codigo");
+    if (!customer || !customer.active) throw new ImportApplicationError("INVALID_REFERENCE", "El cliente no existe o está inactivo.", row.rowNumber, "cliente_codigo");
     if (!detailRows.length) throw new ImportApplicationError("ORDER_EMPTY", `El pedido ${orderNumber} no tiene detalle.`, row.rowNumber);
     unique(detailRows.map((item) => text(item, "sku")), `El pedido ${orderNumber} contiene SKU repetidos.`, row.rowNumber);
     const lines = [];

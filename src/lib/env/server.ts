@@ -14,6 +14,8 @@ export const serverEnvSchema = z.object({
   PUSHER_KEY: optionalSecret,
   PUSHER_SECRET: optionalSecret,
   PUSHER_CLUSTER: optionalSecret,
+  SUNAT_RUC_API_URL: z.string().url().default("https://api.apis.net.pe/v2/sunat/ruc"),
+  SUNAT_RUC_API_TOKEN: optionalSecret,
   WORKER_SECRET: optionalSecret,
 });
 

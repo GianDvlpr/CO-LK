@@ -7,7 +7,7 @@ loadEnv({ path: ".env.local", quiet: true });
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL no está configurada.");
 const prisma = new PrismaClient({ adapter: new PrismaNeon({ connectionString: process.env.DATABASE_URL }) });
 const permissionCodes = [
-  "dashboard.read", "catalogs.read", "catalogs.manage", "users.read", "users.create", "users.update", "users.deactivate", "roles.read", "roles.manage",
+  "dashboard.read", "catalogs.read", "catalogs.manage", "users.read", "users.create", "users.update", "users.deactivate", "roles.read", "roles.manage", "sessions.read", "sessions.revoke",
   "purchases.read", "purchases.create", "purchases.update", "purchases.submit", "purchases.approve", "purchases.reject", "purchases.reverse", "purchases.export",
   "inventory.read", "inventory.create_item", "inventory.adjust_request", "inventory.adjust_approve", "inventory.adjust_value_request", "inventory.adjust_value_approve", "inventory.opening_import", "inventory.export",
   "recipes.read", "recipes.create", "recipes.update", "recipes.activate", "recipes.archive", "recipes.export",
@@ -34,7 +34,7 @@ try {
   const superadmin = await prisma.role.upsert({ where: { companyId_code: { companyId: company.id, code: "SUPERADMIN" } }, update: { name: "Superadministrador", isSystem: true }, create: { companyId: company.id, code: "SUPERADMIN", name: "Superadministrador", description: "Acceso total a la plataforma", isSystem: true } });
   const admin = await prisma.role.upsert({ where: { companyId_code: { companyId: company.id, code: "ADMIN" } }, update: { name: "Administrador", isSystem: true }, create: { companyId: company.id, code: "ADMIN", name: "Administrador", description: "Administración operativa sin gestión de accesos", isSystem: true } });
   await prisma.rolePermission.createMany({ data: permissions.map((permission) => ({ roleId: superadmin.id, permissionId: permission.id })), skipDuplicates: true });
-  await prisma.rolePermission.createMany({ data: permissions.filter((permission) => !permission.code.startsWith("users.") && !permission.code.startsWith("roles.")).map((permission) => ({ roleId: admin.id, permissionId: permission.id })), skipDuplicates: true });
+  await prisma.rolePermission.createMany({ data: permissions.filter((permission) => !permission.code.startsWith("users.") && !permission.code.startsWith("roles.") && !permission.code.startsWith("sessions.")).map((permission) => ({ roleId: admin.id, permissionId: permission.id })), skipDuplicates: true });
 
   async function seedUser(prefix, role, name) {
     const username = process.env[`SEED_${prefix}_USERNAME`]?.trim().toLowerCase();

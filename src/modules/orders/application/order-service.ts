@@ -12,7 +12,7 @@ export async function createSalesOrder(database: PrismaClient, command: { compan
   if (!command.lines.length || new Set(command.lines.map((line) => line.productVariantId)).size !== command.lines.length) throw new OrderError("ORDER_INVALID_LINES", "El pedido requiere variantes únicas.");
   for (const line of command.lines) if (!new Decimal(line.quantity).greaterThan(0) || new Decimal(line.unitPrice).isNegative()) throw new OrderError("ORDER_INVALID_LINES", "Las cantidades deben ser positivas y los precios no pueden ser negativos.");
   return database.$transaction(async (tx) => {
-    const [customer, variants] = await Promise.all([tx.customer.findFirst({ where: { id: command.customerId, companyId: command.companyId } }), tx.productVariant.findMany({ where: { id: { in: command.lines.map((line) => line.productVariantId) }, active: true, product: { companyId: command.companyId, active: true } } })]);
+    const [customer, variants] = await Promise.all([tx.customer.findFirst({ where: { id: command.customerId, companyId: command.companyId, active: true } }), tx.productVariant.findMany({ where: { id: { in: command.lines.map((line) => line.productVariantId) }, active: true, product: { companyId: command.companyId, active: true } } })]);
     if (!customer || variants.length !== command.lines.length) throw new OrderError("ORDER_INVALID_REFERENCE", "El cliente o alguna variante no es válida.");
     const number = command.number ?? await nextBusinessCode(tx, command.companyId, "SALES_ORDER", command.requestedAt);
     const order = await tx.salesOrder.create({ data: { companyId: command.companyId, customerId: customer.id, number, requestedAt: command.requestedAt, promisedAt: command.promisedAt, notes: command.notes, lines: { create: command.lines.map((line) => ({ productVariantId: line.productVariantId, quantity: new Decimal(line.quantity), unitPrice: new Decimal(line.unitPrice) })) } } });
@@ -29,7 +29,7 @@ export async function updateSalesOrder(database: PrismaClient, command: { compan
     if (!current) throw new OrderError("ORDER_NOT_FOUND", "El pedido no existe.");
     if (current.status !== "DRAFT") throw new OrderError("ORDER_INVALID_STATE", "Solo se puede editar un pedido en borrador.");
     const [customer, variants] = await Promise.all([
-      tx.customer.findFirst({ where: { id: command.customerId, companyId: command.companyId } }),
+      tx.customer.findFirst({ where: { id: command.customerId, companyId: command.companyId, active: true } }),
       tx.productVariant.findMany({ where: { id: { in: command.lines.map((line) => line.productVariantId) }, active: true, product: { companyId: command.companyId, active: true } } }),
     ]);
     if (!customer || variants.length !== command.lines.length) throw new OrderError("ORDER_INVALID_REFERENCE", "El cliente o alguna variante no es válida.");

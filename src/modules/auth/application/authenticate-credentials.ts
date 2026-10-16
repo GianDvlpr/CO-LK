@@ -10,7 +10,7 @@ function bucketKey(username: string, ipAddress: string) {
   return createHash("sha256").update(`${username.toLowerCase()}:${ipAddress}`).digest("hex");
 }
 
-export type LoginInput = { username: string; password: string; remember: boolean; ipAddress: string };
+export type LoginInput = { username: string; password: string; remember: boolean; ipAddress: string; userAgent?: string };
 
 export async function authenticateCredentials(database: PrismaClient, input: LoginInput) {
   const username = input.username.trim().toLowerCase();
@@ -36,9 +36,6 @@ export async function authenticateCredentials(database: PrismaClient, input: Log
     throw new AuthError("INVALID_CREDENTIALS", "Usuario o contraseña incorrectos.", 401);
   }
 
-  await database.$transaction([
-    database.rateLimitBucket.deleteMany({ where: { key } }),
-    database.session.deleteMany({ where: { userId: user.id, expiresAt: { lte: now } } }),
-  ]);
+  await database.rateLimitBucket.deleteMany({ where: { key } });
   return user;
 }

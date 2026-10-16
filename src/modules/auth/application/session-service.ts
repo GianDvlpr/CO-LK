@@ -6,6 +6,7 @@ import { AuthError } from "./auth-errors";
 
 const SHORT_SESSION_HOURS = 12;
 const REMEMBER_SESSION_DAYS = 30;
+const LAST_SEEN_WRITE_INTERVAL_MS = 2 * 60 * 1000;
 
 function sessionConfig() {
   const env = readServerEnv();
@@ -20,6 +21,7 @@ function hashToken(token: string, secret: string) {
 }
 
 export type AuthenticatedUser = {
+  sessionId: string;
   id: string;
   companyId: string;
   username: string;
@@ -30,11 +32,19 @@ export type AuthenticatedUser = {
   permissions: string[];
 };
 
-export async function createSession(userId: string, remember: boolean) {
+export async function createSession(userId: string, remember: boolean, metadata?: { ipAddress?: string; userAgent?: string }) {
   const { secret, cookieName } = sessionConfig();
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + (remember ? REMEMBER_SESSION_DAYS * 24 : SHORT_SESSION_HOURS) * 60 * 60 * 1000);
-  await prisma.session.create({ data: { userId, tokenHash: hashToken(token, secret), expiresAt } });
+  await prisma.session.create({
+    data: {
+      userId,
+      tokenHash: hashToken(token, secret),
+      expiresAt,
+      ipAddress: metadata?.ipAddress,
+      userAgent: metadata?.userAgent,
+    },
+  });
   const store = await cookies();
   store.set(cookieName, token, {
     httpOnly: true,
@@ -49,7 +59,12 @@ export async function deleteCurrentSession() {
   const { secret, cookieName } = sessionConfig();
   const store = await cookies();
   const token = store.get(cookieName)?.value;
-  if (token) await prisma.session.deleteMany({ where: { tokenHash: hashToken(token, secret) } });
+  if (token) {
+    await prisma.session.updateMany({
+      where: { tokenHash: hashToken(token, secret), endedAt: null },
+      data: { endedAt: new Date(), endReason: "LOGOUT" },
+    });
+  }
   store.delete(cookieName);
 }
 
@@ -68,12 +83,33 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
       },
     },
   });
-  if (!session || session.expiresAt <= new Date() || session.user.status !== "ACTIVE") {
-    if (session) await prisma.session.delete({ where: { id: session.id } });
+  const now = new Date();
+  if (!session) return null;
+  if (session.endedAt) return null;
+  if (session.expiresAt <= now) {
+    await prisma.session.updateMany({
+      where: { id: session.id, endedAt: null },
+      data: { endedAt: session.expiresAt, endReason: "EXPIRED" },
+    });
+    return null;
+  }
+  if (session.user.status !== "ACTIVE") {
+    await prisma.session.updateMany({
+      where: { id: session.id, endedAt: null },
+      data: { endedAt: now, endReason: "ACCOUNT_DISABLED" },
+    });
     return null;
   }
 
+  if (now.getTime() - session.lastSeenAt.getTime() >= LAST_SEEN_WRITE_INTERVAL_MS) {
+    await prisma.session.updateMany({
+      where: { id: session.id, endedAt: null, lastSeenAt: { lte: new Date(now.getTime() - LAST_SEEN_WRITE_INTERVAL_MS) } },
+      data: { lastSeenAt: now },
+    });
+  }
+
   return {
+    sessionId: session.id,
     id: session.user.id,
     companyId: session.user.companyId,
     username: session.user.username,

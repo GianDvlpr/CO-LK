@@ -14,6 +14,7 @@ El repositorio contiene la fundación técnica ejecutable:
 - Registro de decisiones y gate de fase 0.
 - Proyecto Neon `weathered-frost-40313859` vinculado al branch `production`.
 - Neon y Pusher configurados localmente mediante variables ignoradas por Git.
+- Consulta de RUC para proveedores y clientes mediante APIS.NET.PE, con datos del padrón reducido de SUNAT.
 - Roles iniciales `SUPERADMIN` y `ADMIN`, acceso exclusivamente por nombre de usuario y cambio obligatorio de contraseña temporal.
 
 El gate funcional fue aprobado el 13/10/2026. La migración inicial de `prisma/migrations/20261013150000_initial_domain` ya fue aplicada en la rama Neon `production`.
@@ -85,6 +86,7 @@ request → sesión → permiso → Zod → servicio de aplicación
 - `docs/phase-0/decision-proposal.md`: valores recomendados para revisión funcional.
 - `docs/phase-0/excel-templates/`: formatos preliminares de carga masiva y reporte.
 - `docs/integrations/neon-and-pusher.md`: vinculación, variables y reglas de seguridad.
+- `docs/integrations/sunat-ruc.md`: configuración y límites del autocompletado por RUC.
 - `docs/security/authentication-and-rbac.md`: sesiones, permisos y puesta en marcha segura.
 - `docs/architecture/0001-modular-monolith.md`: primera decisión de arquitectura.
 

@@ -4,6 +4,7 @@ import {
   AppstoreOutlined,
   BookOutlined,
   CalendarOutlined,
+  ClockCircleOutlined,
   DatabaseOutlined,
   FileExcelOutlined,
   InboxOutlined,
@@ -55,6 +56,7 @@ const moduleIcons: Record<string, React.ReactNode> = {
   catalogs: <SettingOutlined />,
   users: <TeamOutlined />,
   roles: <SafetyCertificateOutlined />,
+  sessions: <ClockCircleOutlined />,
   imports: <FileExcelOutlined />,
 };
 
