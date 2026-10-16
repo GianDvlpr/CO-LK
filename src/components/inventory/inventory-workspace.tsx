@@ -14,9 +14,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 type Balance = { warehouseId: string; onHandQuantity: string; reservedQuantity: string; averageUnitCost: string; inventoryValue: string };
-type Item = { id: string; code: string; name: string; type: string; minimumStock: string; lotTrackingMode: string; active: boolean; unit: { code: string; symbol: string }; balances: Balance[] };
+type Item = { id: string; code: string; legacyCode?: string; abbreviation?: string; legacySecondaryCode?: string; name: string; type: string; minimumStock: string; lotTrackingMode: string; active: boolean; unit: { code: string; symbol: string }; balances: Balance[] };
 type Options = { units: { id: string; code: string; name: string; symbol: string }[]; warehouses: { id: string; code: string; name: string }[]; items: (Pick<Item, "id" | "code" | "name" | "lotTrackingMode"> & { unit: { symbol: string } })[] };
-type ItemForm = { name: string; type: "RAW_MATERIAL" | "FINISHED_PRODUCT"; unitId: string; minimumStock: number; lotTrackingMode: "NONE" | "OPTIONAL" | "REQUIRED"; active?: boolean };
+type ItemForm = { name: string; legacyCode?: string; abbreviation?: string; legacySecondaryCode?: string; type: "RAW_MATERIAL" | "FINISHED_PRODUCT"; unitId: string; minimumStock: number; lotTrackingMode: "NONE" | "OPTIONAL" | "REQUIRED"; active?: boolean };
 type OpeningForm = { referenceNumber: string; itemId: string; warehouseId: string; quantity: number; unitCost: number; lotCode?: string; occurredAt: Dayjs };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> { const response = await fetch(url, init); const payload = await response.json(); if (!response.ok) throw new Error(payload.error?.message ?? "No se pudo completar la operación."); return payload.data; }
@@ -35,8 +35,8 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock }: { p
   const createOpening = useMutation({ mutationFn: (values: OpeningForm) => api("/api/v1/inventory/opening", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...values, occurredAt: values.occurredAt.format("YYYY-MM-DD") }) }), onSuccess: async () => { toast.success("Stock inicial contabilizado."); setOpeningOpen(false); openingForm.resetFields(); await queryClient.invalidateQueries({ queryKey: ["inventory"] }); }, onError: (error) => toast.error(error.message) });
 
   const columns: ColumnsType<Item> = [
-    { title: "Código", dataIndex: "code", width: 130, fixed: "left", render: (value) => <strong>{value}</strong> },
-    { title: "Ítem", dataIndex: "name", width: 260 },
+    { title: "Código", dataIndex: "code", width: 150, fixed: "left", render: (value, row) => <><strong>{value}</strong>{row.legacyCode ? <><br /><span className="table-secondary">Anterior: {row.legacyCode}</span></> : null}</> },
+    { title: "Ítem", dataIndex: "name", width: 260, render: (value, row) => <>{value}{row.abbreviation ? <><br /><Tag>{row.abbreviation}</Tag></> : null}</> },
     { title: "Tipo", dataIndex: "type", width: 150, render: (value) => <Tag color={value === "RAW_MATERIAL" ? "blue" : "purple"}>{value === "RAW_MATERIAL" ? "Materia prima" : "Producto terminado"}</Tag> },
     { title: "Unidad", width: 90, render: (_, row) => row.unit.symbol },
     { title: "Stock", width: 120, align: "right", render: (_, row) => row.balances.reduce((sum, balance) => sum.add(balance.onHandQuantity), new Decimal(0)).toFixed(3) },
@@ -44,7 +44,7 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock }: { p
     { title: "Stock mínimo", dataIndex: "minimumStock", width: 130, align: "right", render: (value) => new Decimal(value).toFixed(3) },
     { title: "Valor inventario", width: 150, align: "right", render: (_, row) => `S/ ${row.balances.reduce((sum, balance) => sum.add(balance.inventoryValue), new Decimal(0)).toFixed(2)}` },
     { title: "Lotes", dataIndex: "lotTrackingMode", width: 110, render: (value: Item["lotTrackingMode"]) => ({ NONE: "No", OPTIONAL: "Opcional", REQUIRED: "Obligatorio" } as Record<string, string>)[value] ?? value },
-    ...(canCreate ? [{ title: "Acciones", fixed: "right" as const, width: 100, render: (_: unknown, row: Item) => <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingItem(row); itemForm.setFieldsValue({ name: row.name, type: row.type as ItemForm["type"], unitId: options.data?.units.find((unit) => unit.code === row.unit.code)?.id, minimumStock: Number(row.minimumStock), lotTrackingMode: row.lotTrackingMode as ItemForm["lotTrackingMode"], active: row.active }); setItemOpen(true); }}>Editar</Button> }] : []),
+    ...(canCreate ? [{ title: "Acciones", fixed: "right" as const, width: 100, render: (_: unknown, row: Item) => <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingItem(row); itemForm.setFieldsValue({ name: row.name, legacyCode: row.legacyCode, abbreviation: row.abbreviation, legacySecondaryCode: row.legacySecondaryCode, type: row.type as ItemForm["type"], unitId: options.data?.units.find((unit) => unit.code === row.unit.code)?.id, minimumStock: Number(row.minimumStock), lotTrackingMode: row.lotTrackingMode as ItemForm["lotTrackingMode"], active: row.active }); setItemOpen(true); }}>Editar</Button> }] : []),
   ];
 
   return <>
@@ -52,7 +52,12 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock }: { p
     <Card className="section-card" title="Ítems y existencias" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingItem(undefined); itemForm.resetFields(); itemForm.setFieldsValue({ type: "RAW_MATERIAL", minimumStock: 0, lotTrackingMode: "NONE", active: true }); setItemOpen(true); }}>Nuevo ítem</Button> : null}>{inventory.error ? <Alert type="error" showIcon message={inventory.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={inventory.isLoading} columns={columns} dataSource={inventory.data?.items ?? []} scroll={{ x: 1350 }} pagination={{ pageSize: 20 }} locale={{ emptyText: <Empty description="Aún no hay ítems registrados" /> }} /></Card>
     <Modal title={editingItem ? "Editar ítem de almacén" : "Nuevo ítem de almacén"} open={itemOpen} onCancel={() => { setItemOpen(false); setEditingItem(undefined); }} onOk={() => itemForm.submit()} okText={editingItem ? "Guardar cambios" : "Crear ítem"} confirmLoading={createItem.isPending || updateItem.isPending} destroyOnHidden>
       <Form form={itemForm} layout="vertical" onFinish={(values) => editingItem ? updateItem.mutate(values) : createItem.mutate(values)} initialValues={{ type: "RAW_MATERIAL", minimumStock: 0, lotTrackingMode: "NONE", active: true }}>
-        {editingItem ? <Form.Item label="Código"><Input disabled value={editingItem.code} /></Form.Item> : null}<Form.Item name="name" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
+        {editingItem ? <Form.Item label="Código LK INNOVACIÓN"><Input disabled value={editingItem.code} /></Form.Item> : null}<Form.Item name="name" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
+        <div className="purchase-form-grid">
+          <Form.Item name="legacyCode" label="Código anterior"><Input maxLength={50} placeholder="Ejemplo: 01" /></Form.Item>
+          <Form.Item name="abbreviation" label="Sigla"><Input maxLength={30} placeholder="Ejemplo: PVC" /></Form.Item>
+          <Form.Item name="legacySecondaryCode" label="Código Material SEG"><Input maxLength={80} /></Form.Item>
+        </div>
         <Form.Item name="type" label="Tipo" rules={[{ required: true }]}><Select disabled={Boolean(editingItem)} options={[{ value: "RAW_MATERIAL", label: "Materia prima" }, { value: "FINISHED_PRODUCT", label: "Producto terminado" }]} /></Form.Item>
         <Form.Item name="unitId" label="Unidad base" rules={[{ required: true }]}><Select loading={options.isLoading} options={options.data?.units.map((unit) => ({ value: unit.id, label: `${unit.code} · ${unit.name} (${unit.symbol})` }))} /></Form.Item>
         <Form.Item name="minimumStock" label="Stock mínimo" rules={[{ required: true }]}><InputNumber min={0} precision={3} style={{ width: "100%" }} /></Form.Item>

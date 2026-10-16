@@ -24,7 +24,7 @@ describe("import workbooks", () => {
 
   it("exige costo y fecha cuando se informa stock inicial", async () => {
     const bytes = await createWorkbook("inventory", {
-      "Almacén": [[null, "Cuero negro", "MATERIA_PRIMA", "M2", "OPTIONAL", 20, "SI", "PRINCIPAL", 100]],
+      "Almacén": [[null, "01", "PVC", null, "Cuero negro", "MATERIA_PRIMA", "M2", "OPTIONAL", 20, "SI", "PRINCIPAL", 100]],
     });
     const result = await validateWorkbook("inventory", bytes as ArrayBuffer);
     expect(result.errors).toEqual(expect.arrayContaining([
@@ -44,6 +44,7 @@ describe("import workbooks", () => {
     expect(instructionText).toContain("etiqueta temporal");
     expect(instructionText).toContain("Un código vacío crea un registro");
     expect(items?.getRow(1).values).toContain("Unidad de medida");
+    expect(items?.getRow(1).values).toContain("Código anterior");
     expect(items?.getRow(1).values).not.toContain("accion");
     expect(items?.getRow(1).getCell(1).note).toContain("Código oficial");
   });
@@ -85,7 +86,7 @@ describe("import workbooks", () => {
     const registeredWorkbook = new ExcelJS.Workbook();
     await registeredWorkbook.xlsx.load(Buffer.from(registeredBytes as ArrayBuffer) as unknown as Parameters<typeof registeredWorkbook.xlsx.load>[0]);
     const registeredList = registeredWorkbook.getWorksheet("_Listas");
-    const movementValidation = registeredWorkbook.getWorksheet("Almacén")?.getCell("H2").dataValidation;
+    const movementValidation = registeredWorkbook.getWorksheet("Almacén")?.getCell("K2").dataValidation;
 
     expect(registeredList?.state).toBe("veryHidden");
     expect(registeredList?.getColumn(1).values).toEqual([undefined, "almacen_codigo", "PRINCIPAL", "INSUMOS"]);

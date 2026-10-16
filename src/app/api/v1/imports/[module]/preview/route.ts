@@ -28,9 +28,14 @@ async function existingWarnings(module: ImportModule, data: Record<string, Parse
     productRows.filter((row) => productCodes.has(value(row, "producto_codigo").toUpperCase())).forEach((row) => warnings.push({ rowNumber: row.rowNumber, field: "producto_codigo", code: "EXISTING_RECORD_SKIPPED", message: `El producto ${value(row, "producto_codigo")} ya existe y será omitido.` }));
     variantRows.filter((row) => skus.has(value(row, "sku").toUpperCase())).forEach((row) => warnings.push({ rowNumber: row.rowNumber, field: "sku", code: "EXISTING_RECORD_SKIPPED", message: `El SKU ${value(row, "sku")} ya existe y será omitido.` }));
   } else if (module === "inventory") {
-    const itemRows = data.Items ?? []; const codes = itemRows.map((row) => value(row, "codigo")).filter(Boolean);
-    const existing = new Set((await prisma.inventoryItem.findMany({ where: { companyId, code: { in: codes } }, select: { code: true } })).map((item) => item.code.toUpperCase()));
+    const itemRows = data["Almacén"] ?? [];
+    const codes = itemRows.map((row) => value(row, "codigo")).filter(Boolean);
+    const legacyCodes = itemRows.map((row) => value(row, "codigo_anterior")).filter(Boolean);
+    const registered = await prisma.inventoryItem.findMany({ where: { companyId, OR: [{ code: { in: codes } }, { legacyCode: { in: legacyCodes } }] }, select: { code: true, legacyCode: true } });
+    const existing = new Set(registered.map((item) => item.code.toUpperCase()));
+    const existingLegacy = new Set(registered.map((item) => item.legacyCode?.toUpperCase()).filter(Boolean));
     itemRows.filter((row) => existing.has(value(row, "codigo").toUpperCase())).forEach((row) => warnings.push({ rowNumber: row.rowNumber, field: "codigo", code: "EXISTING_RECORD_SKIPPED", message: `El ítem ${value(row, "codigo")} ya existe y será omitido.` }));
+    itemRows.filter((row) => !value(row, "codigo") && existingLegacy.has(value(row, "codigo_anterior").toUpperCase())).forEach((row) => warnings.push({ rowNumber: row.rowNumber, field: "codigo_anterior", code: "EXISTING_LEGACY_RECORD", message: `El código anterior ${value(row, "codigo_anterior")} ya pertenece a un ítem registrado.` }));
   } else {
     const recipeRows = data.Recetas ?? []; const recipes = await prisma.recipe.findMany({ where: { companyId, code: { in: recipeRows.map((row) => value(row, "receta_codigo")).filter(Boolean) } }, select: { code: true, versions: { select: { version: true } } } });
     const versions = new Set(recipes.flatMap((recipe) => recipe.versions.map((version) => `${recipe.code.toUpperCase()}:${version.version}`)));

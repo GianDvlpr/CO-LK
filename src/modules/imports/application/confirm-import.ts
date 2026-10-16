@@ -80,7 +80,12 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
   const openingItems = new Set<string>();
   for (const row of rows(data, "Almacén")) {
     const suppliedCode = text(row, "codigo").toUpperCase();
-    const existing = suppliedCode ? await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code: suppliedCode } } }) : null;
+    const legacyCode = text(row, "codigo_anterior").toUpperCase() || null;
+    const existing = suppliedCode
+      ? await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code: suppliedCode } } })
+      : legacyCode
+        ? await tx.inventoryItem.findUnique({ where: { companyId_legacyCode: { companyId, legacyCode } } })
+        : null;
     if (mode === "ONLY_NEW" && existing) { skipped(result); continue; }
     if (mode === "ONLY_NEW" && suppliedCode && !existing) throw new ImportApplicationError("NOT_FOUND", `El código ${suppliedCode} no existe; deja la celda vacía para crear un ítem.`, row.rowNumber, "codigo");
     const unit = await tx.unitOfMeasure.findUnique({ where: { companyId_code: { companyId, code: text(row, "unidad_base").toUpperCase() } } });
@@ -94,7 +99,7 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
     if (op === "CREAR" && existing) throw new ImportApplicationError("DUPLICATE_CODE", `El ítem ${suppliedCode} ya existe.`, row.rowNumber, "codigo");
     if (op === "ACTUALIZAR" && !existing) throw new ImportApplicationError("NOT_FOUND", `El ítem ${suppliedCode} no existe.`, row.rowNumber, "codigo");
     const code = suppliedCode || await nextBusinessCode(tx, companyId, type === "RAW_MATERIAL" ? "INVENTORY_RAW" : "INVENTORY_FINISHED");
-    const values = { name: text(row, "nombre"), type: type as "RAW_MATERIAL" | "FINISHED_PRODUCT", unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo") };
+    const values = { name: text(row, "nombre"), legacyCode, abbreviation: text(row, "sigla") || null, legacySecondaryCode: text(row, "codigo_material_seg") || null, type: type as "RAW_MATERIAL" | "FINISHED_PRODUCT", unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo") };
     const item = existing
       ? await tx.inventoryItem.update({ where: { id: existing.id }, data: values })
       : await tx.inventoryItem.create({ data: { companyId, code, ...values } });

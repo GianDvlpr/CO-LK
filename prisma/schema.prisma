@@ -363,6 +363,9 @@ model InventoryItem {
   id                  String                    @id @default(uuid()) @db.Uuid
   companyId           String                    @map("company_id") @db.Uuid
   code                String
+  legacyCode          String?                   @map("legacy_code")
+  abbreviation        String?
+  legacySecondaryCode String?                   @map("legacy_secondary_code")
   name                String
   type                InventoryItemType
   unitId              String                    @map("unit_id") @db.Uuid
@@ -384,6 +387,7 @@ model InventoryItem {
   productionMaterials ProductionMaterial[]
 
   @@unique([companyId, code])
+  @@unique([companyId, legacyCode])
   @@index([companyId, type, active])
   @@map("inventory_items")
 }

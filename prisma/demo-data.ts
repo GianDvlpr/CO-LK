@@ -278,12 +278,20 @@ async function main() {
     prisma.customer.create({ data: { companyId: company.id, code: "DEMO-CLI-003", name: "Servicios Industriales Sur", taxId: "20500000033", email: "logistica@industrialessur-demo.pe", phone: "+51 988 200 303" } }),
   ]);
 
-  const materialDefinitions = [
-    { code: "DEMO-MP-CAU", name: "Caucho natural", unit: "KG", minimumStock: 90 },
-    { code: "DEMO-MP-PVC", name: "PVC granulado flexible", unit: "KG", minimumStock: 120 },
-    { code: "DEMO-MP-TR", name: "TR granulado", unit: "KG", minimumStock: 70 },
-    { code: "DEMO-MP-EVA", name: "EVA expandible", unit: "KG", minimumStock: 60 },
-    { code: "DEMO-MP-PU", name: "Poliuretano (PU)", unit: "KG", minimumStock: 30 },
+  const materialDefinitions: { code: string; name: string; unit: string; minimumStock: number; legacyCode?: string; abbreviation?: string }[] = [
+    { code: "DEMO-MP-PVC", name: "PVC", unit: "KG", minimumStock: 120, legacyCode: "01", abbreviation: "PVC" },
+    { code: "DEMO-MP-EXP", name: "PVC Expanso", unit: "KG", minimumStock: 60, legacyCode: "02", abbreviation: "EXP" },
+    { code: "DEMO-MP-TR", name: "Termoplástico", unit: "KG", minimumStock: 70, legacyCode: "03", abbreviation: "TR" },
+    { code: "DEMO-MP-CAU", name: "Caucho", unit: "KG", minimumStock: 90, legacyCode: "04", abbreviation: "RB" },
+    { code: "DEMO-MP-PU", name: "Poliuretano", unit: "KG", minimumStock: 30, legacyCode: "05", abbreviation: "PU" },
+    { code: "DEMO-MP-COL-TR", name: "Colada TR", unit: "KG", minimumStock: 0, legacyCode: "06" },
+    { code: "DEMO-MP-COL-EXP", name: "Colada EXP", unit: "KG", minimumStock: 0, legacyCode: "07" },
+    { code: "DEMO-MP-COL-RB", name: "Colada RB", unit: "KG", minimumStock: 0, legacyCode: "08" },
+    { code: "DEMO-MP-MOL-EXP", name: "Molido EXP", unit: "KG", minimumStock: 0, legacyCode: "09" },
+    { code: "DEMO-MP-MOL-TR", name: "Molido TR", unit: "KG", minimumStock: 0, legacyCode: "10" },
+    { code: "DEMO-MP-AL", name: "Aluminio", unit: "KG", minimumStock: 0, legacyCode: "11", abbreviation: "AL" },
+    { code: "DEMO-MP-CG", name: "Caucho Gel", unit: "KG", minimumStock: 0, legacyCode: "12", abbreviation: "CG" },
+    { code: "DEMO-MP-EVA", name: "EVA", unit: "KG", minimumStock: 60, legacyCode: "13", abbreviation: "EVA" },
     { code: "DEMO-MP-EST", name: "Ácido esteárico", unit: "KG", minimumStock: 15 },
     { code: "DEMO-MP-ZINC", name: "Óxido de zinc", unit: "KG", minimumStock: 20 },
     { code: "DEMO-MP-PIG", name: "Pigmento negro", unit: "KG", minimumStock: 8 },
@@ -291,7 +299,7 @@ async function main() {
     { code: "DEMO-MP-AZU", name: "Azufre industrial", unit: "KG", minimumStock: 10 },
     { code: "DEMO-MP-DESM", name: "Desmoldante para suelas", unit: "L", minimumStock: 12 },
   ];
-  const materials = await Promise.all(materialDefinitions.map((item) => prisma.inventoryItem.create({ data: { companyId: company.id, code: item.code, name: item.name, type: "RAW_MATERIAL", unitId: unitByCode.get(item.unit)!.id, minimumStock: item.minimumStock, lotTrackingMode: "NONE" } })));
+  const materials = await Promise.all(materialDefinitions.map((item) => prisma.inventoryItem.create({ data: { companyId: company.id, code: item.code, legacyCode: item.legacyCode, abbreviation: item.abbreviation, name: item.name, type: "RAW_MATERIAL", unitId: unitByCode.get(item.unit)!.id, minimumStock: item.minimumStock, lotTrackingMode: "NONE" } })));
   const materialByCode = new Map(materials.map((item) => [item.code, item]));
 
   const [size38, size39, size40, size41, size42] = await Promise.all([

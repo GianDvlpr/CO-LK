@@ -22,7 +22,7 @@ export async function reportData(module: keyof typeof workbookSpecs, companyId: 
       "Almacén": items.flatMap((item) => {
         const balances = item.balances.filter((balance) => balance.lotId === null && Number(balance.onHandQuantity) !== 0);
         const rows = balances.length ? balances : [null];
-        return rows.map((balance) => [item.code, item.name, item.type, item.unit.code, item.lotTrackingMode, Number(item.minimumStock), item.active ? "SI" : "NO", balance?.warehouse.code ?? null, balance ? Number(balance.onHandQuantity) : null, balance ? Number(balance.averageUnitCost) : null, null, balance ? date(balance.updatedAt) : null, balance ? "Saldo actual exportado" : null]);
+        return rows.map((balance) => [item.code, item.legacyCode, item.abbreviation, item.legacySecondaryCode, item.name, item.type, item.unit.code, item.lotTrackingMode, Number(item.minimumStock), item.active ? "SI" : "NO", balance?.warehouse.code ?? null, balance ? Number(balance.onHandQuantity) : null, balance ? Number(balance.averageUnitCost) : null, null, balance ? date(balance.updatedAt) : null, balance ? "Saldo actual exportado" : null]);
       }),
     };
   }
