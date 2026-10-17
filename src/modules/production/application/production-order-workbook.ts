@@ -53,7 +53,7 @@ export async function buildProductionOrderWorkbook(order: ProductionOrderDocumen
 
   sheet.mergeCells(1, 1, 1, totalColumn);
   const title = sheet.getCell(1, 1);
-  title.value = "LK INNOVACION DE SUELAS PARA CALZADO  |  ORDEN DE PRODUCCIÓN  |  A5";
+  title.value = "LK INNOVACION DE SUELAS PARA CALZADO  |  ORDEN DE PRODUCCIÓN";
   title.font = { name: "Arial", size: 10, bold: true, color: { argb: WHITE } };
   title.alignment = { vertical: "middle", horizontal: "left" };
   fill(title, NAVY); title.border = border; sheet.getRow(1).height = 22;

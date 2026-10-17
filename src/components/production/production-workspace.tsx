@@ -146,7 +146,7 @@ function ProductionDetailsFields({ form, variants, materials, structureLocked = 
             {(quantityFields) => <div className="purchase-form-grid">{quantityFields.map((quantityField) => {
               const variantId = form.getFieldValue(["productionTurns", field.name, "quantities", quantityField.name, "productVariantId"]);
               const variant = variants.find((item) => item.id === variantId);
-              return <Form.Item {...quantityField} name={[quantityField.name, "quantity"]} label={variant ? `Talla ${variant.size.name}` : "Cantidad"} rules={[{ required: true }]}>
+              return <Form.Item {...quantityField} key={quantityField.key} name={[quantityField.name, "quantity"]} label={variant ? `Talla ${variant.size.name}` : "Cantidad"} rules={[{ required: true }]}>
                 <InputNumber min={0} precision={0} style={{ width: "100%" }} />
               </Form.Item>;
             })}</div>}

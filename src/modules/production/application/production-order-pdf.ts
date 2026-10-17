@@ -43,7 +43,7 @@ export async function buildProductionOrderPdf(order: ProductionOrderDocumentData
   const width = pageWidth - margin * 2;
   let top = pageHeight - margin;
 
-  cell(page, font, bold, { x: margin, top, width, height: 20, text: "LK INNOVACION DE SUELAS PARA CALZADO  |  ORDEN DE PRODUCCIÓN  |  A5", dark: true, size: 8 });
+  cell(page, font, bold, { x: margin, top, width, height: 20, text: "LK INNOVACION DE SUELAS PARA CALZADO  |  ORDEN DE PRODUCCIÓN", dark: true, size: 8 });
   top -= 20;
   const half = width / 2;
   const labelWidth = 92;
