@@ -9,9 +9,7 @@ import { nextBusinessCode } from "@/lib/database/business-code";
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(150),
-  legacyCode: z.string().trim().max(50).optional().or(z.literal("")),
   abbreviation: z.string().trim().max(30).optional().or(z.literal("")),
-  legacySecondaryCode: z.string().trim().max(80).optional().or(z.literal("")),
   type: z.enum(["RAW_MATERIAL", "WASTE", "FINISHED_PRODUCT"]),
   unitId: z.uuid(),
   minimumStock: z.union([z.string(), z.number()]),
@@ -20,7 +18,7 @@ const createSchema = z.object({
 
 function knownError(error: unknown) {
   if (error instanceof AuthError) return apiError(error.code, error.message, error.status);
-  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return apiError("INVENTORY_DUPLICATE_CODE", "Ya existe un ítem con ese código oficial o código anterior.", 409);
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return apiError("INVENTORY_DUPLICATE_CODE", "Ya existe un ítem con ese código.", 409);
   return null;
 }
 
@@ -47,7 +45,7 @@ export async function POST(request: Request) {
     const item = await prisma.$transaction(async (tx) => {
       const codeKind = parsed.data.type === "RAW_MATERIAL" ? "INVENTORY_RAW" : parsed.data.type === "WASTE" ? "INVENTORY_WASTE" : "INVENTORY_FINISHED";
       const code = await nextBusinessCode(tx, user.companyId, codeKind);
-      const created = await tx.inventoryItem.create({ data: { ...parsed.data, legacyCode: parsed.data.legacyCode || null, abbreviation: parsed.data.abbreviation || null, legacySecondaryCode: parsed.data.legacySecondaryCode || null, code, minimumStock: parsed.data.minimumStock, companyId: user.companyId } });
+      const created = await tx.inventoryItem.create({ data: { ...parsed.data, abbreviation: parsed.data.abbreviation || null, code, minimumStock: parsed.data.minimumStock, companyId: user.companyId } });
       await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "InventoryItem", entityId: created.id, action: "CREATE", afterData: { code: created.code, name: created.name } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "inventory.item-created.v1", aggregateId: created.id, payload: { itemId: created.id, code: created.code } } });
       return created;

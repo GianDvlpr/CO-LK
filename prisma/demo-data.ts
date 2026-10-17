@@ -375,20 +375,20 @@ async function main() {
     prisma.customer.create({ data: { companyId: company.id, code: "CLI-000003", name: "Servicios Industriales Sur", taxId: "20500000033", fiscalAddress: "Parque Industrial Río Seco, Cerro Colorado", department: "Arequipa", province: "Arequipa", district: "Cerro Colorado", email: "logistica@industrialessur-demo.pe", phone: "+51 988 200 303" } }),
   ]);
 
-  const materialDefinitions: { key: string; code: string; name: string; type: "RAW_MATERIAL" | "WASTE"; unit: string; minimumStock: number; legacyCode?: string; abbreviation?: string }[] = [
-    { key: "DEMO-MP-PVC", code: "MP-000001", name: "PVC", type: "RAW_MATERIAL", unit: "KG", minimumStock: 120, legacyCode: "01", abbreviation: "PVC" },
-    { key: "DEMO-MP-EXP", code: "MP-000002", name: "PVC Expanso", type: "RAW_MATERIAL", unit: "KG", minimumStock: 60, legacyCode: "02", abbreviation: "EXP" },
-    { key: "DEMO-MP-TR", code: "MP-000003", name: "Termoplástico TR", type: "RAW_MATERIAL", unit: "KG", minimumStock: 70, legacyCode: "03", abbreviation: "TR" },
-    { key: "DEMO-MP-CAU", code: "MP-000004", name: "Caucho", type: "RAW_MATERIAL", unit: "KG", minimumStock: 90, legacyCode: "04", abbreviation: "RB" },
-    { key: "DEMO-MP-PU", code: "MP-000005", name: "Poliuretano", type: "RAW_MATERIAL", unit: "KG", minimumStock: 30, legacyCode: "05", abbreviation: "PU" },
-    { key: "DEMO-MP-COL-TR", code: "MER-000001", name: "Colada TR", type: "WASTE", unit: "KG", minimumStock: 0, legacyCode: "06" },
-    { key: "DEMO-MP-COL-EXP", code: "MER-000002", name: "Colada EXP", type: "WASTE", unit: "KG", minimumStock: 0, legacyCode: "07" },
-    { key: "DEMO-MP-COL-RB", code: "MER-000003", name: "Colada RB", type: "WASTE", unit: "KG", minimumStock: 0, legacyCode: "08" },
-    { key: "DEMO-MP-MOL-EXP", code: "MER-000004", name: "Molido EXP", type: "WASTE", unit: "KG", minimumStock: 0, legacyCode: "09" },
-    { key: "DEMO-MP-MOL-TR", code: "MER-000005", name: "Molido TR", type: "WASTE", unit: "KG", minimumStock: 0, legacyCode: "10" },
-    { key: "DEMO-MP-AL", code: "MP-000006", name: "Aluminio", type: "RAW_MATERIAL", unit: "KG", minimumStock: 0, legacyCode: "11", abbreviation: "AL" },
-    { key: "DEMO-MP-CG", code: "MP-000007", name: "Caucho Gel", type: "RAW_MATERIAL", unit: "KG", minimumStock: 0, legacyCode: "12", abbreviation: "CG" },
-    { key: "DEMO-MP-EVA", code: "MP-000008", name: "EVA", type: "RAW_MATERIAL", unit: "KG", minimumStock: 60, legacyCode: "13", abbreviation: "EVA" },
+  const materialDefinitions: { key: string; code: string; name: string; type: "RAW_MATERIAL" | "WASTE"; unit: string; minimumStock: number; abbreviation?: string }[] = [
+    { key: "DEMO-MP-PVC", code: "MP-000001", name: "PVC", type: "RAW_MATERIAL", unit: "KG", minimumStock: 120, abbreviation: "PVC" },
+    { key: "DEMO-MP-EXP", code: "MP-000002", name: "PVC Expanso", type: "RAW_MATERIAL", unit: "KG", minimumStock: 60, abbreviation: "EXP" },
+    { key: "DEMO-MP-TR", code: "MP-000003", name: "Termoplástico TR", type: "RAW_MATERIAL", unit: "KG", minimumStock: 70, abbreviation: "TR" },
+    { key: "DEMO-MP-CAU", code: "MP-000004", name: "Caucho", type: "RAW_MATERIAL", unit: "KG", minimumStock: 90, abbreviation: "RB" },
+    { key: "DEMO-MP-PU", code: "MP-000005", name: "Poliuretano", type: "RAW_MATERIAL", unit: "KG", minimumStock: 30, abbreviation: "PU" },
+    { key: "DEMO-MP-COL-TR", code: "MER-000001", name: "Colada TR", type: "WASTE", unit: "KG", minimumStock: 0 },
+    { key: "DEMO-MP-COL-EXP", code: "MER-000002", name: "Colada EXP", type: "WASTE", unit: "KG", minimumStock: 0 },
+    { key: "DEMO-MP-COL-RB", code: "MER-000003", name: "Colada RB", type: "WASTE", unit: "KG", minimumStock: 0 },
+    { key: "DEMO-MP-MOL-EXP", code: "MER-000004", name: "Molido EXP", type: "WASTE", unit: "KG", minimumStock: 0 },
+    { key: "DEMO-MP-MOL-TR", code: "MER-000005", name: "Molido TR", type: "WASTE", unit: "KG", minimumStock: 0 },
+    { key: "DEMO-MP-AL", code: "MP-000006", name: "Aluminio", type: "RAW_MATERIAL", unit: "KG", minimumStock: 0, abbreviation: "AL" },
+    { key: "DEMO-MP-CG", code: "MP-000007", name: "Caucho Gel", type: "RAW_MATERIAL", unit: "KG", minimumStock: 0, abbreviation: "CG" },
+    { key: "DEMO-MP-EVA", code: "MP-000008", name: "EVA", type: "RAW_MATERIAL", unit: "KG", minimumStock: 60, abbreviation: "EVA" },
     { key: "DEMO-MP-EST", code: "MP-000009", name: "Ácido esteárico", type: "RAW_MATERIAL", unit: "KG", minimumStock: 15 },
     { key: "DEMO-MP-ZINC", code: "MP-000010", name: "Óxido de zinc", type: "RAW_MATERIAL", unit: "KG", minimumStock: 20 },
     { key: "DEMO-MP-PIG", code: "MP-000011", name: "Pigmento negro", type: "RAW_MATERIAL", unit: "KG", minimumStock: 8 },
@@ -399,7 +399,7 @@ async function main() {
     { key: "DEMO-MP-VIRA", code: "MP-000016", name: "Cerco / vira negra", type: "RAW_MATERIAL", unit: "M", minimumStock: 40 },
     { key: "DEMO-MP-INS-TAL", code: "MP-000017", name: "Inserto de talón", type: "RAW_MATERIAL", unit: "UND", minimumStock: 50 },
   ];
-  const materials = await Promise.all(materialDefinitions.map((item) => prisma.inventoryItem.create({ data: { companyId: company.id, code: item.code, legacyCode: item.legacyCode, abbreviation: item.abbreviation, name: item.name, type: item.type, unitId: unitByCode.get(item.unit)!.id, minimumStock: item.minimumStock, lotTrackingMode: "NONE" } })));
+  const materials = await Promise.all(materialDefinitions.map((item) => prisma.inventoryItem.create({ data: { companyId: company.id, code: item.code, abbreviation: item.abbreviation, name: item.name, type: item.type, unitId: unitByCode.get(item.unit)!.id, minimumStock: item.minimumStock, lotTrackingMode: "NONE" } })));
   const materialByCode = new Map(materials.map((item, index) => [materialDefinitions[index].key, item]));
 
   const [size38, size39, size40, size41, size42] = await Promise.all([

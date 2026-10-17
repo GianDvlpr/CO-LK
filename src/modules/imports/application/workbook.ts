@@ -24,7 +24,7 @@ export const workbookSpecs: Record<ImportModule, ModuleSpec> = {
   inventory: {
     label: "Almacén", permission: "inventory.read", file: "almacen",
     sheets: [
-      { name: "Almacén", columns: ["codigo", "codigo_anterior", "sigla", "codigo_material_seg", "nombre", "tipo_item", "unidad_base", "modo_lote", "stock_minimo", "activo", "almacen_codigo", "stock_inicial", "costo_unitario_pen", "lote", "fecha_inicial", "observaciones"], required: ["nombre", "tipo_item", "unidad_base"], uniqueBy: [["codigo"], ["codigo_anterior"], ["nombre", "unidad_base", "almacen_codigo", "lote"]] },
+      { name: "Almacén", columns: ["codigo", "sigla", "nombre", "tipo_item", "unidad_base", "modo_lote", "stock_minimo", "activo", "almacen_codigo", "stock_inicial", "costo_unitario_pen", "lote", "fecha_inicial", "observaciones"], required: ["nombre", "tipo_item", "unidad_base"], uniqueBy: [["codigo"], ["nombre", "unidad_base", "almacen_codigo", "lote"]] },
     ],
   },
   recipes: {
@@ -61,7 +61,7 @@ function exampleValue(column: string): string | number {
     lote_linea_numero: 1, material_codigo: "MP-000001", lote_proveedor: "LOTE-2026-01", fecha_vencimiento: "2027-10-13",
     cantidad_presentaciones: 25, tipo_presentacion: "SACO", contenido_por_presentacion: 20, unidad_contenido: "KG",
     cantidad_base: 500, precio_neto_unidad_base: 4.5, tasa_igv: 18, precio_unitario_con_igv: 5.31,
-    subtotal_neto: 2250, igv: 405, total_linea: 2655, codigo: "(se genera)", codigo_anterior: "01", sigla: "PVC", codigo_material_seg: "", nombre: "PVC",
+    subtotal_neto: 2250, igv: 405, total_linea: 2655, codigo: "(se genera)", sigla: "PVC", nombre: "PVC",
     tipo_item: "MATERIA_PRIMA", unidad_base: "KG", modo_lote: "OPTIONAL", almacen_codigo: "PRINCIPAL",
     stock_minimo: 10, activo: "SI", producto_activo: "SI", variante_activa: "SI", stock_inicial: 100, fecha_inicial: "2026-10-13", item_codigo: "MP-000001", lote: "LOTE-2026-01", fecha: "2026-10-13",
     cantidad: 100, costo_unitario_pen: 4.5, receta_codigo: "(se genera)", producto_codigo: "(se genera)",
@@ -111,9 +111,7 @@ const columnDescriptions: Record<string, string> = {
   igv: "Importe del IGV de la línea. Es informativo y el sistema lo recalcula.",
   total_linea: "Precio final de la línea incluido IGV. Es informativo y el sistema lo recalcula.",
   codigo: "Código oficial del ítem de Almacén. Déjalo vacío para crear uno nuevo; si informas un código existente, el sistema actualiza ese ítem.",
-  codigo_anterior: "Código que identificaba al material en el sistema anterior. Se conserva para trazabilidad y no reemplaza el código automático de LK INNOVACIÓN.",
   sigla: "Abreviatura usada para identificar rápidamente el material, por ejemplo PVC, TR, RB o EVA.",
-  codigo_material_seg: "Código secundario del material en el sistema anterior. Es opcional.",
   nombre: "Nombre descriptivo del ítem o producto.",
   tipo_item: "Clasificación del ítem: MATERIA_PRIMA para insumos comprados, MERMA para sobrantes o material recuperado y PRODUCTO_TERMINADO para variantes generadas desde Productos.",
   unidad_base: "Unidad en la que se controla el stock del ítem, por ejemplo KG, L, UND o PAR.",
@@ -198,9 +196,7 @@ const friendlyLabels: Record<string, string> = {
   igv: "Importe de IGV",
   total_linea: "Total de la línea",
   codigo: "Código",
-  codigo_anterior: "Código anterior",
   sigla: "Sigla",
-  codigo_material_seg: "Código Material SEG",
   nombre: "Nombre",
   tipo_item: "Tipo de ítem",
   unidad_base: "Unidad de medida",
