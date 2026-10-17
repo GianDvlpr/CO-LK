@@ -1,4 +1,5 @@
 import { readServerEnv } from "@/lib/env/server";
+import { configuredSunatApiTokens, randomizedSunatApiTokens } from "./sunat-token-pool";
 
 export type DniLookupResult = {
   dni: string;
@@ -47,42 +48,48 @@ export async function lookupDni(dni: string): Promise<DniLookupResult> {
   if (!/^\d{8}$/.test(normalized)) throw new DniLookupError("INVALID_DNI", "Ingresa un DNI peruano válido de 8 dígitos.", 400);
 
   const env = readServerEnv();
-  if (!env.SUNAT_RUC_API_TOKEN) {
+  const tokens = randomizedSunatApiTokens(configuredSunatApiTokens(env));
+  if (!tokens.length) {
     throw new DniLookupError(
       "DNI_PROVIDER_NOT_CONFIGURED",
-      "La consulta DNI todavía no está configurada. Agrega SUNAT_RUC_API_TOKEN en el servidor.",
+      "La consulta DNI todavía no está configurada. Agrega las claves de consulta en el servidor.",
       503,
     );
   }
 
   const url = new URL(env.SUNAT_DNI_API_URL);
   url.searchParams.set("numero", normalized);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
-  try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${env.SUNAT_RUC_API_TOKEN}`,
-        Referer: "https://apis.net.pe/api-consulta-dni",
-        "User-Agent": "LK-INNOVACION/1.0",
-      },
-      signal: controller.signal,
-      cache: "no-store",
-    });
-    if (response.status === 404) throw new DniLookupError("DNI_NOT_FOUND", "El DNI no existe en las fuentes consultadas.", 404);
-    if (response.status === 401 || response.status === 403) {
-      throw new DniLookupError("DNI_PROVIDER_NOT_CONFIGURED", "El token del servicio de consulta DNI no es válido o no tiene acceso.", 503);
+  for (const [index, token] of tokens.entries()) {
+    const hasFallback = index < tokens.length - 1;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+          Referer: "https://apis.net.pe/api-consulta-dni",
+          "User-Agent": "LK-INNOVACION/1.0",
+        },
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      if (response.status === 404) throw new DniLookupError("DNI_NOT_FOUND", "El DNI no existe en las fuentes consultadas.", 404);
+      if (response.status === 400 || response.status === 422) throw new DniLookupError("INVALID_DNI", "El proveedor rechazó el número de DNI.", 400);
+      if (response.status === 401 || response.status === 403 || response.status === 429 || response.status >= 500) {
+        if (hasFallback) continue;
+        throw new DniLookupError("DNI_PROVIDER_UNAVAILABLE", "Las claves de consulta DNI no están disponibles. Intenta nuevamente.", 502);
+      }
+      if (!response.ok) throw new DniLookupError("DNI_PROVIDER_UNAVAILABLE", "El servicio de consulta DNI no está disponible. Intenta nuevamente.", 502);
+      const result = mapApisNetPeDni(await response.json());
+      if (result.dni !== normalized) throw new DniLookupError("DNI_PROVIDER_UNAVAILABLE", "El servicio de consulta DNI devolvió una persona distinta a la solicitada.", 502);
+      return result;
+    } catch (error) {
+      if (error instanceof DniLookupError) throw error;
+      if (!hasFallback) throw new DniLookupError("DNI_PROVIDER_UNAVAILABLE", "No se pudo conectar con el servicio de consulta DNI. Intenta nuevamente.", 502);
+    } finally {
+      clearTimeout(timer);
     }
-    if (response.status === 400 || response.status === 422) throw new DniLookupError("INVALID_DNI", "El proveedor rechazó el número de DNI.", 400);
-    if (!response.ok) throw new DniLookupError("DNI_PROVIDER_UNAVAILABLE", "El servicio de consulta DNI no está disponible. Intenta nuevamente.", 502);
-    const result = mapApisNetPeDni(await response.json());
-    if (result.dni !== normalized) throw new DniLookupError("DNI_PROVIDER_UNAVAILABLE", "El servicio de consulta DNI devolvió una persona distinta a la solicitada.", 502);
-    return result;
-  } catch (error) {
-    if (error instanceof DniLookupError) throw error;
-    throw new DniLookupError("DNI_PROVIDER_UNAVAILABLE", "No se pudo conectar con el servicio de consulta DNI. Intenta nuevamente.", 502);
-  } finally {
-    clearTimeout(timer);
   }
+  throw new DniLookupError("DNI_PROVIDER_UNAVAILABLE", "No se pudo consultar el DNI con las claves configuradas.", 502);
 }

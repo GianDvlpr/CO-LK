@@ -12,7 +12,7 @@ const createSchema = z.object({
   legacyCode: z.string().trim().max(50).optional().or(z.literal("")),
   abbreviation: z.string().trim().max(30).optional().or(z.literal("")),
   legacySecondaryCode: z.string().trim().max(80).optional().or(z.literal("")),
-  type: z.enum(["RAW_MATERIAL", "FINISHED_PRODUCT"]),
+  type: z.enum(["RAW_MATERIAL", "WASTE", "FINISHED_PRODUCT"]),
   unitId: z.uuid(),
   minimumStock: z.union([z.string(), z.number()]),
   lotTrackingMode: z.enum(["NONE", "OPTIONAL", "REQUIRED"]),
@@ -45,7 +45,8 @@ export async function POST(request: Request) {
     const unit = await prisma.unitOfMeasure.findFirst({ where: { id: parsed.data.unitId, companyId: user.companyId } });
     if (!unit) return apiError("INVENTORY_INVALID_UNIT", "La unidad de medida no es válida.", 422);
     const item = await prisma.$transaction(async (tx) => {
-      const code = await nextBusinessCode(tx, user.companyId, parsed.data.type === "RAW_MATERIAL" ? "INVENTORY_RAW" : "INVENTORY_FINISHED");
+      const codeKind = parsed.data.type === "RAW_MATERIAL" ? "INVENTORY_RAW" : parsed.data.type === "WASTE" ? "INVENTORY_WASTE" : "INVENTORY_FINISHED";
+      const code = await nextBusinessCode(tx, user.companyId, codeKind);
       const created = await tx.inventoryItem.create({ data: { ...parsed.data, legacyCode: parsed.data.legacyCode || null, abbreviation: parsed.data.abbreviation || null, legacySecondaryCode: parsed.data.legacySecondaryCode || null, code, minimumStock: parsed.data.minimumStock, companyId: user.companyId } });
       await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "InventoryItem", entityId: created.id, action: "CREATE", afterData: { code: created.code, name: created.name } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "inventory.item-created.v1", aggregateId: created.id, payload: { itemId: created.id, code: created.code } } });

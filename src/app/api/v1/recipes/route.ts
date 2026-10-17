@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     const recipe = await prisma.$transaction(async (tx) => {
       const [product, materials] = await Promise.all([
         tx.product.findFirst({ where: { id: parsed.data.productId, companyId: user.companyId, active: true } }),
-        tx.inventoryItem.findMany({ where: { id: { in: itemIds }, companyId: user.companyId, active: true, type: "RAW_MATERIAL" } }),
+        tx.inventoryItem.findMany({ where: { id: { in: itemIds }, companyId: user.companyId, active: true, type: { in: ["RAW_MATERIAL", "WASTE"] } } }),
       ]);
       if (!product || materials.length !== itemIds.length) throw new Error("RECIPE_INVALID_REFERENCE");
       const code = await nextBusinessCode(tx, user.companyId, "RECIPE");
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     });
     return apiSuccess(recipe, 201);
   } catch (error) {
-    if (error instanceof Error && error.message === "RECIPE_INVALID_REFERENCE") return apiError("RECIPE_INVALID_REFERENCE", "El producto o alguna materia prima no es válida.", 422);
+    if (error instanceof Error && error.message === "RECIPE_INVALID_REFERENCE") return apiError("RECIPE_INVALID_REFERENCE", "El producto, materia prima o merma no es válido.", 422);
     const response = knownError(error); if (response) return response; throw error;
   }
 }

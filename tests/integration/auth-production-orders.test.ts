@@ -33,7 +33,7 @@ beforeAll(async () => {
     prisma.inventoryItem.create({ data: { companyId: company.id, code: "ZAP-40-N", name: "Zapato 40 negro", type: "FINISHED_PRODUCT", unitId: unit.id, lotTrackingMode: "NONE" } }),
     prisma.customer.create({ data: { companyId: company.id, code: "CLI-01", name: "Cliente integración" } }),
   ]);
-  const product = await prisma.product.create({ data: { companyId: company.id, code: "ZAP", name: "Zapato" } });
+  const product = await prisma.product.create({ data: { companyId: company.id, code: "ZAP", matrixCode: "I0034", name: "Zapato" } });
   const variant = await prisma.productVariant.create({ data: { productId: product.id, sizeId: size.id, colorId: color.id, inventoryItemId: finishedItem.id, sku: `ZAP-40-N-${suffix}` } });
   const recipe = await prisma.recipe.create({ data: { companyId: company.id, productId: product.id, code: "REC-ZAP", name: "Receta zapato", status: "ACTIVE" } });
   const version = await prisma.recipeVersion.create({ data: { recipeId: recipe.id, version: 1, yieldQuantity: 2, isActive: true, ingredients: { create: { itemId: rawItem.id, quantity: 3, wastePercentage: 0 } } } });

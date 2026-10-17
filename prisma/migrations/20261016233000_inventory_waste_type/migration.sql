@@ -1,0 +1,1 @@
+ALTER TYPE "InventoryItemType" ADD VALUE IF NOT EXISTS 'WASTE';

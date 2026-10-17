@@ -314,8 +314,8 @@ async function main() {
     prisma.color.create({ data: { companyId: company.id, code: "NEG", name: "Negro", hex: "#111827" } }),
     prisma.color.create({ data: { companyId: company.id, code: "BLA", name: "Blanco", hex: "#F8FAFC" } }),
   ]);
-  const urbanSoleProduct = await prisma.product.create({ data: { companyId: company.id, code: "DEMO-SUE-FLEX", name: "Suela Urbana Flex", description: "Suela flexible de PVC/TR para calzado urbano" } });
-  const industrialSoleProduct = await prisma.product.create({ data: { companyId: company.id, code: "DEMO-SUE-GRIP", name: "Suela Industrial Grip", description: "Suela antideslizante reforzada para calzado industrial" } });
+  const urbanSoleProduct = await prisma.product.create({ data: { companyId: company.id, code: "DEMO-SUE-FLEX", matrixCode: "I0034", name: "Suela Urbana Flex", description: "Suela flexible de PVC/TR para calzado urbano" } });
+  const industrialSoleProduct = await prisma.product.create({ data: { companyId: company.id, code: "DEMO-SUE-GRIP", matrixCode: "I0042", name: "Suela Industrial Grip", description: "Suela antideslizante reforzada para calzado industrial" } });
 
   async function createVariant(productId: string, sizeId: string, colorId: string, sku: string, itemName: string) {
     const inventoryItem = await prisma.inventoryItem.create({ data: { companyId: company.id, code: `DEMO-PT-${sku}`, name: itemName, type: "FINISHED_PRODUCT", unitId: unitByCode.get("PAR")!.id, minimumStock: 8, lotTrackingMode: "NONE" } });

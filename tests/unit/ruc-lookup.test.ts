@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { isValidPeruvianRuc, mapApisNetPeRuc, RucLookupError } from "@/modules/catalogs/application/ruc-lookup";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { isValidPeruvianRuc, lookupRuc, mapApisNetPeRuc, RucLookupError } from "@/modules/catalogs/application/ruc-lookup";
+import { configuredSunatApiTokens, randomizedSunatApiTokens } from "@/modules/catalogs/application/sunat-token-pool";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
 
 describe("consulta de RUC", () => {
   it("valida el dígito verificador peruano", () => {
@@ -23,5 +30,34 @@ describe("consulta de RUC", () => {
 
   it("rechaza respuestas incompletas del proveedor", () => {
     expect(() => mapApisNetPeRuc({ numeroDocumento: "20131312955" })).toThrow(RucLookupError);
+  });
+
+  it("usa las dos claves nuevas y omite duplicados", () => {
+    expect(configuredSunatApiTokens({ SUNAT_RUC_API_TOKEN_1: "key-a", SUNAT_RUC_API_TOKEN_2: "key-b", SUNAT_RUC_API_TOKEN: "legacy" })).toEqual(["key-a", "key-b"]);
+    expect(configuredSunatApiTokens({ SUNAT_RUC_API_TOKEN_1: "key-a", SUNAT_RUC_API_TOKEN_2: "key-a" })).toEqual(["key-a"]);
+  });
+
+  it("elige aleatoriamente la primera clave sin perder la alternativa", () => {
+    expect(randomizedSunatApiTokens(["key-a", "key-b"], () => 0)).toEqual(["key-a", "key-b"]);
+    expect(randomizedSunatApiTokens(["key-a", "key-b"], () => 0.99)).toEqual(["key-b", "key-a"]);
+  });
+
+  it("mantiene compatibilidad con la variable anterior", () => {
+    expect(configuredSunatApiTokens({ SUNAT_RUC_API_TOKEN: "legacy" })).toEqual(["legacy"]);
+  });
+
+  it("prueba la segunda clave cuando la primera está limitada", async () => {
+    vi.stubEnv("SUNAT_RUC_API_URL", "https://api.example.test/ruc");
+    vi.stubEnv("SUNAT_RUC_API_TOKEN_1", "key-a");
+    vi.stubEnv("SUNAT_RUC_API_TOKEN_2", "key-b");
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 429 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ numeroDocumento: "20131312955", razonSocial: "SUNAT" }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(lookupRuc("20131312955")).resolves.toMatchObject({ ruc: "20131312955", name: "SUNAT" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.map(([, init]) => (init?.headers as Record<string, string>).Authorization)).toEqual(["Bearer key-a", "Bearer key-b"]);
   });
 });

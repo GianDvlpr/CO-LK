@@ -3,6 +3,7 @@ import Decimal from "decimal.js";
 import { calculateMovingAverage } from "@/modules/inventory/domain/calculate-moving-average";
 import { calculatePurchaseLine } from "@/modules/purchases/domain/calculate-purchase-line";
 import { nextBusinessCode } from "@/lib/database/business-code";
+import { buildProductSku, normalizeMatrixCode, productVariantColorLabel } from "@/modules/products/domain/product-sku";
 import type { ImportModule, ParsedWorkbookRow } from "./workbook";
 
 type ImportData = Record<string, ParsedWorkbookRow[]>;
@@ -91,15 +92,16 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
     const unit = await tx.unitOfMeasure.findUnique({ where: { companyId_code: { companyId, code: text(row, "unidad_base").toUpperCase() } } });
     if (!unit) throw new ImportApplicationError("INVALID_REFERENCE", `No existe la unidad ${text(row, "unidad_base")}.`, row.rowNumber, "unidad_base");
     const rawType = text(row, "tipo_item").toUpperCase();
-    const type = rawType === "MATERIA_PRIMA" ? "RAW_MATERIAL" : rawType === "PRODUCTO_TERMINADO" ? "FINISHED_PRODUCT" : rawType;
-    if (!( ["RAW_MATERIAL", "FINISHED_PRODUCT"] as string[]).includes(type)) throw new ImportApplicationError("INVALID_TYPE", "tipo_item no es válido.", row.rowNumber, "tipo_item");
+    const type = rawType === "MATERIA_PRIMA" ? "RAW_MATERIAL" : rawType === "MERMA" ? "WASTE" : rawType === "PRODUCTO_TERMINADO" ? "FINISHED_PRODUCT" : rawType;
+    if (!( ["RAW_MATERIAL", "WASTE", "FINISHED_PRODUCT"] as string[]).includes(type)) throw new ImportApplicationError("INVALID_TYPE", "tipo_item debe ser MATERIA_PRIMA, MERMA o PRODUCTO_TERMINADO.", row.rowNumber, "tipo_item");
     const modeLot = (text(row, "modo_lote") || "NONE").toUpperCase();
     if (!( ["NONE", "OPTIONAL", "REQUIRED"] as string[]).includes(modeLot)) throw new ImportApplicationError("INVALID_LOT_MODE", "modo_lote no es válido.", row.rowNumber, "modo_lote");
     const op = inferredAction(suppliedCode, mode);
     if (op === "CREAR" && existing) throw new ImportApplicationError("DUPLICATE_CODE", `El ítem ${suppliedCode} ya existe.`, row.rowNumber, "codigo");
     if (op === "ACTUALIZAR" && !existing) throw new ImportApplicationError("NOT_FOUND", `El ítem ${suppliedCode} no existe.`, row.rowNumber, "codigo");
-    const code = suppliedCode || await nextBusinessCode(tx, companyId, type === "RAW_MATERIAL" ? "INVENTORY_RAW" : "INVENTORY_FINISHED");
-    const values = { name: text(row, "nombre"), legacyCode, abbreviation: text(row, "sigla") || null, legacySecondaryCode: text(row, "codigo_material_seg") || null, type: type as "RAW_MATERIAL" | "FINISHED_PRODUCT", unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo") };
+    const codeKind = type === "RAW_MATERIAL" ? "INVENTORY_RAW" : type === "WASTE" ? "INVENTORY_WASTE" : "INVENTORY_FINISHED";
+    const code = suppliedCode || await nextBusinessCode(tx, companyId, codeKind);
+    const values = { name: text(row, "nombre"), legacyCode, abbreviation: text(row, "sigla") || null, legacySecondaryCode: text(row, "codigo_material_seg") || null, type: type as "RAW_MATERIAL" | "WASTE" | "FINISHED_PRODUCT", unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo") };
     const item = existing
       ? await tx.inventoryItem.update({ where: { id: existing.id }, data: values })
       : await tx.inventoryItem.create({ data: { companyId, code, ...values } });
@@ -150,30 +152,35 @@ async function importProducts(tx: Prisma.TransactionClient, data: ImportData, co
     if (op === "CREAR" && existing) throw new ImportApplicationError("DUPLICATE_CODE", `El producto ${suppliedCode} ya existe.`, row.rowNumber);
     if (op === "ACTUALIZAR" && !existing) throw new ImportApplicationError("NOT_FOUND", `El producto ${suppliedCode} no existe.`, row.rowNumber);
     const code = suppliedCode || await nextBusinessCode(tx, companyId, "PRODUCT");
-    const values = { name: text(row, "nombre"), description: text(row, "descripcion") || null, active: boolean(row, "producto_activo") };
+    const matrixCode = normalizeMatrixCode(text(row, "codigo_matriz") || existing?.matrixCode || "");
+    if (!matrixCode) throw new ImportApplicationError("MATRIX_REQUIRED", "El código de matriz es obligatorio para generar los SKU.", row.rowNumber, "codigo_matriz");
+    const values = { matrixCode, name: text(row, "nombre"), description: text(row, "descripcion") || null, active: boolean(row, "producto_activo") };
     const product = existing
       ? await tx.product.update({ where: { id: existing.id }, data: values })
       : await tx.product.create({ data: { companyId, code, ...values } });
     created(result);
-    for (const variantRow of productRows.filter((item) => text(item, "sku"))) {
-      const [size, color, unit] = await Promise.all([
+    for (const variantRow of productRows.filter((item) => text(item, "talla") && text(item, "color"))) {
+      const [size, color, secondaryColor, unit] = await Promise.all([
         tx.size.findUnique({ where: { companyId_code: { companyId, code: text(variantRow, "talla") } } }),
         tx.color.findUnique({ where: { companyId_code: { companyId, code: text(variantRow, "color") } } }),
+        text(variantRow, "color_secundario") ? tx.color.findUnique({ where: { companyId_code: { companyId, code: text(variantRow, "color_secundario") } } }) : null,
         tx.unitOfMeasure.findUnique({ where: { companyId_code: { companyId, code: text(variantRow, "unidad").toUpperCase() } } }),
       ]);
-      if (!size || !color || !unit) throw new ImportApplicationError("INVALID_REFERENCE", "Talla, color o unidad inexistente.", variantRow.rowNumber);
-      const sku = text(variantRow, "sku");
-      const existingVariant = await tx.productVariant.findUnique({ where: { sku }, include: { inventoryItem: true } });
+      if (!size || !color || !unit || (text(variantRow, "color_secundario") && !secondaryColor)) throw new ImportApplicationError("INVALID_REFERENCE", "Talla, color o unidad inexistente.", variantRow.rowNumber);
+      if (secondaryColor?.id === color.id) throw new ImportApplicationError("INVALID_COLOR_PAIR", "C1 y C2 deben ser colores diferentes.", variantRow.rowNumber, "color_secundario");
+      const sku = buildProductSku({ matrixCode, primaryColorCode: color.code, secondaryColorCode: secondaryColor?.code, sizeCode: size.code });
+      const suppliedSku = text(variantRow, "sku");
+      const existingVariant = await tx.productVariant.findFirst({ where: { OR: [{ sku }, ...(suppliedSku ? [{ sku: suppliedSku }] : [])] }, include: { inventoryItem: true } });
       if (mode === "ONLY_NEW" && existingVariant) { skipped(result); continue; }
       const active = boolean(variantRow, "variante_activa");
       const minimumStock = number(variantRow, "stock_minimo", 0).toString();
       if (existingVariant) {
         if (existingVariant.inventoryItem.companyId !== companyId) throw new ImportApplicationError("FORBIDDEN", "El SKU pertenece a otra empresa.", variantRow.rowNumber);
-        await tx.inventoryItem.update({ where: { id: existingVariant.inventoryItemId }, data: { name: `${product.name} · ${size.name} · ${color.name}`, unitId: unit.id, minimumStock, active } });
-        await tx.productVariant.update({ where: { id: existingVariant.id }, data: { productId: product.id, sizeId: size.id, colorId: color.id, active } });
+        await tx.inventoryItem.update({ where: { id: existingVariant.inventoryItemId }, data: { code: sku, name: `${product.name} · ${size.name} · ${productVariantColorLabel(color.name, secondaryColor?.name)}`, unitId: unit.id, minimumStock, active } });
+        await tx.productVariant.update({ where: { id: existingVariant.id }, data: { productId: product.id, sizeId: size.id, colorId: color.id, secondaryColorId: secondaryColor?.id || null, sku, active } });
       } else {
-        const item = await tx.inventoryItem.create({ data: { companyId, code: sku, name: `${product.name} · ${size.name} · ${color.name}`, type: "FINISHED_PRODUCT", unitId: unit.id, minimumStock, lotTrackingMode: "NONE", active } });
-        await tx.productVariant.create({ data: { productId: product.id, sizeId: size.id, colorId: color.id, inventoryItemId: item.id, sku, active } });
+        const item = await tx.inventoryItem.create({ data: { companyId, code: sku, name: `${product.name} · ${size.name} · ${productVariantColorLabel(color.name, secondaryColor?.name)}`, type: "FINISHED_PRODUCT", unitId: unit.id, minimumStock, lotTrackingMode: "NONE", active } });
+        await tx.productVariant.create({ data: { productId: product.id, sizeId: size.id, colorId: color.id, secondaryColorId: secondaryColor?.id || null, inventoryItemId: item.id, sku, active } });
       }
       created(result);
     }
@@ -203,7 +210,7 @@ async function importRecipes(tx: Prisma.TransactionClient, data: ImportData, com
     const ingredients = [];
     for (const ingredientRow of ingredientRows) {
       const item = await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code: text(ingredientRow, "material_codigo") } } });
-      if (!item || item.type !== "RAW_MATERIAL") throw new ImportApplicationError("INVALID_REFERENCE", "La materia prima no existe o no es válida.", ingredientRow.rowNumber, "material_codigo");
+      if (!item || !(["RAW_MATERIAL", "WASTE"] as string[]).includes(item.type)) throw new ImportApplicationError("INVALID_REFERENCE", "La materia prima o merma no existe o no es válida.", ingredientRow.rowNumber, "material_codigo");
       const waste = number(ingredientRow, "merma_porcentaje", 0);
       if (waste.isNegative() || waste.greaterThan(100)) throw new ImportApplicationError("INVALID_NUMBER", "La merma debe estar entre 0 y 100.", ingredientRow.rowNumber, "merma_porcentaje");
       ingredients.push({ itemId: item.id, quantity: positive(ingredientRow, "cantidad").toString(), wastePercentage: waste.toString() });

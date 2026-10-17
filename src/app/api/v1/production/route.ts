@@ -12,8 +12,12 @@ const schema = productionSheetSchema.extend({
   warehouseId: z.uuid(),
   productVariantId: z.uuid().optional(),
   recipeVersionId: z.uuid(),
+  secondaryRecipeVersionId: z.uuid().optional(),
+  salesOrderId: z.uuid().optional(),
+  materialItemId: z.uuid().optional(),
   machineId: z.uuid().optional(),
-  recipeRuns: z.union([z.string(), z.number()]),
+  recipeRuns: z.union([z.string(), z.number()]).optional(),
+  priority: z.coerce.number().int().min(1).max(3).default(2),
   plannedAt: z.coerce.date().optional(),
 });
 
@@ -31,10 +35,14 @@ export async function GET() {
       where: { companyId: user.companyId }, orderBy: { createdAt: "desc" },
       include: {
         warehouse: { select: { code: true, name: true } },
-        productVariant: { include: { product: { select: { id: true, code: true, name: true } }, size: { select: { name: true } }, color: { select: { name: true } } } },
+        productVariant: { include: { product: { select: { id: true, code: true, matrixCode: true, name: true } }, size: { select: { name: true } }, color: { select: { id: true, code: true, name: true } }, secondaryColor: { select: { id: true, code: true, name: true } } } },
         recipeVersion: { include: { recipe: { select: { code: true, name: true } } } },
+        secondaryRecipeVersion: { include: { recipe: { select: { code: true, name: true } } } },
+        salesOrder: { select: { id: true, number: true } },
+        materialItem: { select: { id: true, code: true, name: true, unit: { select: { symbol: true } } } },
         machine: { select: { id: true, code: true, name: true, type: true, status: true } },
         materials: { include: { item: { select: { code: true, name: true, unit: { select: { symbol: true } } } } } },
+        components: { include: { item: { select: { id: true, code: true, name: true, unit: { select: { symbol: true } } } } } },
       },
     });
     return apiSuccess({ items });

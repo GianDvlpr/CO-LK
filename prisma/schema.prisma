@@ -30,6 +30,7 @@ enum SessionEndReason {
 
 enum InventoryItemType {
   RAW_MATERIAL
+  WASTE
   FINISHED_PRODUCT
 }
 
@@ -383,31 +384,33 @@ model Warehouse {
 }
 
 model InventoryItem {
-  id                  String                    @id @default(uuid()) @db.Uuid
-  companyId           String                    @map("company_id") @db.Uuid
-  code                String
-  legacyCode          String?                   @map("legacy_code")
-  abbreviation        String?
-  legacySecondaryCode String?                   @map("legacy_secondary_code")
-  name                String
-  type                InventoryItemType
-  unitId              String                    @map("unit_id") @db.Uuid
-  minimumStock        Decimal                   @default(0) @map("minimum_stock") @db.Decimal(18, 6)
-  lotTrackingMode     LotTrackingMode           @default(NONE) @map("lot_tracking_mode")
-  active              Boolean                   @default(true)
-  createdAt           DateTime                  @default(now()) @map("created_at")
-  updatedAt           DateTime                  @updatedAt @map("updated_at")
-  company             Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  unit                UnitOfMeasure             @relation(fields: [unitId], references: [id])
-  lots                InventoryLot[]
-  balances            StockBalance[]
-  movements           StockMovement[]
-  reservations        StockReservation[]
-  adjustmentLines     InventoryAdjustmentLine[]
-  purchaseLines       PurchaseLine[]
-  productVariants     ProductVariant[]
-  recipeIngredients   RecipeIngredient[]
-  productionMaterials ProductionMaterial[]
+  id                       String                    @id @default(uuid()) @db.Uuid
+  companyId                String                    @map("company_id") @db.Uuid
+  code                     String
+  legacyCode               String?                   @map("legacy_code")
+  abbreviation             String?
+  legacySecondaryCode      String?                   @map("legacy_secondary_code")
+  name                     String
+  type                     InventoryItemType
+  unitId                   String                    @map("unit_id") @db.Uuid
+  minimumStock             Decimal                   @default(0) @map("minimum_stock") @db.Decimal(18, 6)
+  lotTrackingMode          LotTrackingMode           @default(NONE) @map("lot_tracking_mode")
+  active                   Boolean                   @default(true)
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  updatedAt                DateTime                  @updatedAt @map("updated_at")
+  company                  Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  unit                     UnitOfMeasure             @relation(fields: [unitId], references: [id])
+  lots                     InventoryLot[]
+  balances                 StockBalance[]
+  movements                StockMovement[]
+  reservations             StockReservation[]
+  adjustmentLines          InventoryAdjustmentLine[]
+  purchaseLines            PurchaseLine[]
+  productVariants          ProductVariant[]
+  recipeIngredients        RecipeIngredient[]
+  productionMaterials      ProductionMaterial[]
+  productionOrderMaterials ProductionOrder[]         @relation("ProductionOrderMaterialItem")
+  productionComponents     ProductionComponent[]
 
   @@unique([companyId, code])
   @@unique([companyId, legacyCode])
@@ -657,6 +660,7 @@ model Product {
   id          String           @id @default(uuid()) @db.Uuid
   companyId   String           @map("company_id") @db.Uuid
   code        String
+  matrixCode  String           @map("matrix_code")
   name        String
   description String?
   active      Boolean          @default(true)
@@ -668,6 +672,7 @@ model Product {
   recipes     Recipe[]
 
   @@unique([companyId, code])
+  @@unique([companyId, matrixCode])
   @@index([companyId, name])
   @@map("products")
 }
@@ -686,13 +691,14 @@ model Size {
 }
 
 model Color {
-  id        String           @id @default(uuid()) @db.Uuid
-  companyId String           @map("company_id") @db.Uuid
-  code      String
-  name      String
-  hex       String?
-  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  variants  ProductVariant[]
+  id                String           @id @default(uuid()) @db.Uuid
+  companyId         String           @map("company_id") @db.Uuid
+  code              String
+  name              String
+  hex               String?
+  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  primaryVariants   ProductVariant[] @relation("ProductVariantPrimaryColor")
+  secondaryVariants ProductVariant[] @relation("ProductVariantSecondaryColor")
 
   @@unique([companyId, code])
   @@map("colors")
@@ -703,17 +709,19 @@ model ProductVariant {
   productId        String            @map("product_id") @db.Uuid
   sizeId           String            @map("size_id") @db.Uuid
   colorId          String            @map("color_id") @db.Uuid
+  secondaryColorId String?           @map("secondary_color_id") @db.Uuid
   inventoryItemId  String            @unique @map("inventory_item_id") @db.Uuid
   sku              String            @unique
   active           Boolean           @default(true)
   product          Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
   size             Size              @relation(fields: [sizeId], references: [id])
-  color            Color             @relation(fields: [colorId], references: [id])
+  color            Color             @relation("ProductVariantPrimaryColor", fields: [colorId], references: [id])
+  secondaryColor   Color?            @relation("ProductVariantSecondaryColor", fields: [secondaryColorId], references: [id])
   inventoryItem    InventoryItem     @relation(fields: [inventoryItemId], references: [id])
   orderLines       SalesOrderLine[]
   productionOrders ProductionOrder[]
 
-  @@unique([productId, sizeId, colorId])
+  @@index([productId, sizeId, colorId, secondaryColorId])
   @@map("product_variants")
 }
 
@@ -754,16 +762,17 @@ model Recipe {
 }
 
 model RecipeVersion {
-  id               String             @id @default(uuid()) @db.Uuid
-  recipeId         String             @map("recipe_id") @db.Uuid
-  version          Int
-  yieldQuantity    Decimal            @map("yield_quantity") @db.Decimal(18, 6)
-  isActive         Boolean            @default(false) @map("is_active")
-  notes            String?
-  createdAt        DateTime           @default(now()) @map("created_at")
-  recipe           Recipe             @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  ingredients      RecipeIngredient[]
-  productionOrders ProductionOrder[]
+  id                        String             @id @default(uuid()) @db.Uuid
+  recipeId                  String             @map("recipe_id") @db.Uuid
+  version                   Int
+  yieldQuantity             Decimal            @map("yield_quantity") @db.Decimal(18, 6)
+  isActive                  Boolean            @default(false) @map("is_active")
+  notes                     String?
+  createdAt                 DateTime           @default(now()) @map("created_at")
+  recipe                    Recipe             @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredients               RecipeIngredient[]
+  primaryProductionOrders   ProductionOrder[]  @relation("PrimaryProductionRecipe")
+  secondaryProductionOrders ProductionOrder[]  @relation("SecondaryProductionRecipe")
 
   @@unique([recipeId, version])
   @@index([recipeId, isActive])
@@ -784,42 +793,52 @@ model RecipeIngredient {
 }
 
 model ProductionOrder {
-  id               String                @id @default(uuid()) @db.Uuid
-  companyId        String                @map("company_id") @db.Uuid
-  warehouseId      String                @map("warehouse_id") @db.Uuid
-  productVariantId String                @map("product_variant_id") @db.Uuid
-  recipeVersionId  String                @map("recipe_version_id") @db.Uuid
-  machineId        String?               @map("machine_id") @db.Uuid
-  number           String
-  recipeRuns       Decimal               @map("recipe_runs") @db.Decimal(18, 6)
-  plannedQuantity  Decimal               @map("planned_quantity") @db.Decimal(18, 6)
-  producedQuantity Decimal               @default(0) @map("produced_quantity") @db.Decimal(18, 6)
-  status           ProductionOrderStatus @default(DRAFT)
-  plannedAt        DateTime?             @map("planned_at")
-  machineEquipment String?               @map("machine_equipment")
-  operatorName     String?               @map("operator_name")
-  modelLogo        String?               @map("model_logo")
-  materialLoad     String?               @map("material_load")
-  seriesLot        String?               @map("series_lot")
-  processType      String?               @map("process_type")
-  mold             String?
-  brandColor       String?               @map("brand_color")
-  pressNumber      String?               @map("press_number")
-  pressLoad        String?               @map("press_load")
-  injectorNumber   String?               @map("injector_number")
-  curve            String?
-  sizeProgram      Json?                 @map("size_program")
-  dailyProduction  Json?                 @map("daily_production")
-  startedAt        DateTime?             @map("started_at")
-  completedAt      DateTime?             @map("completed_at")
-  createdAt        DateTime              @default(now()) @map("created_at")
-  company          Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  warehouse        Warehouse             @relation(fields: [warehouseId], references: [id])
-  productVariant   ProductVariant        @relation(fields: [productVariantId], references: [id])
-  recipeVersion    RecipeVersion         @relation(fields: [recipeVersionId], references: [id])
-  machine          Machine?              @relation(fields: [machineId], references: [id])
-  materials        ProductionMaterial[]
-  salesOrderLines  SalesOrderLine[]
+  id                       String                @id @default(uuid()) @db.Uuid
+  companyId                String                @map("company_id") @db.Uuid
+  warehouseId              String                @map("warehouse_id") @db.Uuid
+  productVariantId         String                @map("product_variant_id") @db.Uuid
+  recipeVersionId          String                @map("recipe_version_id") @db.Uuid
+  secondaryRecipeVersionId String?               @map("secondary_recipe_version_id") @db.Uuid
+  salesOrderId             String?               @map("sales_order_id") @db.Uuid
+  materialItemId           String?               @map("material_item_id") @db.Uuid
+  machineId                String?               @map("machine_id") @db.Uuid
+  number                   String
+  recipeRuns               Decimal               @map("recipe_runs") @db.Decimal(18, 6)
+  secondaryRecipeRuns      Decimal?              @map("secondary_recipe_runs") @db.Decimal(18, 6)
+  plannedQuantity          Decimal               @map("planned_quantity") @db.Decimal(18, 6)
+  producedQuantity         Decimal               @default(0) @map("produced_quantity") @db.Decimal(18, 6)
+  status                   ProductionOrderStatus @default(DRAFT)
+  priority                 Int                   @default(2)
+  plannedAt                DateTime?             @map("planned_at")
+  machineEquipment         String?               @map("machine_equipment")
+  operatorName             String?               @map("operator_name")
+  modelLogo                String?               @map("model_logo")
+  materialLoad             String?               @map("material_load")
+  seriesLot                String?               @map("series_lot")
+  processType              String?               @map("process_type")
+  mold                     String?
+  brandColor               String?               @map("brand_color")
+  pressNumber              String?               @map("press_number")
+  pressLoad                String?               @map("press_load")
+  injectorNumber           String?               @map("injector_number")
+  curve                    String?
+  sizeProgram              Json?                 @map("size_program")
+  dailyProduction          Json?                 @map("daily_production")
+  productionTurns          Json?                 @map("production_turns")
+  startedAt                DateTime?             @map("started_at")
+  completedAt              DateTime?             @map("completed_at")
+  createdAt                DateTime              @default(now()) @map("created_at")
+  company                  Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse                Warehouse             @relation(fields: [warehouseId], references: [id])
+  productVariant           ProductVariant        @relation(fields: [productVariantId], references: [id])
+  recipeVersion            RecipeVersion         @relation("PrimaryProductionRecipe", fields: [recipeVersionId], references: [id])
+  secondaryRecipeVersion   RecipeVersion?        @relation("SecondaryProductionRecipe", fields: [secondaryRecipeVersionId], references: [id])
+  salesOrder               SalesOrder?           @relation(fields: [salesOrderId], references: [id])
+  materialItem             InventoryItem?        @relation("ProductionOrderMaterialItem", fields: [materialItemId], references: [id])
+  machine                  Machine?              @relation(fields: [machineId], references: [id])
+  materials                ProductionMaterial[]
+  components               ProductionComponent[]
+  salesOrderLines          SalesOrderLine[]
 
   @@unique([companyId, number])
   @@index([companyId, status, plannedAt])
@@ -882,6 +901,21 @@ model ProductionMaterial {
   @@map("production_materials")
 }
 
+model ProductionComponent {
+  id                String          @id @default(uuid()) @db.Uuid
+  productionOrderId String          @map("production_order_id") @db.Uuid
+  itemId            String          @map("item_id") @db.Uuid
+  componentType     String          @map("component_type")
+  quantity          Decimal         @db.Decimal(18, 6)
+  colorDetail       String?         @map("color_detail")
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  item              InventoryItem   @relation(fields: [itemId], references: [id])
+
+  @@unique([productionOrderId, componentType])
+  @@index([itemId])
+  @@map("production_components")
+}
+
 model Customer {
   id             String          @id @default(uuid()) @db.Uuid
   companyId      String          @map("company_id") @db.Uuid
@@ -910,20 +944,21 @@ model Customer {
 }
 
 model SalesOrder {
-  id            String           @id @default(uuid()) @db.Uuid
-  companyId     String           @map("company_id") @db.Uuid
-  customerId    String           @map("customer_id") @db.Uuid
-  number        String
-  status        SalesOrderStatus @default(DRAFT)
-  requestedAt   DateTime         @map("requested_at") @db.Date
-  promisedAt    DateTime?        @map("promised_at") @db.Date
-  notes         String?
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
-  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer      Customer         @relation(fields: [customerId], references: [id])
-  lines         SalesOrderLine[]
-  pickPackOrder PickPackOrder?
+  id               String            @id @default(uuid()) @db.Uuid
+  companyId        String            @map("company_id") @db.Uuid
+  customerId       String            @map("customer_id") @db.Uuid
+  number           String
+  status           SalesOrderStatus  @default(DRAFT)
+  requestedAt      DateTime          @map("requested_at") @db.Date
+  promisedAt       DateTime?         @map("promised_at") @db.Date
+  notes            String?
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer         Customer          @relation(fields: [customerId], references: [id])
+  lines            SalesOrderLine[]
+  pickPackOrder    PickPackOrder?
+  productionOrders ProductionOrder[]
 
   @@unique([companyId, number])
   @@index([companyId, status, requestedAt])

@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 export type BusinessCodeKind =
   | "PURCHASE"
   | "INVENTORY_RAW"
+  | "INVENTORY_WASTE"
   | "INVENTORY_FINISHED"
   | "RECIPE"
   | "PRODUCTION"
@@ -16,6 +17,7 @@ export type BusinessCodeKind =
 const definitions: Record<BusinessCodeKind, { scope: string; prefix: string; annual: boolean }> = {
   PURCHASE: { scope: "PURCHASE", prefix: "CMP", annual: true },
   INVENTORY_RAW: { scope: "INVENTORY_RAW", prefix: "MP", annual: false },
+  INVENTORY_WASTE: { scope: "INVENTORY_WASTE", prefix: "MER", annual: false },
   INVENTORY_FINISHED: { scope: "INVENTORY_FINISHED", prefix: "PT", annual: false },
   RECIPE: { scope: "RECIPE", prefix: "REC", annual: false },
   PRODUCTION: { scope: "PRODUCTION", prefix: "OP", annual: true },
@@ -39,7 +41,7 @@ export function formatBusinessCode(kind: BusinessCodeKind, sequence: number, dat
 
 async function codeExists(tx: Prisma.TransactionClient, companyId: string, kind: BusinessCodeKind, code: string) {
   if (kind === "PURCHASE") return Boolean(await tx.purchase.findUnique({ where: { companyId_code: { companyId, code } }, select: { id: true } }));
-  if (kind === "INVENTORY_RAW" || kind === "INVENTORY_FINISHED") return Boolean(await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code } }, select: { id: true } }));
+  if (kind === "INVENTORY_RAW" || kind === "INVENTORY_WASTE" || kind === "INVENTORY_FINISHED") return Boolean(await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code } }, select: { id: true } }));
   if (kind === "RECIPE") return Boolean(await tx.recipe.findUnique({ where: { companyId_code: { companyId, code } }, select: { id: true } }));
   if (kind === "PRODUCTION") return Boolean(await tx.productionOrder.findUnique({ where: { companyId_number: { companyId, number: code } }, select: { id: true } }));
   if (kind === "MACHINE") return Boolean(await tx.machine.findUnique({ where: { companyId_code: { companyId, code } }, select: { id: true } }));

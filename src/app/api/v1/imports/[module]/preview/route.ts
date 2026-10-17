@@ -22,7 +22,7 @@ async function existingWarnings(module: ImportModule, data: Record<string, Parse
     const existing = new Set((await prisma.salesOrder.findMany({ where: { companyId, number: { in: numbers } }, select: { number: true } })).map((item) => item.number.toUpperCase()));
     rows.filter((row) => existing.has(value(row, "numero_pedido").toUpperCase())).forEach((row) => warnings.push({ rowNumber: row.rowNumber, field: "numero_pedido", code: "EXISTING_RECORD_SKIPPED", message: `El pedido ${value(row, "numero_pedido")} ya existe y será omitido.` }));
   } else if (module === "products") {
-    const productRows = data.Productos ?? []; const variantRows = data.Variantes ?? [];
+    const productRows = data.Productos ?? []; const variantRows = data.Productos ?? [];
     const [products, variants] = await Promise.all([prisma.product.findMany({ where: { companyId, code: { in: productRows.map((row) => value(row, "producto_codigo")).filter(Boolean) } }, select: { code: true } }), prisma.productVariant.findMany({ where: { sku: { in: variantRows.map((row) => value(row, "sku")).filter(Boolean) }, inventoryItem: { companyId } }, select: { sku: true } })]);
     const productCodes = new Set(products.map((item) => item.code.toUpperCase())); const skus = new Set(variants.map((item) => item.sku.toUpperCase()));
     productRows.filter((row) => productCodes.has(value(row, "producto_codigo").toUpperCase())).forEach((row) => warnings.push({ rowNumber: row.rowNumber, field: "producto_codigo", code: "EXISTING_RECORD_SKIPPED", message: `El producto ${value(row, "producto_codigo")} ya existe y será omitido.` }));

@@ -8,7 +8,7 @@ export async function GET() {
     const user = await requirePermission("recipes.read");
     const [products, materials] = await prisma.$transaction([
       prisma.product.findMany({ where: { companyId: user.companyId, active: true }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true, variants: { where: { active: true }, select: { sku: true, size: { select: { name: true } }, color: { select: { name: true } } } } } }),
-      prisma.inventoryItem.findMany({ where: { companyId: user.companyId, active: true, type: "RAW_MATERIAL" }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true, unit: { select: { symbol: true } } } }),
+      prisma.inventoryItem.findMany({ where: { companyId: user.companyId, active: true, type: { in: ["RAW_MATERIAL", "WASTE"] } }, orderBy: [{ type: "asc" }, { name: "asc" }], select: { id: true, code: true, name: true, type: true, unit: { select: { symbol: true } } } }),
     ]);
     return apiSuccess({ products, materials });
   } catch (error) { if (error instanceof AuthError) return apiError(error.code, error.message, error.status); throw error; }

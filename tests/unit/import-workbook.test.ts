@@ -51,7 +51,7 @@ describe("import workbooks", () => {
 
   it("convierte encabezados amigables, tolera columnas reordenadas y conserva compatibilidad técnica", async () => {
     const bytes = await createWorkbook("products", {
-      Productos: [["PROD-TEMP-1", null, "Zapato clásico", "Calzado", "Modelo de prueba", "SI", "ZAP-001-38-NEG", "38", "NEG", "UN", 0, 120, "SI"]],
+      Productos: [["PROD-TEMP-1", null, "I0034", "Zapato clásico", "Calzado", "Modelo de prueba", "SI", null, "38", "NEG", null, "UN", 0, 120, "SI"]],
     });
     const reordered = new ExcelJS.Workbook();
     await reordered.xlsx.load(Buffer.from(bytes as ArrayBuffer) as unknown as Parameters<typeof reordered.xlsx.load>[0]);

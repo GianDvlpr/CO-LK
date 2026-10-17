@@ -16,7 +16,7 @@ import { toast } from "sonner";
 type Balance = { warehouseId: string; onHandQuantity: string; reservedQuantity: string; averageUnitCost: string; inventoryValue: string };
 type Item = { id: string; code: string; legacyCode?: string; abbreviation?: string; legacySecondaryCode?: string; name: string; type: string; minimumStock: string; lotTrackingMode: string; active: boolean; unit: { code: string; symbol: string }; balances: Balance[] };
 type Options = { units: { id: string; code: string; name: string; symbol: string }[]; warehouses: { id: string; code: string; name: string }[]; items: (Pick<Item, "id" | "code" | "name" | "lotTrackingMode"> & { unit: { symbol: string } })[] };
-type ItemForm = { name: string; legacyCode?: string; abbreviation?: string; legacySecondaryCode?: string; type: "RAW_MATERIAL" | "FINISHED_PRODUCT"; unitId: string; minimumStock: number; lotTrackingMode: "NONE" | "OPTIONAL" | "REQUIRED"; active?: boolean };
+type ItemForm = { name: string; legacyCode?: string; abbreviation?: string; legacySecondaryCode?: string; type: "RAW_MATERIAL" | "WASTE" | "FINISHED_PRODUCT"; unitId: string; minimumStock: number; lotTrackingMode: "NONE" | "OPTIONAL" | "REQUIRED"; active?: boolean };
 type OpeningForm = { referenceNumber: string; itemId: string; warehouseId: string; quantity: number; unitCost: number; lotCode?: string; occurredAt: Dayjs };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> { const response = await fetch(url, init); const payload = await response.json(); if (!response.ok) throw new Error(payload.error?.message ?? "No se pudo completar la operación."); return payload.data; }
@@ -37,7 +37,15 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock }: { p
   const columns: ColumnsType<Item> = [
     { title: "Código", dataIndex: "code", width: 150, fixed: "left", render: (value, row) => <><strong>{value}</strong>{row.legacyCode ? <><br /><span className="table-secondary">Anterior: {row.legacyCode}</span></> : null}</> },
     { title: "Ítem", dataIndex: "name", width: 260, render: (value, row) => <>{value}{row.abbreviation ? <><br /><Tag>{row.abbreviation}</Tag></> : null}</> },
-    { title: "Tipo", dataIndex: "type", width: 150, render: (value) => <Tag color={value === "RAW_MATERIAL" ? "blue" : "purple"}>{value === "RAW_MATERIAL" ? "Materia prima" : "Producto terminado"}</Tag> },
+    { title: "Tipo", dataIndex: "type", width: 150, render: (value) => {
+      const types: Record<string, { label: string; color: string }> = {
+        RAW_MATERIAL: { label: "Materia prima", color: "blue" },
+        WASTE: { label: "Merma", color: "orange" },
+        FINISHED_PRODUCT: { label: "Producto terminado", color: "purple" },
+      };
+      const type = types[value] ?? { label: value, color: "default" };
+      return <Tag color={type.color}>{type.label}</Tag>;
+    } },
     { title: "Unidad", width: 90, render: (_, row) => row.unit.symbol },
     { title: "Stock", width: 120, align: "right", render: (_, row) => row.balances.reduce((sum, balance) => sum.add(balance.onHandQuantity), new Decimal(0)).toFixed(3) },
     { title: "Disponible", width: 120, align: "right", render: (_, row) => row.balances.reduce((sum, balance) => sum.add(balance.onHandQuantity).sub(balance.reservedQuantity), new Decimal(0)).toFixed(3) },
@@ -58,7 +66,7 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock }: { p
           <Form.Item name="abbreviation" label="Sigla"><Input maxLength={30} placeholder="Ejemplo: PVC" /></Form.Item>
           <Form.Item name="legacySecondaryCode" label="Código Material SEG"><Input maxLength={80} /></Form.Item>
         </div>
-        <Form.Item name="type" label="Tipo" rules={[{ required: true }]}><Select disabled={Boolean(editingItem)} options={[{ value: "RAW_MATERIAL", label: "Materia prima" }, { value: "FINISHED_PRODUCT", label: "Producto terminado" }]} /></Form.Item>
+        <Form.Item name="type" label="Tipo" rules={[{ required: true }]}><Select disabled={Boolean(editingItem)} options={[{ value: "RAW_MATERIAL", label: "Materia prima" }, { value: "WASTE", label: "Merma" }, { value: "FINISHED_PRODUCT", label: "Producto terminado" }]} /></Form.Item>
         <Form.Item name="unitId" label="Unidad base" rules={[{ required: true }]}><Select loading={options.isLoading} options={options.data?.units.map((unit) => ({ value: unit.id, label: `${unit.code} · ${unit.name} (${unit.symbol})` }))} /></Form.Item>
         <Form.Item name="minimumStock" label="Stock mínimo" rules={[{ required: true }]}><InputNumber min={0} precision={3} style={{ width: "100%" }} /></Form.Item>
         <Form.Item name="lotTrackingMode" label="Control de lotes" rules={[{ required: true }]}><Select options={[{ value: "NONE", label: "Sin lotes" }, { value: "OPTIONAL", label: "Opcional" }, { value: "REQUIRED", label: "Obligatorio" }]} /></Form.Item>

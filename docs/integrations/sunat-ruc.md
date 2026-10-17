@@ -25,18 +25,19 @@ SUNAT publica el [padrón reducido del RUC](https://www.sunat.gob.pe/descargaPRR
 
 ## Configuración
 
-1. Crear una cuenta en APIS.NET.PE y generar un token.
+1. Generar dos tokens de consulta en el proveedor.
 2. Agregar estas variables al entorno local y a Vercel:
 
 ```env
 SUNAT_RUC_API_URL="https://api.apis.net.pe/v2/sunat/ruc"
 SUNAT_DNI_API_URL="https://api.decolecta.com/v1/reniec/dni"
-SUNAT_RUC_API_TOKEN="token-generado-en-el-panel"
+SUNAT_RUC_API_TOKEN_1="primer-token-generado-en-el-panel"
+SUNAT_RUC_API_TOKEN_2="segundo-token-generado-en-el-panel"
 ```
 
 3. Reiniciar o volver a desplegar la aplicación.
 
-El token es exclusivamente de servidor: no usa el prefijo `NEXT_PUBLIC_`, no se envía al navegador y no debe subirse a Git.
+Los tokens son exclusivamente de servidor: no usan el prefijo `NEXT_PUBLIC_`, no se envían al navegador y no deben subirse a Git. En cada consulta se elige aleatoriamente cuál se intenta primero. Si esa clave está limitada, no autorizada o el proveedor falla, la solicitud intenta automáticamente la segunda. La variable anterior `SUNAT_RUC_API_TOKEN` se conserva únicamente como compatibilidad cuando no se configuraron las dos nuevas.
 
 ## Reglas de uso
 

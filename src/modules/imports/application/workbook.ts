@@ -36,7 +36,7 @@ export const workbookSpecs: Record<ImportModule, ModuleSpec> = {
   products: {
     label: "Productos", permission: "products.read", file: "productos",
     sheets: [
-      { name: "Productos", columns: ["referencia_carga", "producto_codigo", "nombre", "categoria", "descripcion", "producto_activo", "sku", "talla", "color", "unidad", "stock_minimo", "precio_venta", "variante_activa"], required: ["referencia_carga", "nombre"], uniqueBy: [["sku"]] },
+      { name: "Productos", columns: ["referencia_carga", "producto_codigo", "codigo_matriz", "nombre", "categoria", "descripcion", "producto_activo", "sku", "talla", "color", "color_secundario", "unidad", "stock_minimo", "precio_venta", "variante_activa"], required: ["referencia_carga", "codigo_matriz", "nombre", "talla", "color", "unidad"], uniqueBy: [["sku"], ["codigo_matriz", "talla", "color", "color_secundario"]] },
     ],
   },
   orders: {
@@ -66,8 +66,8 @@ function exampleValue(column: string): string | number {
     stock_minimo: 10, activo: "SI", producto_activo: "SI", variante_activa: "SI", stock_inicial: 100, fecha_inicial: "2026-10-13", item_codigo: "MP-000001", lote: "LOTE-2026-01", fecha: "2026-10-13",
     cantidad: 100, costo_unitario_pen: 4.5, receta_codigo: "(se genera)", producto_codigo: "(se genera)",
     variante_sku: "ZAP-001-40-NEG", version: 1, rendimiento: 1, unidad_salida: "PAR",
-    unidad: "KG", merma_porcentaje: 3, categoria: "Calzado", descripcion: "Zapato clásico", sku: "ZAP-001-40-NEG",
-    talla: "40", color: "NEG", precio_venta: 120, numero_pedido: "(se genera)", cliente_codigo: "CLI-000001",
+    unidad: "KG", merma_porcentaje: 3, categoria: "Calzado", descripcion: "Suela urbana", codigo_matriz: "I0034", sku: "(se genera)",
+    talla: "39", color: "NEG", color_secundario: "ROJ", precio_venta: 120, numero_pedido: "(se genera)", cliente_codigo: "CLI-000001",
     fecha_requerida: "2026-10-20", precio_neto_unitario: 100,
   };
   return examples[column] ?? (column.includes("fecha") ? "2026-10-13" : column.includes("codigo") ? "COD-001" : "Ejemplo");
@@ -115,7 +115,7 @@ const columnDescriptions: Record<string, string> = {
   sigla: "Abreviatura usada para identificar rápidamente el material, por ejemplo PVC, TR, RB o EVA.",
   codigo_material_seg: "Código secundario del material en el sistema anterior. Es opcional.",
   nombre: "Nombre descriptivo del ítem o producto.",
-  tipo_item: "Clasificación del ítem, por ejemplo MATERIA_PRIMA o PRODUCTO_TERMINADO.",
+  tipo_item: "Clasificación del ítem: MATERIA_PRIMA para insumos comprados, MERMA para sobrantes o material recuperado y PRODUCTO_TERMINADO para variantes generadas desde Productos.",
   unidad_base: "Unidad en la que se controla el stock del ítem, por ejemplo KG, L, UND o PAR.",
   modo_lote: "Define el control por lote: REQUIRED, OPTIONAL o NONE.",
   almacen_codigo: "Código del almacén. Selecciónalo de la lista; si lo dejas vacío en MovimientosIniciales, el sistema usa PRINCIPAL.",
@@ -132,6 +132,7 @@ const columnDescriptions: Record<string, string> = {
   costo_unitario_pen: "Costo en soles por cada unidad base del ítem.",
   receta_codigo: "Código oficial de la receta. Déjalo vacío para crear una nueva; si informas un código existente, el sistema crea la actualización correspondiente.",
   producto_codigo: "Código oficial del producto. En Productos puede dejarse vacío al crear; en Recetas identifica el producto ya registrado.",
+  codigo_matriz: "Código interno de la matriz conocido por la fábrica. Se usa para generar el SKU: MATRIZ-C1-C2-TALLA.",
   variante_sku: "SKU de la variante específica que producirá la receta. Déjalo vacío si la receta aplica al producto en general.",
   version: "Número de versión de la receta. Permite conservar cambios históricos sin reemplazar versiones anteriores.",
   rendimiento: "Cantidad de producto terminado obtenida al ejecutar una receta completa.",
@@ -140,7 +141,8 @@ const columnDescriptions: Record<string, string> = {
   merma_porcentaje: "Porcentaje adicional previsto por pérdida del material durante la producción.",
   categoria: "Categoría comercial del producto.",
   descripcion: "Descripción ampliada del producto.",
-  sku: "Código único de la variante de talla y color. Lo usan pedidos, producción y stock.",
+  sku: "Código autogenerado de la variante. En registros nuevos déjalo vacío; en reportes permite identificar una variante existente.",
+  color_secundario: "Código del color secundario C2. Es opcional y solo se usa cuando la suela es bicolor.",
   talla: "Talla de la variante del producto.",
   color: "Color de la variante del producto.",
   precio_venta: "Precio de venta de la variante.",
@@ -217,6 +219,7 @@ const friendlyLabels: Record<string, string> = {
   fecha_inicial: "Fecha del stock inicial",
   receta_codigo: "Código de receta",
   producto_codigo: "Código de producto",
+  codigo_matriz: "Código de matriz",
   variante_sku: "SKU de variante",
   version: "Versión",
   rendimiento: "Rendimiento",
@@ -226,6 +229,7 @@ const friendlyLabels: Record<string, string> = {
   categoria: "Categoría",
   descripcion: "Descripción",
   sku: "SKU",
+  color_secundario: "Color secundario C2",
   talla: "Talla",
   color: "Color",
   precio_venta: "Precio de venta",

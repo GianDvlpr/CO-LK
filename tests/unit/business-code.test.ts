@@ -10,6 +10,7 @@ describe("formatBusinessCode", () => {
     ["SALES_ORDER", "PED-2026-000001"],
     ["PICK_PACK", "PP-2026-000001"],
     ["INVENTORY_RAW", "MP-000001"],
+    ["INVENTORY_WASTE", "MER-000001"],
     ["INVENTORY_FINISHED", "PT-000001"],
     ["RECIPE", "REC-000001"],
     ["MACHINE", "MAQ-000001"],

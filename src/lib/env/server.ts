@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-const optionalSecret = z.string().min(1).optional();
+const optionalSecret = z.preprocess(
+  (value) => typeof value === "string" && !value.trim() ? undefined : value,
+  z.string().min(1).optional(),
+);
 
 export const serverEnvSchema = z.object({
   DATABASE_URL: optionalSecret,
@@ -16,6 +19,8 @@ export const serverEnvSchema = z.object({
   PUSHER_CLUSTER: optionalSecret,
   SUNAT_RUC_API_URL: z.string().url().default("https://api.apis.net.pe/v2/sunat/ruc"),
   SUNAT_DNI_API_URL: z.string().url().default("https://api.decolecta.com/v1/reniec/dni"),
+  SUNAT_RUC_API_TOKEN_1: optionalSecret,
+  SUNAT_RUC_API_TOKEN_2: optionalSecret,
   SUNAT_RUC_API_TOKEN: optionalSecret,
   WORKER_SECRET: optionalSecret,
 });

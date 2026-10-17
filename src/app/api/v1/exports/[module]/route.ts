@@ -22,7 +22,8 @@ export async function reportData(module: keyof typeof workbookSpecs, companyId: 
       "Almacén": items.flatMap((item) => {
         const balances = item.balances.filter((balance) => balance.lotId === null && Number(balance.onHandQuantity) !== 0);
         const rows = balances.length ? balances : [null];
-        return rows.map((balance) => [item.code, item.legacyCode, item.abbreviation, item.legacySecondaryCode, item.name, item.type, item.unit.code, item.lotTrackingMode, Number(item.minimumStock), item.active ? "SI" : "NO", balance?.warehouse.code ?? null, balance ? Number(balance.onHandQuantity) : null, balance ? Number(balance.averageUnitCost) : null, null, balance ? date(balance.updatedAt) : null, balance ? "Saldo actual exportado" : null]);
+        const type = item.type === "RAW_MATERIAL" ? "MATERIA_PRIMA" : item.type === "WASTE" ? "MERMA" : "PRODUCTO_TERMINADO";
+        return rows.map((balance) => [item.code, item.legacyCode, item.abbreviation, item.legacySecondaryCode, item.name, type, item.unit.code, item.lotTrackingMode, Number(item.minimumStock), item.active ? "SI" : "NO", balance?.warehouse.code ?? null, balance ? Number(balance.onHandQuantity) : null, balance ? Number(balance.averageUnitCost) : null, null, balance ? date(balance.updatedAt) : null, balance ? "Saldo actual exportado" : null]);
       }),
     };
   }
@@ -33,9 +34,9 @@ export async function reportData(module: keyof typeof workbookSpecs, companyId: 
     };
   }
   if (module === "products") {
-    const items = await prisma.product.findMany({ where: { companyId, createdAt: dateRange }, orderBy: { code: "asc" }, include: { variants: { include: { size: true, color: true, inventoryItem: { include: { unit: true } } } } } });
+    const items = await prisma.product.findMany({ where: { companyId, createdAt: dateRange }, orderBy: { code: "asc" }, include: { variants: { include: { size: true, color: true, secondaryColor: true, inventoryItem: { include: { unit: true } } } } } });
     return {
-      Productos: items.flatMap((item) => (item.variants.length ? item.variants : [null]).map((variant) => [item.code, item.code, item.name, null, item.description, item.active ? "SI" : "NO", variant?.sku ?? null, variant?.size.code ?? null, variant?.color.code ?? null, variant?.inventoryItem.unit.code ?? null, variant ? Number(variant.inventoryItem.minimumStock) : null, null, variant ? (variant.active ? "SI" : "NO") : null])),
+      Productos: items.flatMap((item) => (item.variants.length ? item.variants : [null]).map((variant) => [item.code, item.code, item.matrixCode, item.name, null, item.description, item.active ? "SI" : "NO", variant?.sku ?? null, variant?.size.code ?? null, variant?.color.code ?? null, variant?.secondaryColor?.code ?? null, variant?.inventoryItem.unit.code ?? null, variant ? Number(variant.inventoryItem.minimumStock) : null, null, variant ? (variant.active ? "SI" : "NO") : null])),
     };
   }
   const items = await prisma.salesOrder.findMany({ where: { companyId, requestedAt: dateRange }, orderBy: { requestedAt: "desc" }, include: { customer: true, lines: { include: { productVariant: true } } } });
