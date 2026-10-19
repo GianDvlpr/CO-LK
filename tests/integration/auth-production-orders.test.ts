@@ -36,7 +36,7 @@ beforeAll(async () => {
   const product = await prisma.product.create({ data: { companyId: company.id, code: "ZAP", matrixCode: "I0034", name: "Zapato" } });
   const variant = await prisma.productVariant.create({ data: { productId: product.id, sizeId: size.id, colorId: color.id, inventoryItemId: finishedItem.id, sku: `ZAP-40-N-${suffix}` } });
   const recipe = await prisma.recipe.create({ data: { companyId: company.id, productId: product.id, code: "REC-ZAP", name: "Receta zapato", status: "ACTIVE" } });
-  const version = await prisma.recipeVersion.create({ data: { recipeId: recipe.id, version: 1, yieldQuantity: 2, isActive: true, ingredients: { create: { itemId: rawItem.id, quantity: 3, wastePercentage: 0 } } } });
+  const version = await prisma.recipeVersion.create({ data: { recipeId: recipe.id, version: 1, yieldQuantity: 2, isActive: true, ingredients: { create: { itemId: rawItem.id, quantity: 3 } } } });
   fixture = { companyId: company.id, userId: user.id, warehouseId: warehouse.id, rawItemId: rawItem.id, finishedItemId: finishedItem.id, variantId: variant.id, recipeVersionId: version.id, customerId: customer.id };
 }, 30_000);
 
@@ -59,7 +59,7 @@ afterAll(async () => {
 
 describe("autenticación sobre PostgreSQL real", () => {
   it("valida credenciales, limita intentos y permite cambiar la contraseña", async () => {
-    const base = { username: authIdentifier, remember: false, ipAddress: authIpAddress };
+    const base = { username: authIdentifier, ipAddress: authIpAddress };
     const authenticated = await authenticateCredentials(prisma, { ...base, password: "clave-inicial" });
     expect(authenticated.id).toBe(fixture.userId);
 
@@ -89,7 +89,9 @@ describe("producción y pedidos sobre PostgreSQL real", () => {
     expect(raw.onHandQuantity.toString()).toBe("24");
     expect(raw.reservedQuantity.toString()).toBe("0");
 
-    await completeProductionOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, orderId: production.id, producedQuantity: 4 });
+    const productionMaterial = await prisma.productionMaterial.findFirstOrThrow({ where: { productionOrderId: production.id, itemId: fixture.rawItemId } });
+    await completeProductionOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, orderId: production.id, producedQuantity: 4, waste: [{ productionMaterialId: productionMaterial.id, quantity: 0.5 }] });
+    expect((await prisma.productionMaterial.findUniqueOrThrow({ where: { id: productionMaterial.id } })).actualWasteQuantity.toString()).toBe("0.5");
     let finished = await prisma.stockBalance.findFirstOrThrow({ where: { warehouseId: fixture.warehouseId, itemId: fixture.finishedItemId, lotId: null } });
     expect(finished.onHandQuantity.toString()).toBe("4");
     expect(finished.averageUnitCost.toString()).toBe("6");

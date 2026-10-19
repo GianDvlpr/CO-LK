@@ -1,7 +1,7 @@
 import { PickPackWorkspace } from "@/components/pick-pack/pick-pack-workspace";
-import { requirePermission } from "@/modules/auth/application/session-service";
+import { requirePagePermission } from "@/modules/auth/application/page-authorization";
 
 export default async function PickPackPage() {
-  const user = await requirePermission("pick_pack.read");
+  const user = await requirePagePermission("pick_pack.read");
   return <PickPackWorkspace permissions={user.permissions} />;
 }

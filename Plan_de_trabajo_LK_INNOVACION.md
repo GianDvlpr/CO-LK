@@ -607,7 +607,7 @@ Reglas:
 - Versión de receta.
 - Rendimiento esperado por ejecución.
 - Lista de materias primas y cantidades.
-- Merma teórica opcional.
+- La receta no incluye merma teórica; la merma real se registra por material al finalizar la orden de producción.
 - Estados: borrador, activa e inactiva.
 
 Crear o modificar una receta no descuenta stock. Una versión activa que ya fue usada no se edita; cualquier cambio crea una nueva versión.
@@ -821,7 +821,7 @@ Además definirá tipo, longitud o precisión, obligatoriedad, catálogo, valor 
 | `Items` | `accion`, `codigo`, `nombre`, `tipo_item`, `unidad_base`, `modo_lote`, `almacen_codigo`, `stock_minimo`, `activo` |
 | `MovimientosIniciales` | `item_codigo`, `almacen_codigo`, `lote`, `fecha`, `cantidad`, `costo_unitario_pen`, `observaciones` |
 | `Recetas` | `accion`, `receta_codigo`, `producto_codigo`, `variante_sku`, `version`, `rendimiento`, `unidad_salida`, `estado` |
-| `Ingredientes` | `receta_codigo`, `version`, `material_codigo`, `cantidad`, `unidad`, `merma_porcentaje` |
+| `Ingredientes` | `receta_codigo`, `version`, `material_codigo`, `cantidad`, `unidad` |
 | `Productos` | `accion`, `producto_codigo`, `nombre`, `categoria`, `descripcion`, `activo` |
 | `Variantes` | `producto_codigo`, `sku`, `talla`, `color`, `unidad`, `stock_minimo`, `precio_venta`, `activo` |
 | `Pedidos` | `accion`, `numero_pedido`, `cliente_codigo`, `fecha`, `fecha_requerida`, `moneda`, `tipo_cambio_pen`, `estado`, `observaciones` |

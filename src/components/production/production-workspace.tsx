@@ -17,7 +17,7 @@ import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 import { ProductionKanban } from "@/components/production/production-kanban";
 import { productionBoardTransition } from "@/modules/production/domain/production-board";
 
-type Material = { id: string; plannedQuantity: string; consumedQuantity: string; item: { code: string; name: string; unit: { symbol: string } } };
+type Material = { id: string; plannedQuantity: string; consumedQuantity: string; actualWasteQuantity: string; item: { code: string; name: string; unit: { symbol: string } } };
 type SizeProgram = { productVariantId: string; sku?: string; size: string; color?: string; requestedPairs: number; producedPairs?: number };
 type Turn = { date: string; quantities: { productVariantId: string; sku?: string; size: string; quantity: number }[]; observations?: string };
 type ComponentValue = { itemId: string; componentType: "CERCO_VIRA" | "INSERTO_PUNTA" | "INSERTO_TALON" | "OTRO"; quantity: number; colorDetail?: string };
@@ -61,7 +61,7 @@ type FormValues = SheetValues & {
   warehouseId: string; recipeVersionId: string; secondaryRecipeVersionId?: string; salesOrderId?: string;
   materialItemId?: string; machineId?: string; priority: number; plannedAt?: Dayjs;
 };
-type CompleteValues = { outputs: { productVariantId: string; quantity: number }[] };
+type CompleteValues = { outputs: { productVariantId: string; quantity: number }[]; waste: { productionMaterialId: string; quantity: number }[] };
 
 const componentLabels: Record<ComponentValue["componentType"], string> = {
   CERCO_VIRA: "Cerco / vira", INSERTO_PUNTA: "Inserto punta", INSERTO_TALON: "Inserto talón", OTRO: "Otro detalle",
@@ -227,7 +227,8 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
     const turnTotals = new Map<string, number>();
     for (const turn of order.productionTurns ?? []) for (const item of turn.quantities) turnTotals.set(item.productVariantId, (turnTotals.get(item.productVariantId) ?? 0) + Number(item.quantity));
     const outputs = scheduled.length ? scheduled.map((item) => ({ productVariantId: item.productVariantId, quantity: turnTotals.get(item.productVariantId) || Number(item.requestedPairs) })) : [{ productVariantId: order.productVariant.id, quantity: Number(order.plannedQuantity) }];
-    setCompleteOrder(order); completeForm.setFieldsValue({ outputs });
+    const waste = order.materials.map((material) => ({ productionMaterialId: material.id, quantity: Number(material.actualWasteQuantity ?? 0) }));
+    setCompleteOrder(order); completeForm.setFieldsValue({ outputs, waste });
   };
 
   const columns: ColumnsType<Order> = [
@@ -251,6 +252,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
     { title: "Código", render: (_, row) => <strong>{row.item.code}</strong> }, { title: "Material / componente", render: (_, row) => row.item.name },
     { title: "Planificado", align: "right", render: (_, row) => `${new Decimal(row.plannedQuantity).toFixed(3)} ${row.item.unit.symbol}` },
     { title: "Consumido", align: "right", render: (_, row) => `${new Decimal(row.consumedQuantity).toFixed(3)} ${row.item.unit.symbol}` },
+    { title: "Merma real", align: "right", render: (_, row) => `${new Decimal(row.actualWasteQuantity ?? 0).toFixed(3)} ${row.item.unit.symbol}` },
   ];
 
   const moveOrder = (order: Order, targetStatus: string) => {
@@ -298,10 +300,12 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
       </Form>
     </Modal>
 
-    <Modal title={`Finalizar ${completeOrder?.number ?? "orden"}`} open={Boolean(completeOrder)} onCancel={() => setCompleteOrder(undefined)} onOk={() => completeForm.submit()} okText="Ingresar productos terminados" confirmLoading={transition.isPending} destroyOnHidden>
-      <Alert type="warning" showIcon message="Confirma la cantidad buena producida por talla." description={`Total a ingresar: ${completeOutputs.reduce((sum, item) => sum + Number(item?.quantity ?? 0), 0).toFixed(0)} pares.`} style={{ marginBottom: 16 }} />
+    <Modal title={`Finalizar ${completeOrder?.number ?? "orden"}`} open={Boolean(completeOrder)} onCancel={() => setCompleteOrder(undefined)} onOk={() => completeForm.submit()} okText="Ingresar productos terminados" confirmLoading={transition.isPending} width={820} destroyOnHidden>
+      <Alert type="warning" showIcon message="Confirma la producción buena y la merma real del proceso." description={`Total a ingresar: ${completeOutputs.reduce((sum, item) => sum + Number(item?.quantity ?? 0), 0).toFixed(0)} pares. La merma se informa ahora porque puede variar en cada orden.`} style={{ marginBottom: 16 }} />
       <Form form={completeForm} layout="vertical" onFinish={(values) => completeOrder && transition.mutate({ id: completeOrder.id, action: "complete", body: values })}>
         <Form.List name="outputs">{(fields) => <Space direction="vertical" style={{ width: "100%" }}>{fields.map((field) => { const variantId = completeOutputs[field.name]?.productVariantId; const schedule = completeOrder?.sizeProgram?.find((item) => item.productVariantId === variantId); return <div key={field.key} className="purchase-form-grid"><Form.Item {...field} name={[field.name, "productVariantId"]} hidden><Input /></Form.Item><Form.Item label="SKU / talla"><Input disabled value={schedule ? `${schedule.sku} · Talla ${schedule.size}` : completeOrder?.productVariant.sku} /></Form.Item><Form.Item {...field} name={[field.name, "quantity"]} label="Cantidad buena" rules={[{ required: true }]}><InputNumber min={0} max={schedule?.requestedPairs ? Number(schedule.requestedPairs) : undefined} precision={0} style={{ width: "100%" }} /></Form.Item></div>; })}</Space>}</Form.List>
+        <Divider titlePlacement="left">Merma real por material</Divider>
+        <Form.List name="waste">{(fields) => <Space direction="vertical" style={{ width: "100%" }}>{fields.map((field) => { const material = completeOrder?.materials[field.name]; return <div key={field.key} className="purchase-form-grid"><Form.Item {...field} name={[field.name, "productionMaterialId"]} hidden><Input /></Form.Item><Form.Item label="Material"><Input disabled value={material ? `${material.item.code} · ${material.item.name}` : ""} /></Form.Item><Form.Item {...field} name={[field.name, "quantity"]} label={`Merma real${material ? ` (${material.item.unit.symbol})` : ""}`} rules={[{ required: true }]}><InputNumber min={0} max={material ? Number(material.consumedQuantity) : undefined} precision={6} style={{ width: "100%" }} /></Form.Item></div>; })}</Space>}</Form.List>
       </Form>
     </Modal>
   </>;

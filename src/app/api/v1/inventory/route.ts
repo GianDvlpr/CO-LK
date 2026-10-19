@@ -12,6 +12,8 @@ const createSchema = z.object({
   abbreviation: z.string().trim().max(30).optional().or(z.literal("")),
   type: z.enum(["RAW_MATERIAL", "WASTE", "FINISHED_PRODUCT"]),
   unitId: z.uuid(),
+  supplierId: z.uuid(),
+  currencyId: z.uuid(),
   minimumStock: z.union([z.string(), z.number()]),
   lotTrackingMode: z.enum(["NONE", "OPTIONAL", "REQUIRED"]),
 });
@@ -28,7 +30,7 @@ export async function GET() {
     const items = await prisma.inventoryItem.findMany({
       where: { companyId: user.companyId },
       orderBy: { name: "asc" },
-      include: { unit: { select: { code: true, symbol: true } }, balances: { where: { lotId: null }, select: { warehouseId: true, onHandQuantity: true, reservedQuantity: true, averageUnitCost: true, inventoryValue: true } } },
+      include: { unit: { select: { code: true, symbol: true } }, supplier: { select: { id: true, code: true, name: true } }, currency: { select: { id: true, code: true, name: true, symbol: true } }, balances: { where: { lotId: null }, select: { warehouseId: true, onHandQuantity: true, reservedQuantity: true, averageUnitCost: true, inventoryValue: true } } },
     });
     return apiSuccess({ items });
   } catch (error) { const response = knownError(error); if (response) return response; throw error; }
@@ -40,13 +42,19 @@ export async function POST(request: Request) {
   if (!parsed.success) return apiError("VALIDATION_ERROR", "El ítem contiene datos inválidos.", 400);
   try {
     const user = await requirePermission("inventory.create_item");
-    const unit = await prisma.unitOfMeasure.findFirst({ where: { id: parsed.data.unitId, companyId: user.companyId } });
+    const [unit, supplier, currency] = await Promise.all([
+      prisma.unitOfMeasure.findFirst({ where: { id: parsed.data.unitId, companyId: user.companyId } }),
+      prisma.supplier.findFirst({ where: { id: parsed.data.supplierId, companyId: user.companyId, active: true } }),
+      prisma.currency.findFirst({ where: { id: parsed.data.currencyId, companyId: user.companyId } }),
+    ]);
     if (!unit) return apiError("INVENTORY_INVALID_UNIT", "La unidad de medida no es válida.", 422);
+    if (!supplier) return apiError("INVENTORY_INVALID_SUPPLIER", "El proveedor no existe o está inactivo.", 422);
+    if (!currency) return apiError("INVENTORY_INVALID_CURRENCY", "La moneda no está registrada.", 422);
     const item = await prisma.$transaction(async (tx) => {
       const codeKind = parsed.data.type === "RAW_MATERIAL" ? "INVENTORY_RAW" : parsed.data.type === "WASTE" ? "INVENTORY_WASTE" : "INVENTORY_FINISHED";
       const code = await nextBusinessCode(tx, user.companyId, codeKind);
       const created = await tx.inventoryItem.create({ data: { ...parsed.data, abbreviation: parsed.data.abbreviation || null, code, minimumStock: parsed.data.minimumStock, companyId: user.companyId } });
-      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "InventoryItem", entityId: created.id, action: "CREATE", afterData: { code: created.code, name: created.name } } });
+      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "InventoryItem", entityId: created.id, action: "CREATE", afterData: { code: created.code, name: created.name, supplierId: created.supplierId, currencyId: created.currencyId } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "inventory.item-created.v1", aggregateId: created.id, payload: { itemId: created.id, code: created.code } } });
       return created;
     });

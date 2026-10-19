@@ -10,7 +10,7 @@ function bucketKey(username: string, ipAddress: string) {
   return createHash("sha256").update(`${username.toLowerCase()}:${ipAddress}`).digest("hex");
 }
 
-export type LoginInput = { username: string; password: string; remember: boolean; ipAddress: string; userAgent?: string };
+export type LoginInput = { username: string; password: string; ipAddress: string; userAgent?: string };
 
 export async function authenticateCredentials(database: PrismaClient, input: LoginInput) {
   const username = input.username.trim().toLowerCase();

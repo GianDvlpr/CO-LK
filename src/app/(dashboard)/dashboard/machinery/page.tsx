@@ -1,7 +1,7 @@
 import { MachineryWorkspace } from "@/components/machinery/machinery-workspace";
-import { requirePermission } from "@/modules/auth/application/session-service";
+import { requirePagePermission } from "@/modules/auth/application/page-authorization";
 
 export default async function MachineryPage() {
-  const user = await requirePermission("machinery.read");
+  const user = await requirePagePermission("machinery.read");
   return <MachineryWorkspace permissions={user.permissions} />;
 }

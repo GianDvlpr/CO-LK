@@ -124,6 +124,14 @@ export const administrationModules = [
     phase: 1,
   },
   {
+    key: "audit",
+    label: "Auditoría",
+    href: "/dashboard/audit",
+    description: "Trazabilidad de accesos y operaciones de usuarios.",
+    permission: "audit.read",
+    phase: 1,
+  },
+  {
     key: "imports",
     label: "Importaciones",
     href: "/dashboard/imports",

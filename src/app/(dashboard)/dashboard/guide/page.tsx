@@ -1,7 +1,7 @@
 import { OperationsGuide } from "@/components/guide/operations-guide";
-import { requirePermission } from "@/modules/auth/application/session-service";
+import { requirePagePermission } from "@/modules/auth/application/page-authorization";
 
 export default async function GuidePage() {
-  await requirePermission("dashboard.read");
+  await requirePagePermission("dashboard.read");
   return <OperationsGuide />;
 }

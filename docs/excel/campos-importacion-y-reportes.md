@@ -1,6 +1,6 @@
 # Campos de importación y reportes Excel
 
-Actualizado: 16/10/2026.
+Actualizado: 19/10/2026.
 
 ## Regla general
 
@@ -15,12 +15,14 @@ La misma hoja también incluye un ejemplo concreto por cada campo (códigos, fec
 | Módulo | Hoja | Campos obligatorios |
 | --- | --- | --- |
 | Compras | Compras | `fecha_recepcion`, `proveedor_codigo`, `numero_documento`, `moneda`, `estado`, `linea_numero`, `material_codigo`, `cantidad_presentaciones`, `tipo_presentacion`, `contenido_por_presentacion`, `unidad_contenido`, `precio_neto_unidad_base`, `tasa_igv` |
-| Almacén | Almacén | `nombre`, `tipo_item`, `unidad_base` |
+| Almacén | Almacén | `nombre`, `tipo_item`, `proveedor_nombre`, `moneda`, `unidad_base` |
 | Recetas | Recetas | `referencia_carga`, `producto_codigo`, `version`, `rendimiento`, `material_codigo`, `cantidad` |
 | Productos | Productos | `referencia_carga`, `nombre` |
 | Pedidos | Pedidos | `referencia_carga`, `cliente_codigo`, `fecha`, `linea_numero`, `sku`, `cantidad`, `precio_neto_unitario` |
 
-Los demás campos pueden quedar vacíos. Algunos reciben valores predeterminados: IGV 18%, tipo de cambio 1, stock mínimo 0, merma 0, activo `SI`, modo de lote `NONE` y secuencias automáticas cuando corresponde.
+Los demás campos pueden quedar vacíos. Algunos reciben valores predeterminados: IGV 18%, tipo de cambio 1, stock mínimo 0, activo `SI`, modo de lote `NONE` y secuencias automáticas cuando corresponde. La merma real no se importa en Recetas: se registra al finalizar cada orden de Producción.
+
+En Almacén, `proveedor_nombre` hace match contra el nombre de un proveedor activo ignorando mayúsculas, tildes y espacios repetidos. Debe existir una única coincidencia. `moneda` acepta el código o el nombre de cualquier moneda registrada; la plantilla propone los códigos disponibles en una lista desplegable.
 
 ## Códigos automáticos
 
@@ -46,7 +48,7 @@ En una plantilla Excel, un código vacío significa “crear” y el sistema asi
 Estas columnas se conservan para que el reporte tenga el mismo formato, pero no determinan el registro importado:
 
 - Compras: `tipo_documento`, `fecha_tipo_cambio`, `fuente_tipo_cambio`, `estado`, `observaciones`, `tipo_presentacion`, `unidad_contenido`, `precio_unitario_con_igv`, `subtotal_neto`, `igv` y `total_linea`.
-- Almacén: `almacen_codigo` de la hoja `Items`. El almacén efectivo del stock inicial se toma de `MovimientosIniciales`.
+- Almacén: `almacen_codigo`, `stock_inicial`, `costo_unitario_pen`, `lote` y `fecha_inicial` están en la misma hoja. Si no hay stock inicial, esos campos pueden quedar vacíos.
 - Recetas: `variante_sku`, `unidad_salida` y `estado`. La importación crea la receta o versión como borrador.
 - Productos: `categoria` y `precio_venta`.
 - Pedidos: `moneda`, `tipo_cambio_pen`, `estado`, `tasa_igv`, `subtotal_neto`, `igv` y `total_linea`. El pedido importado queda en borrador.

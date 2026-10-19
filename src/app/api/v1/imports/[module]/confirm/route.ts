@@ -5,6 +5,7 @@ import { apiError, apiSuccess } from "@/lib/http/api-response";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { requirePermission } from "@/modules/auth/application/session-service";
+import { getRequestIp, getRequestUserAgent } from "@/modules/auth/application/request-metadata";
 import { applyImport, ImportApplicationError } from "@/modules/imports/application/confirm-import";
 import { isImportModule, validateWorkbook } from "@/modules/imports/application/workbook";
 
@@ -39,7 +40,7 @@ export async function POST(request: Request, context: { params: Promise<{ module
       if (claimed.count !== 1) throw new ImportApplicationError("IMPORT_ALREADY_PROCESSED", "La importación ya fue procesada.");
       importResult = await applyImport(tx, module, parsed.data, user.companyId, user.id, job.id, parsed.importMode);
       await tx.importJob.update({ where: { id: job.id }, data: { status: "COMPLETED", successRows: importResult.createdRecords, errorRows: 0, finishedAt: new Date() } });
-      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "ImportJob", entityId: job.id, action: "CONFIRM", afterData: { module, totalRows: parsed.totalRows, importMode: parsed.importMode, createdRecords: importResult.createdRecords, skippedRecords: importResult.skippedRecords, sha256: digest } } });
+      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module, entity: "ImportJob", entityId: job.id, action: "CONFIRM", ipAddress: getRequestIp(request), userAgent: getRequestUserAgent(request), requestPath: new URL(request.url).pathname, afterData: { module, totalRows: parsed.totalRows, importMode: parsed.importMode, createdRecords: importResult.createdRecords, skippedRecords: importResult.skippedRecords, sha256: digest } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "import.completed.v1", aggregateId: job.id, payload: { importJobId: job.id, module, totalRows: parsed.totalRows, createdRecords: importResult.createdRecords, skippedRecords: importResult.skippedRecords } } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 15_000, timeout: 120_000 });
     return apiSuccess({ jobId: job.id, status: "COMPLETED", successRows: importResult.createdRecords, skippedRows: importResult.skippedRecords, importMode: parsed.importMode });

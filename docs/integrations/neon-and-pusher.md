@@ -13,7 +13,7 @@ No se versionan `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, tokens de Neon, `PUSHER
 
 ## Configuración de Neon
 
-### Estado de configuración — 13/10/2026
+### Estado de configuración — 19/10/2026
 
 | Elemento | Estado |
 |---|---|
@@ -25,8 +25,8 @@ No se versionan `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, tokens de Neon, `PUSHER
 | `neon.ts` | Creado con la política aprobada |
 | Neon MCP | Instalado en `.codex/config.toml`, OAuth y limitado al proyecto |
 | `neon deploy` | Ejecutado; branch `production` coincide con la política |
-| Esquema Prisma | Validado; migración inicial generada en `prisma/migrations/20261013150000_initial_domain` |
-| Aplicación de migración | Pendiente: el sandbox de Windows bloquea el motor con `spawn EPERM` y su conexión directa con un error Schannel; ejecutar `npm run db:deploy` en una terminal normal |
+| Esquema Prisma | Validado; historial versionado en `prisma/migrations/` |
+| Aplicación de migraciones | Aplicadas en Neon `production` hasta `20261019160000_inventory_supplier_currency` mediante `npm run db:deploy-neon` |
 | Neon agent skills | Pendiente: el sandbox impidió el subproceso `npx`; ejecutar `neon skills -y` en una terminal normal |
 
 Ejecutar desde la raíz del proyecto:

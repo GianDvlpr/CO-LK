@@ -1,7 +1,7 @@
 import { CatalogsWorkspace } from "@/components/catalogs/catalogs-workspace";
-import { requirePermission } from "@/modules/auth/application/session-service";
+import { requirePagePermission } from "@/modules/auth/application/page-authorization";
 
 export default async function CatalogsPage() {
-  const user = await requirePermission("catalogs.read");
+  const user = await requirePagePermission("catalogs.read");
   return <CatalogsWorkspace canManage={user.permissions.includes("catalogs.manage")} />;
 }

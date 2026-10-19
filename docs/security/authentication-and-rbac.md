@@ -5,7 +5,7 @@
 - Contraseñas almacenadas con Argon2; nunca se guardan ni registran en texto plano.
 - El navegador recibe un token aleatorio en una cookie `HttpOnly`, `SameSite=Lax`, `Path=/` y `Secure` en producción.
 - PostgreSQL conserva únicamente un HMAC SHA-256 del token usando `SESSION_SECRET`.
-- La sesión normal vence en 12 horas; “mantener sesión” vence en 30 días.
+- Todas las sesiones vencen 8 horas después del inicio; no existe una modalidad de sesión prolongada.
 - Usuarios inactivos, bloqueados o sesiones vencidas no pueden autenticarse.
 - Los endpoints de escritura validan el encabezado `Origin` para reducir riesgo CSRF.
 - El inicio de sesión acepta únicamente el nombre de usuario. El correo no se solicita al crear cuentas operativas ni funciona como credencial.

@@ -1,13 +1,13 @@
 import Decimal from "decimal.js";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/database/prisma";
-import { requirePermission } from "@/modules/auth/application/session-service";
+import { requirePagePermission } from "@/modules/auth/application/page-authorization";
 import { PrintButton } from "@/components/pick-pack/print-button";
 
 const date = new Intl.DateTimeFormat("es-PE", { dateStyle: "short" });
 
 export default async function PickPackPrintPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requirePermission("pick_pack.print");
+  const user = await requirePagePermission("pick_pack.print");
   const { id } = await params;
   const record = await prisma.pickPackOrder.findFirst({ where: { id, companyId: user.companyId }, include: { company: true, warehouse: true, salesOrder: { include: { customer: true } }, lines: { include: { salesOrderLine: { include: { productVariant: { include: { product: true, size: true, color: true, inventoryItem: { include: { unit: true } } } } } } }, orderBy: { salesOrderLine: { productVariant: { sku: "asc" } } } }, packages: { orderBy: { packageNumber: "asc" } } } });
   if (!record) notFound();

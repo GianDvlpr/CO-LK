@@ -1,7 +1,7 @@
 import { OrdersWorkspace } from "@/components/orders/orders-workspace";
-import { requirePermission } from "@/modules/auth/application/session-service";
+import { requirePagePermission } from "@/modules/auth/application/page-authorization";
 
 export default async function OrdersPage() {
-  const user = await requirePermission("orders.read");
+  const user = await requirePagePermission("orders.read");
   return <OrdersWorkspace permissions={user.permissions} />;
 }

@@ -18,6 +18,7 @@ const permissionCodes = [
   "users.read", "users.create", "users.update", "users.deactivate",
   "roles.read", "roles.manage",
   "sessions.read", "sessions.revoke",
+  "audit.read",
   "purchases.read", "purchases.create", "purchases.update", "purchases.submit", "purchases.approve", "purchases.reject", "purchases.reverse", "purchases.export",
   "inventory.read", "inventory.create_item", "inventory.adjust_request", "inventory.adjust_approve", "inventory.adjust_value_request", "inventory.adjust_value_approve", "inventory.opening_import", "inventory.export",
   "recipes.read", "recipes.create", "recipes.update", "recipes.activate", "recipes.archive", "recipes.export",
@@ -206,8 +207,8 @@ async function createDemoProduction(input: DemoProductionInput) {
   const secondaryRecipeRuns = secondaryVersion ? plannedQuantity / numeric(secondaryVersion.yieldQuantity) : null;
   const plannedMaterials = new Map<string, number>();
   const addMaterial = (itemId: string, quantity: number) => plannedMaterials.set(itemId, (plannedMaterials.get(itemId) ?? 0) + quantity);
-  for (const ingredient of version.ingredients) addMaterial(ingredient.itemId, numeric(ingredient.quantity) * (1 + numeric(ingredient.wastePercentage) / 100) * recipeRuns);
-  if (secondaryVersion && secondaryRecipeRuns) for (const ingredient of secondaryVersion.ingredients) addMaterial(ingredient.itemId, numeric(ingredient.quantity) * (1 + numeric(ingredient.wastePercentage) / 100) * secondaryRecipeRuns);
+  for (const ingredient of version.ingredients) addMaterial(ingredient.itemId, numeric(ingredient.quantity) * recipeRuns);
+  if (secondaryVersion && secondaryRecipeRuns) for (const ingredient of secondaryVersion.ingredients) addMaterial(ingredient.itemId, numeric(ingredient.quantity) * secondaryRecipeRuns);
   for (const component of input.components ?? []) addMaterial(component.itemId, component.quantity);
   const primaryVariant = variantById.get(normalizedProgram[0].productVariantId)!;
   const order = await prisma.productionOrder.create({ data: {
@@ -266,7 +267,7 @@ async function startDemoProduction(companyId: string, orderId: string, userId: s
 }
 
 async function completeDemoProduction(companyId: string, orderId: string, userId: string, outputs: { productVariantId: string; quantity: number }[], completedAt = relativeDate(-10)) {
-  const order = await prisma.productionOrder.findFirstOrThrow({ where: { id: orderId, companyId } });
+  const order = await prisma.productionOrder.findFirstOrThrow({ where: { id: orderId, companyId }, include: { materials: true } });
   const consumed = await prisma.stockMovement.aggregate({ where: { referenceType: "PRODUCTION_ORDER", referenceId: order.id, type: "PRODUCTION_CONSUMPTION" }, _sum: { movementValue: true } });
   const totalCost = Math.abs(numeric(consumed._sum.movementValue ?? 0));
   const producedQuantity = outputs.reduce((sum, output) => sum + output.quantity, 0);
@@ -282,6 +283,10 @@ async function completeDemoProduction(companyId: string, orderId: string, userId
     const variantId = String(item.productVariantId);
     return { ...item, producedPairs: outputs.find((output) => output.productVariantId === variantId)?.quantity ?? 0 };
   }) : [];
+  for (const [index, material] of order.materials.entries()) {
+    const actualWasteQuantity = index < 3 ? Number((numeric(material.consumedQuantity) * (0.012 + index * 0.004)).toFixed(3)) : 0;
+    await prisma.productionMaterial.update({ where: { id: material.id }, data: { actualWasteQuantity } });
+  }
   await prisma.productionOrder.update({ where: { id: order.id }, data: { status: "COMPLETED", producedQuantity, sizeProgram, completedAt } });
   if (order.salesOrderId) {
     const pendingLines = await prisma.salesOrderLine.count({ where: { salesOrderId: order.salesOrderId, OR: [{ productionOrderId: null }, { productionOrder: { status: { not: "COMPLETED" } } }] } });
@@ -346,7 +351,7 @@ async function main() {
   const adminRole = await prisma.role.create({ data: { companyId: company.id, code: "ADMIN", name: "Administrador", description: "Administración operativa", isSystem: true } });
   const operatorRole = await prisma.role.create({ data: { companyId: company.id, code: "OPERADOR", name: "Operador de planta", description: "Producción, almacén y preparación" } });
   await prisma.rolePermission.createMany({ data: permissions.map((permission) => ({ roleId: superadminRole.id, permissionId: permission.id })) });
-  await prisma.rolePermission.createMany({ data: permissions.filter((permission) => !permission.code.startsWith("users.") && !permission.code.startsWith("roles.")).map((permission) => ({ roleId: adminRole.id, permissionId: permission.id })) });
+  await prisma.rolePermission.createMany({ data: permissions.filter((permission) => !permission.code.startsWith("users.") && !permission.code.startsWith("roles.") && !permission.code.startsWith("sessions.") && !permission.code.startsWith("audit.")).map((permission) => ({ roleId: adminRole.id, permissionId: permission.id })) });
   await prisma.rolePermission.createMany({ data: permissions.filter((permission) => ["dashboard", "inventory", "production", "machinery", "pick_pack", "calendar"].includes(permission.module)).map((permission) => ({ roleId: operatorRole.id, permissionId: permission.id })) });
 
   const passwordHash = await hash(DEMO_PASSWORD);
@@ -399,7 +404,15 @@ async function main() {
     { key: "DEMO-MP-VIRA", code: "MP-000016", name: "Cerco / vira negra", type: "RAW_MATERIAL", unit: "M", minimumStock: 40 },
     { key: "DEMO-MP-INS-TAL", code: "MP-000017", name: "Inserto de talón", type: "RAW_MATERIAL", unit: "UND", minimumStock: 50 },
   ];
-  const materials = await Promise.all(materialDefinitions.map((item) => prisma.inventoryItem.create({ data: { companyId: company.id, code: item.code, abbreviation: item.abbreviation, name: item.name, type: item.type, unitId: unitByCode.get(item.unit)!.id, minimumStock: item.minimumStock, lotTrackingMode: "NONE" } })));
+  const chemicalMaterialKeys = new Set(["DEMO-MP-AL", "DEMO-MP-EST", "DEMO-MP-ZINC", "DEMO-MP-PIG", "DEMO-MP-CACO3", "DEMO-MP-AZU", "DEMO-MP-DESM", "DEMO-MP-PIG-ROJ"]);
+  const materials = await Promise.all(materialDefinitions.map((item) => {
+    const supplierId = chemicalMaterialKeys.has(item.key)
+      ? supplierChemicals.id
+      : item.type === "WASTE" || ["DEMO-MP-CAU", "DEMO-MP-CG", "DEMO-MP-VIRA", "DEMO-MP-INS-TAL"].includes(item.key)
+        ? supplierRubber.id
+        : supplierPolymers.id;
+    return prisma.inventoryItem.create({ data: { companyId: company.id, code: item.code, abbreviation: item.abbreviation, name: item.name, type: item.type, supplierId, currencyId: pen.id, unitId: unitByCode.get(item.unit)!.id, minimumStock: item.minimumStock, lotTrackingMode: "NONE" } });
+  }));
   const materialByCode = new Map(materials.map((item, index) => [materialDefinitions[index].key, item]));
 
   const [size38, size39, size40, size41, size42] = await Promise.all([
@@ -433,32 +446,32 @@ async function main() {
   void white;
 
   const urbanRecipe = await prisma.recipe.create({ data: { companyId: company.id, productId: urbanSoleProduct.id, code: "REC-000001", name: "Formulación C1 negra · Urbana Flex", status: "ACTIVE", versions: { create: { version: 1, yieldQuantity: 24, isActive: true, notes: "Rendimiento manual: 24 pares por carga de color principal C1", ingredients: { create: [
-    { itemId: materialByCode.get("DEMO-MP-PVC")!.id, quantity: 12, wastePercentage: 3 },
-    { itemId: materialByCode.get("DEMO-MP-TR")!.id, quantity: 8, wastePercentage: 3 },
-    { itemId: materialByCode.get("DEMO-MP-CAU")!.id, quantity: 5, wastePercentage: 2 },
-    { itemId: materialByCode.get("DEMO-MP-PU")!.id, quantity: 3, wastePercentage: 4 },
-    { itemId: materialByCode.get("DEMO-MP-EST")!.id, quantity: 0.4, wastePercentage: 2 },
-    { itemId: materialByCode.get("DEMO-MP-ZINC")!.id, quantity: 0.5, wastePercentage: 2 },
-    { itemId: materialByCode.get("DEMO-MP-PIG")!.id, quantity: 0.6, wastePercentage: 2 },
-    { itemId: materialByCode.get("DEMO-MP-CACO3")!.id, quantity: 4, wastePercentage: 2 },
-    { itemId: materialByCode.get("DEMO-MP-DESM")!.id, quantity: 0.8, wastePercentage: 2 },
+    { itemId: materialByCode.get("DEMO-MP-PVC")!.id, quantity: 12 },
+    { itemId: materialByCode.get("DEMO-MP-TR")!.id, quantity: 8 },
+    { itemId: materialByCode.get("DEMO-MP-CAU")!.id, quantity: 5 },
+    { itemId: materialByCode.get("DEMO-MP-PU")!.id, quantity: 3 },
+    { itemId: materialByCode.get("DEMO-MP-EST")!.id, quantity: 0.4 },
+    { itemId: materialByCode.get("DEMO-MP-ZINC")!.id, quantity: 0.5 },
+    { itemId: materialByCode.get("DEMO-MP-PIG")!.id, quantity: 0.6 },
+    { itemId: materialByCode.get("DEMO-MP-CACO3")!.id, quantity: 4 },
+    { itemId: materialByCode.get("DEMO-MP-DESM")!.id, quantity: 0.8 },
   ] } } } }, include: { versions: true } });
   const urbanRedRecipe = await prisma.recipe.create({ data: { companyId: company.id, productId: urbanSoleProduct.id, code: "REC-000002", name: "Formulación C2 roja · Urbana Flex", status: "ACTIVE", versions: { create: { version: 1, yieldQuantity: 24, isActive: true, notes: "Rendimiento manual: 24 pares por carga de color secundario C2", ingredients: { create: [
-    { itemId: materialByCode.get("DEMO-MP-PVC")!.id, quantity: 5, wastePercentage: 3 },
-    { itemId: materialByCode.get("DEMO-MP-TR")!.id, quantity: 3, wastePercentage: 3 },
-    { itemId: materialByCode.get("DEMO-MP-PIG-ROJ")!.id, quantity: 0.5, wastePercentage: 2 },
-    { itemId: materialByCode.get("DEMO-MP-EST")!.id, quantity: 0.2, wastePercentage: 2 },
-    { itemId: materialByCode.get("DEMO-MP-ZINC")!.id, quantity: 0.2, wastePercentage: 2 },
+    { itemId: materialByCode.get("DEMO-MP-PVC")!.id, quantity: 5 },
+    { itemId: materialByCode.get("DEMO-MP-TR")!.id, quantity: 3 },
+    { itemId: materialByCode.get("DEMO-MP-PIG-ROJ")!.id, quantity: 0.5 },
+    { itemId: materialByCode.get("DEMO-MP-EST")!.id, quantity: 0.2 },
+    { itemId: materialByCode.get("DEMO-MP-ZINC")!.id, quantity: 0.2 },
   ] } } } }, include: { versions: true } });
   const industrialRecipe = await prisma.recipe.create({ data: { companyId: company.id, productId: industrialSoleProduct.id, code: "REC-000003", name: "Formulación EVA/Caucho · Industrial Grip", status: "ACTIVE", versions: { create: { version: 1, yieldQuantity: 12, isActive: true, notes: "Rendimiento manual: 12 pares por carga", ingredients: { create: [
-    { itemId: materialByCode.get("DEMO-MP-EVA")!.id, quantity: 15, wastePercentage: 4 },
-    { itemId: materialByCode.get("DEMO-MP-CAU")!.id, quantity: 8, wastePercentage: 3 },
-    { itemId: materialByCode.get("DEMO-MP-PU")!.id, quantity: 3, wastePercentage: 4 },
-    { itemId: materialByCode.get("DEMO-MP-EST")!.id, quantity: 0.4, wastePercentage: 2 },
-    { itemId: materialByCode.get("DEMO-MP-ZINC")!.id, quantity: 0.5, wastePercentage: 2 },
-    { itemId: materialByCode.get("DEMO-MP-PIG")!.id, quantity: 0.5, wastePercentage: 2 },
-    { itemId: materialByCode.get("DEMO-MP-AZU")!.id, quantity: 0.4, wastePercentage: 2 },
-    { itemId: materialByCode.get("DEMO-MP-CACO3")!.id, quantity: 4, wastePercentage: 2 },
+    { itemId: materialByCode.get("DEMO-MP-EVA")!.id, quantity: 15 },
+    { itemId: materialByCode.get("DEMO-MP-CAU")!.id, quantity: 8 },
+    { itemId: materialByCode.get("DEMO-MP-PU")!.id, quantity: 3 },
+    { itemId: materialByCode.get("DEMO-MP-EST")!.id, quantity: 0.4 },
+    { itemId: materialByCode.get("DEMO-MP-ZINC")!.id, quantity: 0.5 },
+    { itemId: materialByCode.get("DEMO-MP-PIG")!.id, quantity: 0.5 },
+    { itemId: materialByCode.get("DEMO-MP-AZU")!.id, quantity: 0.4 },
+    { itemId: materialByCode.get("DEMO-MP-CACO3")!.id, quantity: 4 },
   ] } } } }, include: { versions: true } });
 
   const approvedLines = purchaseLineData([

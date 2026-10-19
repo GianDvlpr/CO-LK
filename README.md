@@ -1,23 +1,26 @@
 # LK INNOVACION
 
-Webapp interna para gestionar compras, almacén/kardex, recetas, producción, productos, usuarios, permisos y pedidos para una operación de calzado.
+Webapp interna para gestionar compras, almacén/kardex, recetas, producción de suelas, maquinaria, productos, pedidos, Pick & Pack, calendario, usuarios y permisos.
 
 ## Estado actual
 
-El repositorio contiene la fundación técnica ejecutable:
+El repositorio contiene un MVP funcional conectado a Neon:
 
 - Next.js 16 + React 19 + TypeScript estricto.
 - Ant Design, TanStack Query y Zustand.
 - Prisma con el modelo inicial de negocio validado y migración SQL reproducible.
-- Estructura modular, API v1, health check y shell responsive.
+- Estructura modular, API v1, health check, modo oscuro y shell responsive.
 - Vitest, Playwright, ESLint y pipeline CI.
 - Registro de decisiones y gate de fase 0.
 - Proyecto Neon `weathered-frost-40313859` vinculado al branch `production`.
 - Neon y Pusher configurados localmente mediante variables ignoradas por Git.
 - Consulta de RUC para proveedores y clientes mediante APIS.NET.PE, con datos del padrón reducido de SUNAT.
-- Roles iniciales `SUPERADMIN` y `ADMIN`, acceso exclusivamente por nombre de usuario y cambio obligatorio de contraseña temporal.
+- Roles iniciales `SUPERADMIN` y `ADMIN`, acceso exclusivamente por nombre de usuario, sesiones administrables y cambio obligatorio de contraseña temporal.
+- Flujo operativo de Compras, Almacén, Productos, Recetas, Producción, Pedidos y Pick & Pack con kardex valorizado.
+- Maquinaria, mantenimientos, calendario, Kanban, notificaciones y analítica.
+- Plantillas, importaciones y reportes Excel dinámicos para los módulos definidos en el MVP.
 
-El gate funcional fue aprobado el 13/10/2026. La migración inicial de `prisma/migrations/20261013150000_initial_domain` ya fue aplicada en la rama Neon `production`.
+El gate funcional fue aprobado el 13/10/2026. El historial de `prisma/migrations/` está aplicado en la rama Neon `production` hasta `20261019160000_inventory_supplier_currency`, que incorpora proveedor y moneda de referencia en Almacén.
 
 El paquete de revisión está en `docs/phase-0` e incluye propuesta de decisiones,
 procesos, RBAC, contrato API, modelo preliminar y backlog. Las cinco plantillas Excel
@@ -81,6 +84,10 @@ request → sesión → permiso → Zod → servicio de aplicación
 
 ## Documentos de referencia
 
+- `AGENTS.md`: punto de entrada y reglas obligatorias para agentes de IA.
+- `docs/ai/PROJECT_CONTEXT.md`: contexto técnico completo y mapa del sistema.
+- `docs/ai/DOMAIN_RULES.md`: reglas vigentes del negocio y flujos operativos.
+- `docs/ai/DEVELOPMENT_WORKFLOW.md`: procedimiento seguro para cambios, migraciones y pruebas.
 - `Plan_de_trabajo_LK_INNOVACION.md`: alcance, reglas y cronograma.
 - `docs/phase-0/decision-log.md`: gate que habilita el modelo de datos.
 - `docs/phase-0/decision-proposal.md`: valores recomendados para revisión funcional.

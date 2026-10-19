@@ -1,7 +1,7 @@
 import { KardexWorkspace } from "@/components/inventory/kardex-workspace";
-import { requirePermission } from "@/modules/auth/application/session-service";
+import { requirePagePermission } from "@/modules/auth/application/page-authorization";
 
 export default async function KardexPage() {
-  await requirePermission("inventory.read");
+  await requirePagePermission("inventory.read");
   return <KardexWorkspace />;
 }

@@ -60,6 +60,9 @@ function groupedRows(items: ParsedWorkbookRow[], key: (row: ParsedWorkbookRow) =
 function unique<T>(items: T[], message: string, rowNumber: number) { if (new Set(items).size !== items.length) throw new ImportApplicationError("DUPLICATE_ROW", message, rowNumber); }
 function created(result: ImportResult) { result.createdRecords += 1; }
 function skipped(result: ImportResult) { result.skippedRecords += 1; }
+function normalizeReference(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ");
+}
 
 async function nextSequence(tx: Prisma.TransactionClient, companyId: string) {
   const result = await tx.correlativeCounter.upsert({ where: { companyId_scope_year: { companyId, scope: "INVENTORY_POSTING", year: 0 } }, update: { value: { increment: 1 } }, create: { companyId, scope: "INVENTORY_POSTING", year: 0, value: 1 }, select: { value: true } });
@@ -79,6 +82,10 @@ async function addBalance(tx: Prisma.TransactionClient, warehouseId: string, ite
 
 async function importInventory(tx: Prisma.TransactionClient, data: ImportData, companyId: string, userId: string, jobId: string, mode: ImportMode, result: ImportResult) {
   const openingItems = new Set<string>();
+  const [suppliers, currencies] = await Promise.all([
+    tx.supplier.findMany({ where: { companyId, active: true }, select: { id: true, name: true } }),
+    tx.currency.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
+  ]);
   for (const row of rows(data, "Almacén")) {
     const suppliedCode = text(row, "codigo").toUpperCase();
     const existing = suppliedCode ? await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code: suppliedCode } } }) : null;
@@ -91,12 +98,21 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
     if (!( ["RAW_MATERIAL", "WASTE", "FINISHED_PRODUCT"] as string[]).includes(type)) throw new ImportApplicationError("INVALID_TYPE", "tipo_item debe ser MATERIA_PRIMA, MERMA o PRODUCTO_TERMINADO.", row.rowNumber, "tipo_item");
     const modeLot = (text(row, "modo_lote") || "NONE").toUpperCase();
     if (!( ["NONE", "OPTIONAL", "REQUIRED"] as string[]).includes(modeLot)) throw new ImportApplicationError("INVALID_LOT_MODE", "modo_lote no es válido.", row.rowNumber, "modo_lote");
+    const supplierName = text(row, "proveedor_nombre");
+    const supplierMatches = suppliers.filter((supplier) => normalizeReference(supplier.name) === normalizeReference(supplierName));
+    if (!supplierName || supplierMatches.length === 0) throw new ImportApplicationError("INVALID_REFERENCE", `No existe un proveedor activo con el nombre “${supplierName || "(vacío)"}”.`, row.rowNumber, "proveedor_nombre");
+    if (supplierMatches.length > 1) throw new ImportApplicationError("AMBIGUOUS_REFERENCE", `El nombre “${supplierName}” coincide con más de un proveedor activo. Corrige el catálogo antes de importar.`, row.rowNumber, "proveedor_nombre");
+    const currencyText = text(row, "moneda");
+    const normalizedCurrency = normalizeReference(currencyText);
+    const currencyMatches = currencies.filter((currency) => normalizeReference(currency.code) === normalizedCurrency || normalizeReference(currency.name) === normalizedCurrency);
+    if (!currencyText || currencyMatches.length === 0) throw new ImportApplicationError("INVALID_REFERENCE", `No existe una moneda registrada con código o nombre “${currencyText || "(vacío)"}”.`, row.rowNumber, "moneda");
+    if (currencyMatches.length > 1) throw new ImportApplicationError("AMBIGUOUS_REFERENCE", `La moneda “${currencyText}” coincide con más de un registro.`, row.rowNumber, "moneda");
     const op = inferredAction(suppliedCode, mode);
     if (op === "CREAR" && existing) throw new ImportApplicationError("DUPLICATE_CODE", `El ítem ${suppliedCode} ya existe.`, row.rowNumber, "codigo");
     if (op === "ACTUALIZAR" && !existing) throw new ImportApplicationError("NOT_FOUND", `El ítem ${suppliedCode} no existe.`, row.rowNumber, "codigo");
     const codeKind = type === "RAW_MATERIAL" ? "INVENTORY_RAW" : type === "WASTE" ? "INVENTORY_WASTE" : "INVENTORY_FINISHED";
     const code = suppliedCode || await nextBusinessCode(tx, companyId, codeKind);
-    const values = { name: text(row, "nombre"), abbreviation: text(row, "sigla") || null, type: type as "RAW_MATERIAL" | "WASTE" | "FINISHED_PRODUCT", unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo") };
+    const values = { name: text(row, "nombre"), abbreviation: text(row, "sigla") || null, type: type as "RAW_MATERIAL" | "WASTE" | "FINISHED_PRODUCT", supplierId: supplierMatches[0].id, currencyId: currencyMatches[0].id, unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo") };
     const item = existing
       ? await tx.inventoryItem.update({ where: { id: existing.id }, data: values })
       : await tx.inventoryItem.create({ data: { companyId, code, ...values } });
@@ -206,9 +222,7 @@ async function importRecipes(tx: Prisma.TransactionClient, data: ImportData, com
     for (const ingredientRow of ingredientRows) {
       const item = await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code: text(ingredientRow, "material_codigo") } } });
       if (!item || !(["RAW_MATERIAL", "WASTE"] as string[]).includes(item.type)) throw new ImportApplicationError("INVALID_REFERENCE", "La materia prima o merma no existe o no es válida.", ingredientRow.rowNumber, "material_codigo");
-      const waste = number(ingredientRow, "merma_porcentaje", 0);
-      if (waste.isNegative() || waste.greaterThan(100)) throw new ImportApplicationError("INVALID_NUMBER", "La merma debe estar entre 0 y 100.", ingredientRow.rowNumber, "merma_porcentaje");
-      ingredients.push({ itemId: item.id, quantity: positive(ingredientRow, "cantidad").toString(), wastePercentage: waste.toString() });
+      ingredients.push({ itemId: item.id, quantity: positive(ingredientRow, "cantidad").toString() });
     }
     const recipe = existing
       ? await tx.recipe.update({ where: { id: existing.id }, data: { productId: product.id, name: code, status: "DRAFT" } })

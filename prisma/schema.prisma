@@ -292,18 +292,24 @@ model AuditLog {
   id         String   @id @default(uuid()) @db.Uuid
   companyId  String   @map("company_id") @db.Uuid
   userId     String?  @map("user_id") @db.Uuid
+  module     String?
   entity     String
   entityId   String   @map("entity_id")
   action     String
+  result     String   @default("SUCCESS")
   beforeData Json?    @map("before_data")
   afterData  Json?    @map("after_data")
   ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  requestPath String? @map("request_path")
   createdAt  DateTime @default(now()) @map("created_at")
   company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([companyId, entity, entityId])
   @@index([companyId, createdAt])
+  @@index([companyId, module, createdAt])
+  @@index([companyId, userId, createdAt])
   @@map("audit_logs")
 }
 
@@ -345,6 +351,7 @@ model Currency {
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   exchangeRates ExchangeRate[]
   purchases     Purchase[]
+  inventoryItems InventoryItem[] @relation("InventoryItemCurrency")
 
   @@unique([companyId, code])
   @@map("currencies")
@@ -391,6 +398,8 @@ model InventoryItem {
   name                     String
   type                     InventoryItemType
   unitId                   String                    @map("unit_id") @db.Uuid
+  supplierId               String?                   @map("supplier_id") @db.Uuid
+  currencyId               String?                   @map("currency_id") @db.Uuid
   minimumStock             Decimal                   @default(0) @map("minimum_stock") @db.Decimal(18, 6)
   lotTrackingMode          LotTrackingMode           @default(NONE) @map("lot_tracking_mode")
   active                   Boolean                   @default(true)
@@ -398,6 +407,8 @@ model InventoryItem {
   updatedAt                DateTime                  @updatedAt @map("updated_at")
   company                  Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   unit                     UnitOfMeasure             @relation(fields: [unitId], references: [id])
+  supplier                 Supplier?                 @relation("InventoryItemSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
+  currency                 Currency?                 @relation("InventoryItemCurrency", fields: [currencyId], references: [id], onDelete: SetNull)
   lots                     InventoryLot[]
   balances                 StockBalance[]
   movements                StockMovement[]
@@ -412,6 +423,8 @@ model InventoryItem {
 
   @@unique([companyId, code])
   @@index([companyId, type, active])
+  @@index([supplierId])
+  @@index([currencyId])
   @@map("inventory_items")
 }
 
@@ -550,6 +563,7 @@ model Supplier {
   active         Boolean         @default(true)
   company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   purchases      Purchase[]
+  inventoryItems InventoryItem[] @relation("InventoryItemSupplier")
 
   @@unique([companyId, code])
   @@index([companyId, name])
@@ -781,7 +795,6 @@ model RecipeIngredient {
   recipeVersionId String        @map("recipe_version_id") @db.Uuid
   itemId          String        @map("item_id") @db.Uuid
   quantity        Decimal       @db.Decimal(18, 6)
-  wastePercentage Decimal       @default(0) @map("waste_percentage") @db.Decimal(7, 4)
   recipeVersion   RecipeVersion @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
   item            InventoryItem @relation(fields: [itemId], references: [id])
 
@@ -891,6 +904,7 @@ model ProductionMaterial {
   itemId            String          @map("item_id") @db.Uuid
   plannedQuantity   Decimal         @map("planned_quantity") @db.Decimal(18, 6)
   consumedQuantity  Decimal         @default(0) @map("consumed_quantity") @db.Decimal(18, 6)
+  actualWasteQuantity Decimal       @default(0) @map("actual_waste_quantity") @db.Decimal(18, 6)
   productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
   item              InventoryItem   @relation(fields: [itemId], references: [id])
 

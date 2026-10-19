@@ -2,10 +2,9 @@ import { createHmac, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/database/prisma";
 import { readServerEnv } from "@/lib/env/server";
+import { sessionExpiresAt } from "@/modules/auth/domain/session-expiration";
 import { AuthError } from "./auth-errors";
 
-const SHORT_SESSION_HOURS = 12;
-const REMEMBER_SESSION_DAYS = 30;
 const LAST_SEEN_WRITE_INTERVAL_MS = 2 * 60 * 1000;
 
 function sessionConfig() {
@@ -32,11 +31,11 @@ export type AuthenticatedUser = {
   permissions: string[];
 };
 
-export async function createSession(userId: string, remember: boolean, metadata?: { ipAddress?: string; userAgent?: string }) {
+export async function createSession(userId: string, metadata?: { ipAddress?: string; userAgent?: string }) {
   const { secret, cookieName } = sessionConfig();
   const token = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + (remember ? REMEMBER_SESSION_DAYS * 24 : SHORT_SESSION_HOURS) * 60 * 60 * 1000);
-  await prisma.session.create({
+  const expiresAt = sessionExpiresAt();
+  const session = await prisma.session.create({
     data: {
       userId,
       tokenHash: hashToken(token, secret),
@@ -53,6 +52,7 @@ export async function createSession(userId: string, remember: boolean, metadata?
     path: "/",
     expires: expiresAt,
   });
+  return session;
 }
 
 export async function deleteCurrentSession() {

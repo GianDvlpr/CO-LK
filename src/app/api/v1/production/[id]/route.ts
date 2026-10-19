@@ -78,8 +78,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         const add = (itemId: string, quantity: Decimal) => plannedMaterials.set(itemId, (plannedMaterials.get(itemId) ?? new Decimal(0)).add(quantity).toDecimalPlaces(6));
         const primaryRuns = plannedQuantity.div(existing.recipeVersion.yieldQuantity.toString()).toDecimalPlaces(6);
         const secondaryRuns = existing.secondaryRecipeVersion ? plannedQuantity.div(existing.secondaryRecipeVersion.yieldQuantity.toString()).toDecimalPlaces(6) : null;
-        for (const ingredient of existing.recipeVersion.ingredients) add(ingredient.itemId, new Decimal(ingredient.quantity.toString()).mul(new Decimal(1).add(new Decimal(ingredient.wastePercentage.toString()).div(100))).mul(primaryRuns));
-        if (existing.secondaryRecipeVersion && secondaryRuns) for (const ingredient of existing.secondaryRecipeVersion.ingredients) add(ingredient.itemId, new Decimal(ingredient.quantity.toString()).mul(new Decimal(1).add(new Decimal(ingredient.wastePercentage.toString()).div(100))).mul(secondaryRuns));
+        for (const ingredient of existing.recipeVersion.ingredients) add(ingredient.itemId, new Decimal(ingredient.quantity.toString()).mul(primaryRuns));
+        if (existing.secondaryRecipeVersion && secondaryRuns) for (const ingredient of existing.secondaryRecipeVersion.ingredients) add(ingredient.itemId, new Decimal(ingredient.quantity.toString()).mul(secondaryRuns));
         for (const component of normalized.components) add(component.itemId, new Decimal(component.quantity));
         await tx.productionMaterial.deleteMany({ where: { productionOrderId: id } });
         await tx.productionComponent.deleteMany({ where: { productionOrderId: id } });

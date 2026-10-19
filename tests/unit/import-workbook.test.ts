@@ -22,9 +22,19 @@ describe("import workbooks", () => {
     }
   });
 
+  it("mantiene la merma fuera de la plantilla de recetas", async () => {
+    const bytes = await createWorkbook("recipes");
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(Buffer.from(bytes as ArrayBuffer) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    const rowValues = workbook.getWorksheet("Recetas")?.getRow(1).values;
+    const headers = Array.isArray(rowValues) ? rowValues.map(String) : [];
+    expect(headers).not.toContain("Merma (%)");
+    expect(headers).not.toContain("merma_porcentaje");
+  });
+
   it("exige costo y fecha cuando se informa stock inicial", async () => {
     const bytes = await createWorkbook("inventory", {
-      "Almacén": [[null, "PVC", "Cuero negro", "MATERIA_PRIMA", "M2", "OPTIONAL", 20, "SI", "PRINCIPAL", 100]],
+      "Almacén": [[null, "PVC", "Cuero negro", "MATERIA_PRIMA", "Polímeros Andinos SAC", "PEN", "M2", "OPTIONAL", 20, "SI", "PRINCIPAL", 100]],
     });
     const result = await validateWorkbook("inventory", bytes as ArrayBuffer);
     expect(result.errors).toEqual(expect.arrayContaining([
@@ -82,21 +92,40 @@ describe("import workbooks", () => {
         { code: "PRINCIPAL", name: "Almacén principal" },
         { code: "INSUMOS", name: "Almacén de insumos" },
       ],
+      suppliers: [{ name: "Polímeros Andinos SAC" }, { name: "Química Industrial SAC" }],
+      currencies: [{ code: "PEN", name: "Sol peruano" }, { code: "USD", name: "Dólar estadounidense" }],
     });
     const registeredWorkbook = new ExcelJS.Workbook();
     await registeredWorkbook.xlsx.load(Buffer.from(registeredBytes as ArrayBuffer) as unknown as Parameters<typeof registeredWorkbook.xlsx.load>[0]);
     const registeredList = registeredWorkbook.getWorksheet("_Listas");
-    const movementValidation = registeredWorkbook.getWorksheet("Almacén")?.getCell("I2").dataValidation;
+    const inventorySheet = registeredWorkbook.getWorksheet("Almacén");
+    const movementValidation = inventorySheet?.getCell("K2").dataValidation;
+    const supplierValidation = inventorySheet?.getCell("E2").dataValidation;
+    const currencyValidation = inventorySheet?.getCell("F2").dataValidation;
 
     expect(registeredList?.state).toBe("veryHidden");
     expect(registeredList?.getColumn(1).values).toEqual([undefined, "almacen_codigo", "PRINCIPAL", "INSUMOS"]);
     expect(movementValidation?.type).toBe("list");
     expect(movementValidation?.formulae).toEqual(["'_Listas'!$A$2:$A$3"]);
+    expect(supplierValidation?.formulae).toEqual(["'_Listas'!$C$2:$C$3"]);
+    expect(currencyValidation?.formulae).toEqual(["'_Listas'!$D$2:$D$3"]);
 
     const fallbackBytes = await createWorkbook("inventory");
     const fallbackWorkbook = new ExcelJS.Workbook();
     await fallbackWorkbook.xlsx.load(Buffer.from(fallbackBytes as ArrayBuffer) as unknown as Parameters<typeof fallbackWorkbook.xlsx.load>[0]);
     expect(fallbackWorkbook.getWorksheet("_Listas")?.getCell("A2").value).toBe("PRINCIPAL");
+  });
+
+  it("exige proveedor y moneda en nuevos ítems de Almacén", async () => {
+    const bytes = await createWorkbook("inventory", {
+      "Almacén": [[null, "PVC", "PVC flexible", "MATERIA_PRIMA", null, null, "KG", "OPTIONAL", 10, "SI"]],
+    }, { fileKind: "TEMPLATE" });
+    const result = await validateWorkbook("inventory", bytes as ArrayBuffer);
+
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: "proveedor_nombre", code: "REQUIRED_FIELD" }),
+      expect.objectContaining({ field: "moneda", code: "REQUIRED_FIELD" }),
+    ]));
   });
 
   it("acepta un reporte que conserva el mismo formato de la plantilla", async () => {

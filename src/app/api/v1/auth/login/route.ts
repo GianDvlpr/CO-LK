@@ -5,7 +5,7 @@ import { login } from "@/modules/auth/application/login";
 import { getRequestIp, getRequestUserAgent } from "@/modules/auth/application/request-metadata";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
 
-const loginSchema = z.object({ username: z.string().trim().min(1), password: z.string().min(1), remember: z.boolean().default(false) });
+const loginSchema = z.object({ username: z.string().trim().min(1), password: z.string().min(1) });
 
 export async function POST(request: Request) {
   try {

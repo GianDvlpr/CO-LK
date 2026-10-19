@@ -7,6 +7,7 @@ import {
   ClockCircleOutlined,
   DatabaseOutlined,
   FileExcelOutlined,
+  FileSearchOutlined,
   InboxOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -25,7 +26,7 @@ import {
 import { Avatar, Button, Dropdown, Layout, Menu } from "antd";
 import type { MenuProps } from "antd";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
   administrationModules,
   appModules,
@@ -57,6 +58,7 @@ const moduleIcons: Record<string, React.ReactNode> = {
   users: <TeamOutlined />,
   roles: <SafetyCertificateOutlined />,
   sessions: <ClockCircleOutlined />,
+  audit: <FileSearchOutlined />,
   imports: <FileExcelOutlined />,
 };
 
@@ -87,6 +89,16 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   }, [pathname]);
 
   const currentModule = findModuleByHref(selectedKey);
+
+  useEffect(() => {
+    if (!currentModule) return;
+    void fetch("/api/v1/audit/module-access", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: pathname }),
+      keepalive: true,
+    });
+  }, [currentModule, pathname]);
 
   const allowedAppModules = appModules.filter((module) => user.permissions.includes(module.permission));
   const allowedAdministrationModules = administrationModules.filter((module) => user.permissions.includes(module.permission));

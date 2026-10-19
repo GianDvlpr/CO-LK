@@ -1,7 +1,7 @@
 import { ImportsOverview } from "@/components/imports/imports-overview";
-import { requirePermission } from "@/modules/auth/application/session-service";
+import { requirePagePermission } from "@/modules/auth/application/page-authorization";
 
 export default async function ImportsPage() {
-  const user = await requirePermission("imports.read");
+  const user = await requirePagePermission("imports.read");
   return <ImportsOverview permissions={user.permissions} />;
 }

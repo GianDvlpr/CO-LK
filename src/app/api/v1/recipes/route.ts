@@ -11,7 +11,7 @@ import { nextBusinessCode } from "@/lib/database/business-code";
 const decimal = z.union([z.string().min(1), z.number()]);
 const createSchema = z.object({
   name: z.string().trim().min(1).max(150), productId: z.uuid(), yieldQuantity: decimal, notes: z.string().trim().max(500).optional(),
-  ingredients: z.array(z.object({ itemId: z.uuid(), quantity: decimal, wastePercentage: decimal.default(0) })).min(1),
+  ingredients: z.array(z.object({ itemId: z.uuid(), quantity: decimal })).min(1),
 });
 
 function knownError(error: unknown) {
@@ -36,8 +36,8 @@ export async function POST(request: Request) {
   const itemIds = parsed.data.ingredients.map((ingredient) => ingredient.itemId);
   if (!yieldQuantity.greaterThan(0) || new Set(itemIds).size !== itemIds.length) return apiError("RECIPE_INVALID", "El rendimiento debe ser positivo y las materias primas no pueden repetirse.", 422);
   for (const ingredient of parsed.data.ingredients) {
-    const quantity = new Decimal(ingredient.quantity); const waste = new Decimal(ingredient.wastePercentage);
-    if (!quantity.greaterThan(0) || waste.isNegative() || waste.greaterThan(100)) return apiError("RECIPE_INVALID", "Las cantidades deben ser positivas y la merma debe estar entre 0% y 100%.", 422);
+    const quantity = new Decimal(ingredient.quantity);
+    if (!quantity.greaterThan(0)) return apiError("RECIPE_INVALID", "Las cantidades de la receta deben ser positivas.", 422);
   }
   try {
     const user = await requirePermission("recipes.create");
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       ]);
       if (!product || materials.length !== itemIds.length) throw new Error("RECIPE_INVALID_REFERENCE");
       const code = await nextBusinessCode(tx, user.companyId, "RECIPE");
-      const created = await tx.recipe.create({ data: { companyId: user.companyId, productId: product.id, code, name: parsed.data.name, status: "DRAFT", versions: { create: { version: 1, yieldQuantity, notes: parsed.data.notes, isActive: false, ingredients: { create: parsed.data.ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: new Decimal(ingredient.quantity), wastePercentage: new Decimal(ingredient.wastePercentage) })) } } } } });
+      const created = await tx.recipe.create({ data: { companyId: user.companyId, productId: product.id, code, name: parsed.data.name, status: "DRAFT", versions: { create: { version: 1, yieldQuantity, notes: parsed.data.notes, isActive: false, ingredients: { create: parsed.data.ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: new Decimal(ingredient.quantity) })) } } } } });
       await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "Recipe", entityId: created.id, action: "CREATE", afterData: { code: created.code, version: 1, ingredientCount: itemIds.length } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "recipe.created.v1", aggregateId: created.id, payload: { recipeId: created.id, code: created.code } } });
       return created;

@@ -310,6 +310,28 @@ a {
   margin-bottom: 16px;
 }
 
+.audit-toolbar {
+  display: grid;
+  grid-template-columns: minmax(230px, 1.15fr) repeat(3, minmax(170px, 0.85fr)) minmax(260px, 1.4fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.audit-json {
+  max-width: 100%;
+  max-height: 320px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .session-current-tag {
   margin-inline-start: 8px;
 }
@@ -830,6 +852,16 @@ a {
 
   .session-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .audit-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-toolbar .ant-picker,
+  .audit-toolbar .ant-select,
+  .audit-toolbar .ant-input-affix-wrapper {
+    width: 100%;
   }
 
   .section-card .ant-card-body > .ant-space-horizontal {

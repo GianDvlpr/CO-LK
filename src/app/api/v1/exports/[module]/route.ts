@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/database/prisma";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
+import { getRequestIp, getRequestUserAgent } from "@/modules/auth/application/request-metadata";
 import { createWorkbook, isImportModule, workbookSpecs, type WorkbookData } from "@/modules/imports/application/workbook";
 import { parseReportPeriod, reportDateFilter, ReportPeriodError, type ReportPeriod } from "@/modules/imports/application/report-period";
 
@@ -17,20 +18,20 @@ export async function reportData(module: keyof typeof workbookSpecs, companyId: 
     };
   }
   if (module === "inventory") {
-    const items = await prisma.inventoryItem.findMany({ where: { companyId, createdAt: dateRange }, orderBy: { code: "asc" }, include: { unit: true, balances: { include: { warehouse: true, lot: true } } } });
+    const items = await prisma.inventoryItem.findMany({ where: { companyId, createdAt: dateRange }, orderBy: { code: "asc" }, include: { unit: true, supplier: true, currency: true, balances: { include: { warehouse: true, lot: true } } } });
     return {
       "Almacén": items.flatMap((item) => {
         const balances = item.balances.filter((balance) => balance.lotId === null && Number(balance.onHandQuantity) !== 0);
         const rows = balances.length ? balances : [null];
         const type = item.type === "RAW_MATERIAL" ? "MATERIA_PRIMA" : item.type === "WASTE" ? "MERMA" : "PRODUCTO_TERMINADO";
-        return rows.map((balance) => [item.code, item.abbreviation, item.name, type, item.unit.code, item.lotTrackingMode, Number(item.minimumStock), item.active ? "SI" : "NO", balance?.warehouse.code ?? null, balance ? Number(balance.onHandQuantity) : null, balance ? Number(balance.averageUnitCost) : null, null, balance ? date(balance.updatedAt) : null, balance ? "Saldo actual exportado" : null]);
+        return rows.map((balance) => [item.code, item.abbreviation, item.name, type, item.supplier?.name ?? null, item.currency?.code ?? null, item.unit.code, item.lotTrackingMode, Number(item.minimumStock), item.active ? "SI" : "NO", balance?.warehouse.code ?? null, balance ? Number(balance.onHandQuantity) : null, balance ? Number(balance.averageUnitCost) : null, null, balance ? date(balance.updatedAt) : null, balance ? "Saldo actual exportado" : null]);
       }),
     };
   }
   if (module === "recipes") {
     const items = await prisma.recipe.findMany({ where: { companyId, createdAt: dateRange }, orderBy: { code: "asc" }, include: { product: true, versions: { orderBy: { version: "asc" }, include: { ingredients: { include: { item: { include: { unit: true } } } } } } } });
     return {
-      Recetas: items.flatMap((recipe) => recipe.versions.flatMap((version) => version.ingredients.map((ingredient) => [recipe.code, recipe.code, recipe.product.code, null, version.version, Number(version.yieldQuantity), "UN", version.isActive ? "ACTIVE" : recipe.status, ingredient.item.code, Number(ingredient.quantity), ingredient.item.unit.code, Number(ingredient.wastePercentage)]))),
+      Recetas: items.flatMap((recipe) => recipe.versions.flatMap((version) => version.ingredients.map((ingredient) => [recipe.code, recipe.code, recipe.product.code, null, version.version, Number(version.yieldQuantity), "UN", version.isActive ? "ACTIVE" : recipe.status, ingredient.item.code, Number(ingredient.quantity), ingredient.item.unit.code]))),
     };
   }
   if (module === "products") {
@@ -55,19 +56,20 @@ export async function GET(request: Request, context: { params: Promise<{ module:
     const spec = workbookSpecs[module];
     const user = await requirePermission(mode === "report" ? spec.permission : "imports.read");
     const data = mode === "report" ? await reportData(module, user.companyId, period) : {};
-    const warehouses = module === "inventory" ? await prisma.warehouse.findMany({
-      where: { companyId: user.companyId, active: true },
-      orderBy: { code: "asc" },
-      select: { code: true, name: true },
-    }) : undefined;
+    const inventoryOptions = module === "inventory" ? await Promise.all([
+      prisma.warehouse.findMany({ where: { companyId: user.companyId, active: true }, orderBy: { code: "asc" }, select: { code: true, name: true } }),
+      prisma.supplier.findMany({ where: { companyId: user.companyId, active: true }, orderBy: { name: "asc" }, select: { name: true } }),
+      prisma.currency.findMany({ where: { companyId: user.companyId }, orderBy: { code: "asc" }, select: { code: true, name: true } }),
+    ]) : undefined;
     const bytes = await createWorkbook(module, data, {
       fileKind: mode === "report" ? "REPORT" : "TEMPLATE",
-      ...(warehouses ? { warehouses } : {}),
+      ...(inventoryOptions ? { warehouses: inventoryOptions[0], suppliers: inventoryOptions[1], currencies: inventoryOptions[2] } : {}),
       ...(period ? { reportPeriod: { from: period.fromText, to: period.toText } } : {}),
     });
     const stamp = new Date().toISOString().slice(0, 10);
     const periodSuffix = period ? `${period.fromText}-a-${period.toText}` : stamp;
-    const fileName = mode === "report" ? `reporte-${spec.file}-${periodSuffix}.xlsx` : `plantilla-${spec.file}-v1.5.xlsx`;
+    const fileName = mode === "report" ? `reporte-${spec.file}-${periodSuffix}.xlsx` : `plantilla-${spec.file}-v1.6.xlsx`;
+    await prisma.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module, entity: mode === "report" ? "Report" : "Template", entityId: module, action: "EXPORT", ipAddress: getRequestIp(request), userAgent: getRequestUserAgent(request), requestPath: new URL(request.url).pathname, afterData: { kind: mode, fileName, period: period ? { from: period.fromText, to: period.toText } : null } } });
     return new Response(new Uint8Array(bytes), { headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "content-disposition": `attachment; filename="${fileName}"`, "cache-control": "no-store" } });
   } catch (error) {
     if (error instanceof AuthError) return Response.json({ error: { code: error.code, message: error.message } }, { status: error.status });

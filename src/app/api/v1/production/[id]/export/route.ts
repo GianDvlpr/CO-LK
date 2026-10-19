@@ -2,6 +2,7 @@ import { prisma } from "@/lib/database/prisma";
 import { apiError } from "@/lib/http/api-response";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
+import { getRequestIp, getRequestUserAgent } from "@/modules/auth/application/request-metadata";
 import { buildProductionOrderPdf } from "@/modules/production/application/production-order-pdf";
 import { buildProductionOrderWorkbook } from "@/modules/production/application/production-order-workbook";
 
@@ -26,10 +27,12 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const format = new URL(request.url).searchParams.get("format")?.toLowerCase();
     if (format === "pdf") {
       const pdf = await buildProductionOrderPdf(order);
+      await prisma.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module: "production", entity: "ProductionOrder", entityId: order.id, action: "EXPORT", ipAddress: getRequestIp(request), userAgent: getRequestUserAgent(request), requestPath: new URL(request.url).pathname, afterData: { number: order.number, format: "PDF" } } });
       return new Response(Buffer.from(pdf), { headers: { "content-type": "application/pdf", "content-disposition": `attachment; filename="${baseName}.pdf"`, "cache-control": "no-store" } });
     }
     const workbook = await buildProductionOrderWorkbook(order);
     const buffer = await workbook.xlsx.writeBuffer();
+    await prisma.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module: "production", entity: "ProductionOrder", entityId: order.id, action: "EXPORT", ipAddress: getRequestIp(request), userAgent: getRequestUserAgent(request), requestPath: new URL(request.url).pathname, afterData: { number: order.number, format: "XLSX" } } });
     return new Response(buffer, { headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "content-disposition": `attachment; filename="${baseName}.xlsx"`, "cache-control": "no-store" } });
   } catch (error) {
     if (error instanceof AuthError) return apiError(error.code, error.message, error.status);

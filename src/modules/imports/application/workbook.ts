@@ -9,6 +9,8 @@ export type WorkbookOptions = {
   reportPeriod?: { from: string; to: string };
   fileKind?: WorkbookFileKind;
   warehouses?: { code: string; name: string }[];
+  suppliers?: { name: string }[];
+  currencies?: { code: string; name: string }[];
 };
 
 type SheetSpec = { name: string; columns: string[]; required: string[]; uniqueBy: string[][] };
@@ -24,13 +26,13 @@ export const workbookSpecs: Record<ImportModule, ModuleSpec> = {
   inventory: {
     label: "Almacén", permission: "inventory.read", file: "almacen",
     sheets: [
-      { name: "Almacén", columns: ["codigo", "sigla", "nombre", "tipo_item", "unidad_base", "modo_lote", "stock_minimo", "activo", "almacen_codigo", "stock_inicial", "costo_unitario_pen", "lote", "fecha_inicial", "observaciones"], required: ["nombre", "tipo_item", "unidad_base"], uniqueBy: [["codigo"], ["nombre", "unidad_base", "almacen_codigo", "lote"]] },
+      { name: "Almacén", columns: ["codigo", "sigla", "nombre", "tipo_item", "proveedor_nombre", "moneda", "unidad_base", "modo_lote", "stock_minimo", "activo", "almacen_codigo", "stock_inicial", "costo_unitario_pen", "lote", "fecha_inicial", "observaciones"], required: ["nombre", "tipo_item", "proveedor_nombre", "moneda", "unidad_base"], uniqueBy: [["codigo"], ["nombre", "unidad_base", "almacen_codigo", "lote"]] },
     ],
   },
   recipes: {
     label: "Recetas", permission: "recipes.read", file: "recetas",
     sheets: [
-      { name: "Recetas", columns: ["referencia_carga", "receta_codigo", "producto_codigo", "variante_sku", "version", "rendimiento", "unidad_salida", "estado", "material_codigo", "cantidad", "unidad", "merma_porcentaje"], required: ["referencia_carga", "producto_codigo", "version", "rendimiento", "material_codigo", "cantidad"], uniqueBy: [["referencia_carga", "version", "material_codigo"], ["receta_codigo", "version", "material_codigo"]] },
+      { name: "Recetas", columns: ["referencia_carga", "receta_codigo", "producto_codigo", "variante_sku", "version", "rendimiento", "unidad_salida", "estado", "material_codigo", "cantidad", "unidad"], required: ["referencia_carga", "producto_codigo", "version", "rendimiento", "material_codigo", "cantidad"], uniqueBy: [["referencia_carga", "version", "material_codigo"], ["receta_codigo", "version", "material_codigo"]] },
     ],
   },
   products: {
@@ -61,12 +63,12 @@ function exampleValue(column: string): string | number {
     lote_linea_numero: 1, material_codigo: "MP-000001", lote_proveedor: "LOTE-2026-01", fecha_vencimiento: "2027-10-13",
     cantidad_presentaciones: 25, tipo_presentacion: "SACO", contenido_por_presentacion: 20, unidad_contenido: "KG",
     cantidad_base: 500, precio_neto_unidad_base: 4.5, tasa_igv: 18, precio_unitario_con_igv: 5.31,
-    subtotal_neto: 2250, igv: 405, total_linea: 2655, codigo: "(se genera)", sigla: "PVC", nombre: "PVC",
+    subtotal_neto: 2250, igv: 405, total_linea: 2655, codigo: "(se genera)", sigla: "PVC", nombre: "PVC", proveedor_nombre: "Polímeros Andinos SAC",
     tipo_item: "MATERIA_PRIMA", unidad_base: "KG", modo_lote: "OPTIONAL", almacen_codigo: "PRINCIPAL",
     stock_minimo: 10, activo: "SI", producto_activo: "SI", variante_activa: "SI", stock_inicial: 100, fecha_inicial: "2026-10-13", item_codigo: "MP-000001", lote: "LOTE-2026-01", fecha: "2026-10-13",
     cantidad: 100, costo_unitario_pen: 4.5, receta_codigo: "(se genera)", producto_codigo: "(se genera)",
     variante_sku: "ZAP-001-40-NEG", version: 1, rendimiento: 1, unidad_salida: "PAR",
-    unidad: "KG", merma_porcentaje: 3, categoria: "Calzado", descripcion: "Suela urbana", codigo_matriz: "I0034", sku: "(se genera)",
+    unidad: "KG", categoria: "Calzado", descripcion: "Suela urbana", codigo_matriz: "I0034", sku: "(se genera)",
     talla: "39", color: "NEG", color_secundario: "ROJ", precio_venta: 120, numero_pedido: "(se genera)", cliente_codigo: "CLI-000001",
     fecha_requerida: "2026-10-20", precio_neto_unitario: 100,
   };
@@ -88,7 +90,7 @@ const columnDescriptions: Record<string, string> = {
   tipo_documento: "Tipo de comprobante o guía entregado por el proveedor, por ejemplo FACTURA o GUIA.",
   serie_documento: "Serie del documento del proveedor, por ejemplo F001.",
   numero_documento: "Número del documento o guía del proveedor.",
-  moneda: "Moneda de la operación. Usa PEN o USD.",
+  moneda: "Código o nombre de una moneda registrada en el sistema, por ejemplo PEN o USD.",
   tipo_cambio_pen: "Valor en soles de una unidad de la moneda de la operación. Para PEN usa 1.",
   fecha_tipo_cambio: "Fecha del tipo de cambio utilizado.",
   fuente_tipo_cambio: "Origen del tipo de cambio, por ejemplo SUNAT.",
@@ -114,6 +116,7 @@ const columnDescriptions: Record<string, string> = {
   sigla: "Abreviatura usada para identificar rápidamente el material, por ejemplo PVC, TR, RB o EVA.",
   nombre: "Nombre descriptivo del ítem o producto.",
   tipo_item: "Clasificación del ítem: MATERIA_PRIMA para insumos comprados, MERMA para sobrantes o material recuperado y PRODUCTO_TERMINADO para variantes generadas desde Productos.",
+  proveedor_nombre: "Nombre del proveedor activo registrado. Debe coincidir con el nombre del catálogo; se ignoran mayúsculas, tildes y espacios repetidos.",
   unidad_base: "Unidad en la que se controla el stock del ítem, por ejemplo KG, L, UND o PAR.",
   modo_lote: "Define el control por lote: REQUIRED, OPTIONAL o NONE.",
   almacen_codigo: "Código del almacén. Selecciónalo de la lista; si lo dejas vacío en MovimientosIniciales, el sistema usa PRINCIPAL.",
@@ -136,7 +139,6 @@ const columnDescriptions: Record<string, string> = {
   rendimiento: "Cantidad de producto terminado obtenida al ejecutar una receta completa.",
   unidad_salida: "Unidad del rendimiento de la receta, por ejemplo PAR o UND.",
   unidad: "Unidad de medida de la cantidad del ingrediente o de la variante, según la hoja.",
-  merma_porcentaje: "Porcentaje adicional previsto por pérdida del material durante la producción.",
   categoria: "Categoría comercial del producto.",
   descripcion: "Descripción ampliada del producto.",
   sku: "Código autogenerado de la variante. En registros nuevos déjalo vacío; en reportes permite identificar una variante existente.",
@@ -199,6 +201,7 @@ const friendlyLabels: Record<string, string> = {
   sigla: "Sigla",
   nombre: "Nombre",
   tipo_item: "Tipo de ítem",
+  proveedor_nombre: "Proveedor",
   unidad_base: "Unidad de medida",
   modo_lote: "Control de lote",
   almacen_codigo: "Almacén",
@@ -221,7 +224,6 @@ const friendlyLabels: Record<string, string> = {
   rendimiento: "Rendimiento",
   unidad_salida: "Unidad de salida",
   unidad: "Unidad de medida",
-  merma_porcentaje: "Merma (%)",
   categoria: "Categoría",
   descripcion: "Descripción",
   sku: "SKU",
@@ -267,7 +269,7 @@ export async function createWorkbook(module: ImportModule, data: WorkbookData = 
   instructions.columns = [{ width: 34 }, { width: 78 }, { width: 18 }, { width: 28 }];
   instructions.addRows([
     ["LK INNOVACION", `Formato de ${spec.label}`],
-    ["Versión", "1.5"],
+    ["Versión", "1.6"],
     ["Tipo de archivo", fileKind],
     ["Modo al importar", fileKind === "REPORT" ? "SOLO_NUEVOS: los registros existentes se omiten y nunca se actualizan." : "Un código vacío crea un registro; un código existente actualiza el registro correspondiente."],
     ["Uso", "No cambie los nombres de las hojas ni los encabezados. Complete una fila por registro y conserve los códigos tal como aparecen en el sistema."],
@@ -275,7 +277,10 @@ export async function createWorkbook(module: ImportModule, data: WorkbookData = 
     ["Estructura", "Cada módulo utiliza una sola hoja de datos. Cuando un documento, producto o receta ocupa varias filas, repite sus datos principales y utiliza la misma Referencia temporal."],
     ["Códigos automáticos", "La Referencia temporal enlaza las hojas del archivo y no se guarda como código. Deja vacío el código principal al crear: el sistema lo generará. Los reportes sí incluyen el código para reconocer registros existentes."],
     ["Concepto: Referencia temporal", "Es una etiqueta temporal creada por ti para unir una fila principal con sus filas de detalle en el mismo archivo. Repite el mismo valor en la columna Referencia correspondiente de la hoja de detalle. No se guarda como código oficial."],
-    ...(module === "inventory" ? [["Lista de almacenes", "En almacen_codigo selecciona un código de la lista desplegable. La lista contiene los almacenes activos registrados; si no existe ninguno, se usa PRINCIPAL."]] : []),
+    ...(module === "inventory" ? [
+      ["Listas registradas", "En Almacén, selecciona el proveedor por nombre, la moneda por código y el almacén por código. La importación valida estos valores contra los catálogos activos/registrados."],
+      ["Coincidencia de proveedor", "El proveedor se busca por nombre ignorando mayúsculas, tildes y espacios repetidos. Si no existe o el nombre coincide con más de un proveedor, la fila se rechaza."],
+    ] : []),
   ]);
   for (const sheet of spec.sheets) {
     instructions.addRow([`${sheet.name} · obligatorios`, sheet.required.map((column) => friendlyLabel(sheet.name, column)).join(", ")]);
@@ -303,10 +308,23 @@ export async function createWorkbook(module: ImportModule, data: WorkbookData = 
       .map((warehouse) => [warehouse.code.trim().toUpperCase(), { code: warehouse.code.trim().toUpperCase(), name: warehouse.name.trim() }])).values())
       .filter((warehouse) => warehouse.code)
     : [];
-  const lists = warehouseOptions.length ? workbook.addWorksheet("_Listas", { state: "veryHidden" }) : null;
+  const supplierOptions = module === "inventory"
+    ? Array.from(new Map((options.suppliers ?? []).map((supplier) => [normalizeHeader(supplier.name), { name: supplier.name.trim() }])).values()).filter((supplier) => supplier.name)
+    : [];
+  const currencyOptions = module === "inventory"
+    ? Array.from(new Map((options.currencies ?? []).map((currency) => [currency.code.trim().toUpperCase(), { code: currency.code.trim().toUpperCase(), name: currency.name.trim() }])).values()).filter((currency) => currency.code)
+    : [];
+  const lists = module === "inventory" ? workbook.addWorksheet("_Listas", { state: "veryHidden" }) : null;
   if (lists) {
-    lists.addRow(["almacen_codigo", "almacen_nombre"]);
-    warehouseOptions.forEach((warehouse) => lists.addRow([warehouse.code, warehouse.name]));
+    lists.addRow(["almacen_codigo", "almacen_nombre", "proveedor_nombre", "moneda_codigo", "moneda_nombre"]);
+    const totalRows = Math.max(warehouseOptions.length, supplierOptions.length, currencyOptions.length);
+    for (let index = 0; index < totalRows; index += 1) lists.addRow([
+      warehouseOptions[index]?.code ?? null,
+      warehouseOptions[index]?.name ?? null,
+      supplierOptions[index]?.name ?? null,
+      currencyOptions[index]?.code ?? null,
+      currencyOptions[index]?.name ?? null,
+    ]);
   }
 
   for (const sheetSpec of spec.sheets) {
@@ -342,6 +360,28 @@ export async function createWorkbook(module: ImportModule, data: WorkbookData = 
             errorStyle: "stop",
             errorTitle: "Almacén no válido",
             error: "Selecciona un almacén de la lista.",
+          };
+        }
+      }
+      if (column === "proveedor_nombre" && lists && supplierOptions.length) {
+        const listFormula = `'_Listas'!$C$2:$C$${supplierOptions.length + 1}`;
+        const lastRow = Math.max(1001, sheet.rowCount + 100);
+        for (let rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
+          sheet.getCell(rowNumber, index + 1).dataValidation = {
+            type: "list", allowBlank: false, formulae: [listFormula], showInputMessage: true,
+            promptTitle: "Proveedor", prompt: "Selecciona el nombre de un proveedor activo registrado.",
+            showErrorMessage: true, errorStyle: "stop", errorTitle: "Proveedor no válido", error: "Selecciona un proveedor de la lista.",
+          };
+        }
+      }
+      if (column === "moneda" && lists && currencyOptions.length) {
+        const listFormula = `'_Listas'!$D$2:$D$${currencyOptions.length + 1}`;
+        const lastRow = Math.max(1001, sheet.rowCount + 100);
+        for (let rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
+          sheet.getCell(rowNumber, index + 1).dataValidation = {
+            type: "list", allowBlank: false, formulae: [listFormula], showInputMessage: true,
+            promptTitle: "Moneda", prompt: "Selecciona el código de una moneda registrada.",
+            showErrorMessage: true, errorStyle: "stop", errorTitle: "Moneda no válida", error: "Selecciona una moneda de la lista.",
           };
         }
       }
@@ -419,7 +459,10 @@ export async function validateWorkbook(module: ImportModule, bytes: ArrayBuffer)
       rowCount += 1;
       totalRows += 1;
       const required = sheetSpec.required;
-      for (const field of required) if (!record[field]) errors.push({ rowNumber, field, code: "REQUIRED_FIELD", message: `${sheetSpec.name}: “${friendlyLabel(sheetSpec.name, field)}” es obligatorio.`, rawData: record });
+      for (const field of required) {
+        const legacyReportReference = fileKind === "REPORT" && sheetSpec.name === "Almacén" && Boolean(record.codigo) && ["proveedor_nombre", "moneda"].includes(field);
+        if (!record[field] && !legacyReportReference) errors.push({ rowNumber, field, code: "REQUIRED_FIELD", message: `${sheetSpec.name}: “${friendlyLabel(sheetSpec.name, field)}” es obligatorio.`, rawData: record });
+      }
       if (sheetSpec.name === "Almacén" && Number(record.stock_inicial || 0) > 0) {
         for (const field of ["costo_unitario_pen", "fecha_inicial"]) if (!record[field]) errors.push({ rowNumber, field, code: "REQUIRED_FIELD", message: `${sheetSpec.name}: “${friendlyLabel(sheetSpec.name, field)}” es obligatorio cuando existe stock inicial.`, rawData: record });
       }

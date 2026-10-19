@@ -1,7 +1,7 @@
 "use client";
 
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
-import { Alert, Button, Checkbox, Form, Input } from "antd";
+import { Alert, Button, Form, Input } from "antd";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -10,7 +10,6 @@ import { ThemeToggle } from "@/components/common/theme-toggle";
 type LoginValues = {
   username: string;
   password: string;
-  remember: boolean;
 };
 
 export function LoginCard() {
@@ -48,7 +47,6 @@ export function LoginCard() {
       {error ? <Alert showIcon type="error" message={error} style={{ marginBottom: 24 }} /> : null}
       <Form<LoginValues>
         layout="vertical"
-        initialValues={{ remember: true }}
         onFinish={handleSubmit}
       >
         <Form.Item
@@ -64,9 +62,6 @@ export function LoginCard() {
           rules={[{ required: true, message: "Ingresa tu contraseña" }]}
         >
           <Input.Password size="large" prefix={<LockOutlined />} placeholder="••••••••••••" />
-        </Form.Item>
-        <Form.Item name="remember" valuePropName="checked">
-          <Checkbox>Mantener la sesión en este equipo</Checkbox>
         </Form.Item>
         <Button type="primary" htmlType="submit" size="large" block loading={submitting}>
           Ingresar

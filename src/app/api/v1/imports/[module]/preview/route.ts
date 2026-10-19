@@ -5,6 +5,7 @@ import { apiError, apiSuccess } from "@/lib/http/api-response";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { requirePermission } from "@/modules/auth/application/session-service";
+import { getRequestIp, getRequestUserAgent } from "@/modules/auth/application/request-metadata";
 import { isImportModule, validateWorkbook, type ImportModule, type ParsedWorkbookRow } from "@/modules/imports/application/workbook";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -62,7 +63,7 @@ export async function POST(request: Request, context: { params: Promise<{ module
     await prisma.$transaction(async (tx) => {
       if (result.errors.length) await tx.importError.createMany({ data: result.errors.map((error) => ({ importId: job.id, rowNumber: error.rowNumber, field: error.field, code: error.code, message: error.message, rawData: error.rawData as Prisma.InputJsonValue | undefined })) });
       await tx.importJob.update({ where: { id: job.id }, data: { status, totalRows: result.totalRows, successRows: 0, errorRows: result.errors.length, finishedAt: result.errors.length ? new Date() : null } });
-      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "ImportJob", entityId: job.id, action: "PREVIEW", afterData: { module, fileName: file.name, sha256: createHash("sha256").update(Buffer.from(bytes)).digest("hex"), totalRows: result.totalRows, errorRows: result.errors.length, warningRows: result.warnings.length, importMode: result.importMode } } });
+      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module, entity: "ImportJob", entityId: job.id, action: "PREVIEW", ipAddress: getRequestIp(request), userAgent: getRequestUserAgent(request), requestPath: new URL(request.url).pathname, afterData: { module, fileName: file.name, sha256: createHash("sha256").update(Buffer.from(bytes)).digest("hex"), totalRows: result.totalRows, errorRows: result.errors.length, warningRows: result.warnings.length, importMode: result.importMode } } });
     });
     return apiSuccess({ jobId: job.id, status, ...publicResult });
   } catch {

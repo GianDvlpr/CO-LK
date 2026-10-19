@@ -15,6 +15,7 @@ type ProductionDailyEntry = { date: string; productVariantId?: string; sku?: str
 type ProductionTurn = { date: string; quantities: { productVariantId: string; sku?: string; size: string; quantity: number }[]; observations?: string };
 type ProductionComponentInput = { itemId: string; componentType: "CERCO_VIRA" | "INSERTO_PUNTA" | "INSERTO_TALON" | "OTRO"; quantity: Decimal.Value; colorDetail?: string };
 type ProductionOutput = { productVariantId: string; quantity: Decimal.Value };
+type ProductionWaste = { productionMaterialId: string; quantity: Decimal.Value };
 
 export async function createProductionOrder(database: PrismaClient, command: {
   companyId: string; userId: string; number?: string; warehouseId: string; productVariantId?: string;
@@ -82,8 +83,8 @@ export async function createProductionOrder(database: PrismaClient, command: {
     const number = command.number ?? await nextBusinessCode(tx, command.companyId, "PRODUCTION", command.plannedAt);
     const plannedMaterials = new Map<string, Decimal>();
     const addMaterial = (itemId: string, quantity: Decimal) => plannedMaterials.set(itemId, (plannedMaterials.get(itemId) ?? new Decimal(0)).add(quantity).toDecimalPlaces(6));
-    for (const ingredient of version.ingredients) addMaterial(ingredient.itemId, new Decimal(ingredient.quantity.toString()).mul(new Decimal(1).add(new Decimal(ingredient.wastePercentage.toString()).div(100))).mul(runs));
-    if (secondaryVersion && secondaryRuns) for (const ingredient of secondaryVersion.ingredients) addMaterial(ingredient.itemId, new Decimal(ingredient.quantity.toString()).mul(new Decimal(1).add(new Decimal(ingredient.wastePercentage.toString()).div(100))).mul(secondaryRuns));
+    for (const ingredient of version.ingredients) addMaterial(ingredient.itemId, new Decimal(ingredient.quantity.toString()).mul(runs));
+    if (secondaryVersion && secondaryRuns) for (const ingredient of secondaryVersion.ingredients) addMaterial(ingredient.itemId, new Decimal(ingredient.quantity.toString()).mul(secondaryRuns));
     for (const component of command.components ?? []) addMaterial(component.itemId, new Decimal(component.quantity));
     const processType = command.processType ?? (machine?.type === "PRESS" ? "PRENSA" : machine?.type === "INJECTOR" ? "INYECTORA" : "NINGUNO");
     const order = await tx.productionOrder.create({ data: {
@@ -157,14 +158,17 @@ export async function startProductionOrder(database: PrismaClient, command: { co
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
-export async function completeProductionOrder(database: PrismaClient, command: { companyId: string; userId: string; orderId: string; producedQuantity?: Decimal.Value; outputs?: ProductionOutput[] }) {
+export async function completeProductionOrder(database: PrismaClient, command: { companyId: string; userId: string; orderId: string; producedQuantity?: Decimal.Value; outputs?: ProductionOutput[]; waste?: ProductionWaste[] }) {
   const rawOutputs = command.outputs?.map((output) => ({ productVariantId: output.productVariantId, quantity: new Decimal(output.quantity) })) ?? [];
   if (rawOutputs.some((output) => output.quantity.lessThan(0))) throw new ProductionError("PRODUCTION_INVALID_QUANTITY", "Las cantidades producidas no pueden ser negativas.");
   if (new Set(rawOutputs.map((output) => output.productVariantId)).size !== rawOutputs.length) throw new ProductionError("PRODUCTION_DUPLICATE_VARIANT", "Cada combinación de talla y color debe aparecer una sola vez.");
   const requestedOutputs = rawOutputs.filter((output) => output.quantity.greaterThan(0));
   if (rawOutputs.length > 0 && requestedOutputs.length === 0) throw new ProductionError("PRODUCTION_INVALID_QUANTITY", "Registra una cantidad producida mayor que cero en al menos una talla y color.");
+  const rawWaste = command.waste?.map((entry) => ({ productionMaterialId: entry.productionMaterialId, quantity: new Decimal(entry.quantity) })) ?? [];
+  if (rawWaste.some((entry) => entry.quantity.isNegative())) throw new ProductionError("PRODUCTION_INVALID_WASTE", "La merma real no puede ser negativa.");
+  if (new Set(rawWaste.map((entry) => entry.productionMaterialId)).size !== rawWaste.length) throw new ProductionError("PRODUCTION_INVALID_WASTE", "Cada material debe aparecer una sola vez en la merma real.");
   return database.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM production_orders WHERE id = ${command.orderId}::uuid FOR UPDATE`; const order = await tx.productionOrder.findFirst({ where: { id: command.orderId, companyId: command.companyId }, include: { productVariant: true } });
+    await tx.$queryRaw`SELECT id FROM production_orders WHERE id = ${command.orderId}::uuid FOR UPDATE`; const order = await tx.productionOrder.findFirst({ where: { id: command.orderId, companyId: command.companyId }, include: { productVariant: true, materials: true } });
     if (!order) throw new ProductionError("PRODUCTION_NOT_FOUND", "La orden no existe."); if (order.status !== "IN_PROGRESS") throw new ProductionError("PRODUCTION_INVALID_STATE", "Solo puede completarse una orden en proceso.");
     const programmed = Array.isArray(order.sizeProgram) ? order.sizeProgram.filter((item): item is ProductionProgramEntry => Boolean(item && typeof item === "object" && "size" in item && "requestedPairs" in item)) : [];
     const scheduledByVariant = new Map(programmed.filter((item) => item.productVariantId).map((item) => [item.productVariantId!, new Decimal(item.requestedPairs)]));
@@ -185,6 +189,16 @@ export async function completeProductionOrder(database: PrismaClient, command: {
     if (produced.greaterThan(order.plannedQuantity.toString())) throw new ProductionError("PRODUCTION_INVALID_QUANTITY", "La producción total no puede superar la cantidad planificada.");
     const variants = await tx.productVariant.findMany({ where: { id: { in: outputs.map((output) => output.productVariantId) }, active: true, productId: order.productVariant.productId, product: { companyId: command.companyId } } });
     if (variants.length !== outputs.length) throw new ProductionError("PRODUCTION_INVALID_VARIANT", "Una de las tallas o colores ya no es una variante activa del producto.");
+    const materialById = new Map(order.materials.map((material) => [material.id, material]));
+    for (const waste of rawWaste) {
+      const material = materialById.get(waste.productionMaterialId);
+      if (!material) throw new ProductionError("PRODUCTION_INVALID_WASTE", "Uno de los materiales informados no pertenece a esta orden.");
+      if (waste.quantity.greaterThan(material.consumedQuantity.toString())) throw new ProductionError("PRODUCTION_INVALID_WASTE", "La merma real no puede superar la cantidad consumida del material.");
+    }
+    for (const material of order.materials) {
+      const quantity = rawWaste.find((entry) => entry.productionMaterialId === material.id)?.quantity ?? new Decimal(0);
+      await tx.productionMaterial.update({ where: { id: material.id }, data: { actualWasteQuantity: quantity } });
+    }
     const variantById = new Map(variants.map((variant) => [variant.id, variant]));
     const consumed = await tx.stockMovement.aggregate({ where: { referenceType: "PRODUCTION_ORDER", referenceId: order.id, type: "PRODUCTION_CONSUMPTION" }, _sum: { movementValue: true } }); const totalCost = new Decimal(consumed._sum.movementValue?.toString() ?? 0).abs(); const unitCost = totalCost.div(produced).toDecimalPlaces(6);
     let postedValue = new Decimal(0);
