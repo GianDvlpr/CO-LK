@@ -44,11 +44,12 @@ export async function POST(request: Request) {
   try { requireSameOrigin(request); } catch (error) { if (error instanceof AuthError) return apiError(error.code, error.message, error.status); throw error; }
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("VALIDATION_ERROR", "El ítem contiene datos inválidos.", 400);
-  let reference: ReferenceCostValues;
-  try { reference = normalizeReferenceCost(parsed.data.referenceNetPrice, parsed.data.referenceTaxRate); }
-  catch { return apiError("INVENTORY_INVALID_REFERENCE_COST", "El precio neto o el IGV del ítem no son válidos.", 422); }
   try {
     const user = await requirePermission("inventory.create_item");
+    const company = await prisma.company.findUniqueOrThrow({ where: { id: user.companyId }, select: { igvRate: true } });
+    let reference: ReferenceCostValues;
+    try { reference = normalizeReferenceCost(parsed.data.referenceNetPrice, parsed.data.referenceTaxRate, company.igvRate.toString()); }
+    catch { return apiError("INVENTORY_INVALID_REFERENCE_COST", "El precio neto o el IGV del ítem no son válidos.", 422); }
     const [unit, supplier, currency] = await Promise.all([
       prisma.unitOfMeasure.findFirst({ where: { id: parsed.data.unitId, companyId: user.companyId } }),
       prisma.supplier.findFirst({ where: { id: parsed.data.supplierId, companyId: user.companyId, active: true } }),

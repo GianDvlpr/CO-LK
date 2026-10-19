@@ -14,19 +14,21 @@ La misma hoja también incluye un ejemplo concreto por cada campo (códigos, fec
 
 | Módulo | Hoja | Campos obligatorios |
 | --- | --- | --- |
-| Compras | Compras | `fecha_recepcion`, `proveedor_codigo`, `numero_documento`, `moneda`, `estado`, `linea_numero`, `material_codigo`, `cantidad_presentaciones`, `tipo_presentacion`, `contenido_por_presentacion`, `unidad_contenido`, `precio_neto_unidad_base`, `tasa_igv` |
+| Compras | Compras | `fecha_recepcion`, `proveedor_codigo`, `numero_documento`, `moneda`, `estado`, `linea_numero`, `material_codigo`, `cantidad_presentaciones`, `tipo_presentacion`, `contenido_por_presentacion`, `unidad_contenido`, `precio_neto_unidad_base` |
 | Almacén | Almacén | `nombre`, `tipo_item`, `proveedor_nombre`, `moneda`, `unidad_base` |
 | Recetas | Recetas | `referencia_carga`, `producto_codigo`, `version`, `rendimiento`, `material_codigo`, `cantidad` |
 | Productos | Productos | `referencia_carga`, `nombre` |
 | Pedidos | Pedidos | `referencia_carga`, `cliente_codigo`, `fecha`, `linea_numero`, `sku`, `cantidad`, `precio_neto_unitario` |
 
-Los demás campos pueden quedar vacíos. Algunos reciben valores predeterminados: IGV 18%, tipo de cambio 1, stock mínimo 0, activo `SI`, modo de lote `NONE` y secuencias automáticas cuando corresponde. La merma real no se importa en Recetas: se registra al finalizar cada orden de Producción.
+Los demás campos pueden quedar vacíos. Algunos reciben valores predeterminados: IGV configurable por empresa (18 % por defecto), tipo de cambio 1, stock mínimo 0, activo `SI`, modo de lote `NONE` y secuencias automáticas cuando corresponde. La merma real no se importa en Recetas: se registra al finalizar cada orden de Producción.
+
+En Compras ya no se solicita la tasa de IGV por línea: la importación usa el IGV configurado en Catálogos → Configuración general. Los archivos anteriores que todavía traen la columna `IGV (%)` siguen siendo válidos; esa columna se ignora.
 
 En Almacén, `proveedor_nombre` hace match contra el nombre de un proveedor activo ignorando mayúsculas, tildes y espacios repetidos. Debe existir una única coincidencia. `moneda` acepta el código o el nombre de cualquier moneda registrada; la plantilla propone los códigos disponibles en una lista desplegable.
 
 El encabezado visible es `Costo unitario`; la moneda se registra por separado en la columna `Moneda`. El identificador técnico interno `costo_unitario_pen` se conserva únicamente para mantener compatibilidad con archivos generados anteriormente.
 
-El ítem también puede registrar datos de referencia para sus pedidos al proveedor: `codigo_producto_proveedor` (código con el que el proveedor identifica el producto), `precio_neto` y `tasa_igv` (porcentaje). El `costo_total` se recalcula como `precio_neto × (1 + IGV/100)` y la tasa predeterminada es 18 %. Estos valores no modifican la valorización del saldo inicial ni generan movimientos. Las cuatro columnas son opcionales: los archivos generados con versiones anteriores siguen siendo válidos y una celda vacía conserva el valor ya registrado en el ítem.
+El ítem también puede registrar datos de referencia para sus pedidos al proveedor: `codigo_producto_proveedor` (código con el que el proveedor identifica el producto), `precio_neto` y `tasa_igv` (porcentaje). El `costo_total` se recalcula como `precio_neto × (1 + IGV/100)` y usa el IGV configurado por empresa (18 % por defecto). Estos valores no modifican la valorización del saldo inicial ni generan movimientos. Las cuatro columnas son opcionales: los archivos generados con versiones anteriores siguen siendo válidos y una celda vacía conserva el valor ya registrado en el ítem.
 
 ## Códigos automáticos
 

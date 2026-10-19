@@ -10,12 +10,12 @@ function date(value: Date | null | undefined) {
   return value ? value.toISOString().slice(0, 10) : null;
 }
 
-export async function reportData(module: keyof typeof workbookSpecs, companyId: string, period: ReportPeriod | null): Promise<WorkbookData> {
+async function reportData(module: keyof typeof workbookSpecs, companyId: string, period: ReportPeriod | null): Promise<WorkbookData> {
   const dateRange = reportDateFilter(period);
   if (module === "purchases") {
     const items = await prisma.purchase.findMany({ where: { companyId, receptionDate: dateRange }, orderBy: { receptionDate: "desc" }, include: { supplier: true, currency: true, lines: { orderBy: { lineNumber: "asc" }, include: { item: { include: { unit: true } }, lots: { orderBy: { lineNumber: "asc" }, include: { lot: true } } } } } });
     return {
-      Compras: items.flatMap((item) => item.lines.flatMap((line) => (line.lots.length ? line.lots : [{ lineNumber: 1, lot: null, quantity: line.receivedQuantity }]).map((allocation) => [item.code, item.sourceOrderReference, item.receiptSequence, date(item.receptionDate), item.supplier.code, null, null, item.documentNumber, item.currency.code, Number(item.exchangeRate), item.status, null, line.lineNumber, allocation.lineNumber, line.item.code, allocation.lot?.supplierLot, date(allocation.lot?.expiresAt), Number(line.presentationQty), line.presentationType, Number(line.contentPerUnit), line.item.unit.code, Number(line.pricePerBaseUnit), Number(line.taxRate), Number(allocation.quantity), Number(line.pricePerBaseUnit) * (1 + Number(line.taxRate) / 100), Number(line.subtotal), Number(line.taxAmount), Number(line.total)]))),
+      Compras: items.flatMap((item) => item.lines.flatMap((line) => (line.lots.length ? line.lots : [{ lineNumber: 1, lot: null, quantity: line.receivedQuantity }]).map((allocation) => [item.code, item.sourceOrderReference, item.receiptSequence, date(item.receptionDate), item.supplier.code, null, null, item.documentNumber, item.currency.code, Number(item.exchangeRate), item.status, null, line.lineNumber, allocation.lineNumber, line.item.code, allocation.lot?.supplierLot, date(allocation.lot?.expiresAt), Number(line.presentationQty), line.presentationType, Number(line.contentPerUnit), line.item.unit.code, Number(line.pricePerBaseUnit), Number(allocation.quantity), Number(line.pricePerBaseUnit) * (1 + Number(line.taxRate) / 100), Number(line.subtotal), Number(line.taxAmount), Number(line.total)]))),
     };
   }
   if (module === "inventory") {

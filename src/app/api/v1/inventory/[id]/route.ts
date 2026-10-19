@@ -12,10 +12,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     requireSameOrigin(request); const user = await requirePermission("inventory.create_item"); const parsed = schema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return apiError("VALIDATION_ERROR", "El ítem contiene datos inválidos.", 400);
+    const { id } = await context.params;
+    const company = await prisma.company.findUniqueOrThrow({ where: { id: user.companyId }, select: { igvRate: true } });
     let reference: ReferenceCostValues;
-    try { reference = normalizeReferenceCost(parsed.data.referenceNetPrice, parsed.data.referenceTaxRate); }
+    try { reference = normalizeReferenceCost(parsed.data.referenceNetPrice, parsed.data.referenceTaxRate, company.igvRate.toString()); }
     catch { return apiError("INVENTORY_INVALID_REFERENCE_COST", "El precio neto o el IGV del ítem no son válidos.", 422); }
-    const { id } = await context.params; const [item, unit, supplier, currency] = await Promise.all([prisma.inventoryItem.findFirst({ where: { id, companyId: user.companyId } }), prisma.unitOfMeasure.findFirst({ where: { id: parsed.data.unitId, companyId: user.companyId } }), prisma.supplier.findFirst({ where: { id: parsed.data.supplierId, companyId: user.companyId, active: true } }), prisma.currency.findFirst({ where: { id: parsed.data.currencyId, companyId: user.companyId } })]);
+    const [item, unit, supplier, currency] = await Promise.all([prisma.inventoryItem.findFirst({ where: { id, companyId: user.companyId } }), prisma.unitOfMeasure.findFirst({ where: { id: parsed.data.unitId, companyId: user.companyId } }), prisma.supplier.findFirst({ where: { id: parsed.data.supplierId, companyId: user.companyId, active: true } }), prisma.currency.findFirst({ where: { id: parsed.data.currencyId, companyId: user.companyId } })]);
     if (!item) return apiError("INVENTORY_NOT_FOUND", "El ítem no existe.", 404); if (!unit) return apiError("INVENTORY_INVALID_UNIT", "La unidad no es válida.", 422); if (!supplier) return apiError("INVENTORY_INVALID_SUPPLIER", "El proveedor no existe o está inactivo.", 422); if (!currency) return apiError("INVENTORY_INVALID_CURRENCY", "La moneda no está registrada.", 422);
     const hasMovements = await prisma.stockMovement.count({ where: { itemId: id } });
     if (hasMovements && (item.unitId !== parsed.data.unitId || item.lotTrackingMode !== parsed.data.lotTrackingMode)) return apiError("INVENTORY_IMMUTABLE_STOCK_FIELDS", "No puedes cambiar la unidad o el control de lotes porque el ítem ya tiene movimientos.", 422);

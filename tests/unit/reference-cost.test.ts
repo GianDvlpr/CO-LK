@@ -30,6 +30,10 @@ describe("normalización del costo de referencia", () => {
     expect(normalizeReferenceCost("4.5", null)).toEqual({ referenceNetPrice: "4.5", referenceTaxRate: "18" });
   });
 
+  it("usa la tasa configurada de la empresa cuando se informa", () => {
+    expect(normalizeReferenceCost("10", null, 10)).toEqual({ referenceNetPrice: "10", referenceTaxRate: "10" });
+  });
+
   it("rechaza precios negativos y tasas inválidas", () => {
     expect(() => normalizeReferenceCost("-1", "18")).toThrow();
     expect(() => normalizeReferenceCost("4.5", "101")).toThrow();

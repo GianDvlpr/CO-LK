@@ -82,10 +82,12 @@ async function addBalance(tx: Prisma.TransactionClient, warehouseId: string, ite
 
 async function importInventory(tx: Prisma.TransactionClient, data: ImportData, companyId: string, userId: string, jobId: string, mode: ImportMode, result: ImportResult) {
   const openingItems = new Set<string>();
-  const [suppliers, currencies] = await Promise.all([
+  const [suppliers, currencies, company] = await Promise.all([
     tx.supplier.findMany({ where: { companyId, active: true }, select: { id: true, name: true } }),
     tx.currency.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
+    tx.company.findUniqueOrThrow({ where: { id: companyId }, select: { igvRate: true } }),
   ]);
+  const companyIgvRate = company.igvRate.toString();
   for (const row of rows(data, "Almacén")) {
     const suppliedCode = text(row, "codigo").toUpperCase();
     const existing = suppliedCode ? await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code: suppliedCode } } }) : null;
@@ -116,7 +118,7 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
     if (supplierProductCode.length > 100) throw new ImportApplicationError("INVALID_LENGTH", "El código de producto del proveedor no puede superar 100 caracteres.", row.rowNumber, "codigo_producto_proveedor");
     const netPrice = text(row, "precio_neto") ? number(row, "precio_neto") : null;
     if (netPrice?.isNegative()) throw new ImportApplicationError("INVALID_NUMBER", "El precio neto no puede ser negativo.", row.rowNumber, "precio_neto");
-    const taxRate = netPrice ? (text(row, "tasa_igv") ? number(row, "tasa_igv") : new Decimal(existing?.referenceTaxRate?.toString() ?? 18)) : null;
+    const taxRate = netPrice ? (text(row, "tasa_igv") ? number(row, "tasa_igv") : new Decimal(existing?.referenceTaxRate?.toString() ?? companyIgvRate)) : null;
     if (taxRate && (taxRate.isNegative() || taxRate.greaterThan(100))) throw new ImportApplicationError("INVALID_NUMBER", "El IGV debe estar entre 0 y 100.", row.rowNumber, "tasa_igv");
     const values = { name: text(row, "nombre"), abbreviation: text(row, "sigla") || null, type: type as "RAW_MATERIAL" | "WASTE" | "FINISHED_PRODUCT", supplierId: supplierMatches[0].id, currencyId: currencyMatches[0].id, unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo"), supplierProductCode: supplierProductCode || existing?.supplierProductCode || null, referenceNetPrice: netPrice ? netPrice.toString() : existing?.referenceNetPrice?.toString() ?? null, referenceTaxRate: taxRate ? taxRate.toString() : existing?.referenceTaxRate?.toString() ?? null };
     const item = existing
@@ -241,6 +243,8 @@ async function importRecipes(tx: Prisma.TransactionClient, data: ImportData, com
 async function importPurchases(tx: Prisma.TransactionClient, data: ImportData, companyId: string, userId: string, mode: ImportMode, result: ImportResult) {
   const warehouse = await tx.warehouse.findFirst({ where: { companyId, active: true }, orderBy: { code: "asc" } });
   if (!warehouse) throw new ImportApplicationError("INVALID_REFERENCE", "No existe un almacén activo para registrar compras.");
+  const company = await tx.company.findUniqueOrThrow({ where: { id: companyId }, select: { igvRate: true } });
+  const configuredTaxRate = new Decimal(company.igvRate.toString());
   const groups = groupedRows(rows(data, "Compras"), (row) => text(row, "codigo_compra").toUpperCase() || [text(row, "proveedor_codigo"), text(row, "tipo_documento"), text(row, "serie_documento"), text(row, "numero_documento"), text(row, "secuencia_recepcion") || "1"].map((value) => value.toUpperCase()).join("|"));
   for (const detailRows of groups) {
     const row = detailRows[0];
@@ -277,7 +281,7 @@ async function importPurchases(tx: Prisma.TransactionClient, data: ImportData, c
       if (!unit || unit.id !== item.unitId) throw new ImportApplicationError("INVALID_REFERENCE", `La unidad ${unitContent} no coincide con la unidad base del ítem ${item.code}.`, first.rowNumber, "unidad_contenido");
       const contentPerUnit = positive(first, "contenido_por_presentacion");
       const pricePerBaseUnit = positive(first, "precio_neto_unidad_base");
-      const taxRate = number(first, "tasa_igv", 18);
+      const taxRate = configuredTaxRate;
       const amounts = calculatePurchaseLine({ presentationQuantity, contentPerUnit, pricePerBaseUnit, taxRate });
       const lots = lotRows.filter((lotRow) => text(lotRow, "lote_proveedor")).map((lotRow, index) => ({ row: lotRow, lineNumber: number(lotRow, "lote_linea_numero", index + 1).toNumber(), lotCode: text(lotRow, "lote_proveedor"), quantity: lotRows.length === 1 ? amounts.receivedQuantity : positive(lotRow, "cantidad_base") }));
       if (item.lotTrackingMode === "REQUIRED" && !lots.length) throw new ImportApplicationError("LOT_REQUIRED", `El ítem ${item.code} requiere lote.`, first.rowNumber);

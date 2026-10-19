@@ -114,10 +114,12 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
   const [editing, setEditing] = useState<Common>();
   const [checkedDocument, setCheckedDocument] = useState<string>();
   const [form] = Form.useForm<CatalogForm>();
+  const [settingsForm] = Form.useForm<{ igvRate: number }>();
   const taxId = Form.useWatch("taxId", form);
   const documentType = Form.useWatch("documentType", form) ?? "RUC";
 
   const catalogs = useQuery({ queryKey: ["catalogs"], queryFn: () => api<Catalogs>("/api/v1/catalogs") });
+  const settings = useQuery({ queryKey: ["settings"], queryFn: () => api<{ igvRate: string }>("/api/v1/settings") });
   const refreshCatalogDependencies = async () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ["catalogs"] }),
     queryClient.invalidateQueries({ queryKey: ["purchase-options"] }),
@@ -173,6 +175,18 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
       });
       setCheckedDocument(result.dni);
       toast.success("Nombre encontrado. Revísalo antes de guardar.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const updateSettings = useMutation({
+    mutationFn: (values: { igvRate: number }) => api("/api/v1/settings", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(values) }),
+    onSuccess: async () => {
+      toast.success("Configuración actualizada.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["settings"] }),
+        queryClient.invalidateQueries({ queryKey: ["purchase-options"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-options"] }),
+      ]);
     },
     onError: (error) => toast.error(error.message),
   });
@@ -271,6 +285,14 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
       {catalogs.error ? <Alert type="error" showIcon message={catalogs.error.message} style={{ marginBottom: 16 }} /> : null}
       <Tabs activeKey={active} onChange={(key) => setActive(key as CatalogType)} items={tabs} />
     </Card>
+    {settings.data ? <Card className="section-card" title="Configuración general" style={{ marginTop: 16 }}>
+      <Form form={settingsForm} layout="vertical" initialValues={{ igvRate: Number(settings.data.igvRate) }} onFinish={(values) => updateSettings.mutate(values)}>
+        <Form.Item name="igvRate" label="IGV (%)" rules={[{ required: true }]} extra="Tasa aplicada por defecto a las compras y al costo de referencia de los ítems de Almacén.">
+          <InputNumber min={0} max={100} precision={2} style={{ width: 200 }} disabled={!canManage} />
+        </Form.Item>
+        {canManage ? <Button type="primary" htmlType="submit" loading={updateSettings.isPending}>Guardar configuración</Button> : null}
+      </Form>
+    </Card> : null}
     <Modal
       title={`${editing ? "Editar" : "Nuevo"} ${labels[active].singular}`}
       width={760}

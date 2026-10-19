@@ -23,11 +23,11 @@ function isBlank(value: Decimal.Value | null | undefined) {
   return value === null || value === undefined || String(value).trim() === "";
 }
 
-export function normalizeReferenceCost(netPrice: Decimal.Value | null | undefined, taxRate: Decimal.Value | null | undefined): ReferenceCostValues {
+export function normalizeReferenceCost(netPrice: Decimal.Value | null | undefined, taxRate: Decimal.Value | null | undefined, defaultRate: Decimal.Value = DEFAULT_IGV_RATE): ReferenceCostValues {
   if (isBlank(netPrice)) return { referenceNetPrice: null, referenceTaxRate: null };
   const net = new Decimal(netPrice as Decimal.Value);
   if (!net.isFinite() || net.isNegative()) throw new Error("referenceNetPrice debe ser mayor o igual a cero.");
-  const rate = isBlank(taxRate) ? new Decimal(DEFAULT_IGV_RATE) : new Decimal(taxRate as Decimal.Value);
+  const rate = isBlank(taxRate) ? new Decimal(defaultRate) : new Decimal(taxRate as Decimal.Value);
   if (!rate.isFinite() || rate.isNegative() || rate.greaterThan(100)) throw new Error("referenceTaxRate debe estar entre 0 y 100.");
   return { referenceNetPrice: net.toString(), referenceTaxRate: rate.toString() };
 }

@@ -33,6 +33,10 @@ Actualizado: 19/10/2026.
 - Kardex valorizado con filtros por ítem y almacén, lote, cantidades, costos, valor y saldo posterior a cada movimiento.
 - Ítems de Almacén con código de producto del proveedor y costo de referencia opcional (precio neto, IGV y costo total calculado), administrables desde el modal y desde Excel sin afectar la valorización.
 - La aprobación de compras valoriza el inventario con el IGV incluido en el costo unitario; el saldo inicial se registra con el costo total con IGV.
+- Tasa de IGV configurable por empresa desde Catálogos → Configuración general, aplicada a compras (modal y Excel), costo de referencia de ítems e importaciones.
+- El Excel de Compras ya no solicita la tasa de IGV por línea; los archivos anteriores con `IGV (%)` siguen siendo válidos y esa columna se ignora.
+- La recepción de compras selecciona materias primas desde un modal con código del proveedor y precio de referencia, que precarga precio neto e IGV (editables) en la línea.
+- Al aprobar una compra en la misma moneda de referencia del ítem, el ítem actualiza su precio neto y tasa de IGV con auditoría; si la moneda difiere, conserva la referencia anterior.
 - Catálogos maestros conectados a Neon para proveedores, clientes, almacenes, unidades y monedas, con alta transaccional, auditoría y outbox.
 - Permiso `catalogs.manage` separado de la lectura y asignado a los roles administrativos iniciales.
 - Módulo operativo de Productos con modelos de calzado, tallas, colores y variantes SKU.

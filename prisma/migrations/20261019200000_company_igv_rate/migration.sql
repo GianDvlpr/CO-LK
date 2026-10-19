@@ -1,0 +1,2 @@
+ALTER TABLE "companies"
+  ADD COLUMN "igv_rate" DECIMAL(7, 4) NOT NULL DEFAULT 18;

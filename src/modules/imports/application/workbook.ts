@@ -20,7 +20,7 @@ export const workbookSpecs: Record<ImportModule, ModuleSpec> = {
   purchases: {
     label: "Compras", permission: "purchases.read", file: "compras",
     sheets: [
-      { name: "Compras", columns: ["codigo_compra", "referencia_orden_origen", "secuencia_recepcion", "fecha_recepcion", "proveedor_codigo", "tipo_documento", "serie_documento", "numero_documento", "moneda", "tipo_cambio_pen", "estado", "observaciones", "linea_numero", "lote_linea_numero", "material_codigo", "lote_proveedor", "fecha_vencimiento", "cantidad_presentaciones", "tipo_presentacion", "contenido_por_presentacion", "unidad_contenido", "precio_neto_unidad_base", "tasa_igv", "cantidad_base", "precio_unitario_con_igv", "subtotal_neto", "igv", "total_linea"], required: ["fecha_recepcion", "proveedor_codigo", "numero_documento", "moneda", "estado", "linea_numero", "material_codigo", "cantidad_presentaciones", "tipo_presentacion", "contenido_por_presentacion", "unidad_contenido", "precio_neto_unidad_base", "tasa_igv"], uniqueBy: [["codigo_compra", "linea_numero", "lote_linea_numero"], ["proveedor_codigo", "numero_documento", "secuencia_recepcion", "linea_numero", "lote_linea_numero"]] },
+      { name: "Compras", columns: ["codigo_compra", "referencia_orden_origen", "secuencia_recepcion", "fecha_recepcion", "proveedor_codigo", "tipo_documento", "serie_documento", "numero_documento", "moneda", "tipo_cambio_pen", "estado", "observaciones", "linea_numero", "lote_linea_numero", "material_codigo", "lote_proveedor", "fecha_vencimiento", "cantidad_presentaciones", "tipo_presentacion", "contenido_por_presentacion", "unidad_contenido", "precio_neto_unidad_base", "cantidad_base", "precio_unitario_con_igv", "subtotal_neto", "igv", "total_linea"], required: ["fecha_recepcion", "proveedor_codigo", "numero_documento", "moneda", "estado", "linea_numero", "material_codigo", "cantidad_presentaciones", "tipo_presentacion", "contenido_por_presentacion", "unidad_contenido", "precio_neto_unidad_base"], uniqueBy: [["codigo_compra", "linea_numero", "lote_linea_numero"], ["proveedor_codigo", "numero_documento", "secuencia_recepcion", "linea_numero", "lote_linea_numero"]] },
     ],
   },
   inventory: {
@@ -276,7 +276,7 @@ export async function createWorkbook(module: ImportModule, data: WorkbookData = 
   instructions.columns = [{ width: 34 }, { width: 78 }, { width: 18 }, { width: 28 }];
   instructions.addRows([
     ["LK INNOVACION", `Formato de ${spec.label}`],
-    ["Versión", "1.8"],
+    ["Versión", "1.9"],
     ["Tipo de archivo", fileKind],
     ["Modo al importar", fileKind === "REPORT" ? "SOLO_NUEVOS: los registros existentes se omiten y nunca se actualizan." : "Un código vacío crea un registro; un código existente actualiza el registro correspondiente."],
     ["Uso", "No cambie los nombres de las hojas ni los encabezados. Complete una fila por registro y conserve los códigos tal como aparecen en el sistema."],
@@ -441,9 +441,11 @@ export async function validateWorkbook(module: ImportModule, bytes: ArrayBuffer)
     for (let index = 1; index <= headerRow.cellCount; index += 1) {
       const rawHeader = cellValue(headerRow.getCell(index).value);
       if (!rawHeader) continue;
+      const normalizedHeader = normalizeHeader(rawHeader);
+      if (sheetSpec.name === "Compras" && (normalizedHeader === "tasa igv" || rawHeader.includes("%"))) continue;
       const canonical = resolveHeader(sheetSpec.name, sheetSpec.columns, rawHeader);
       if (!canonical) {
-        if (normalizeHeader(rawHeader) === "accion") continue;
+        if (normalizedHeader === "accion") continue;
         errors.push({ rowNumber: 1, code: "UNKNOWN_HEADER", message: `${sheetSpec.name}: la columna “${rawHeader}” no es reconocida.` });
         continue;
       }

@@ -19,8 +19,8 @@ type Purchase = {
   total: string; supplier: { code: string; name: string }; currency: { code: string }; lines: PurchaseLine[]; _count: { lines: number };
 };
 type Option = { id: string; code: string; name: string };
-type ItemOption = Option & { lotTrackingMode: "NONE" | "OPTIONAL" | "REQUIRED"; unit: { symbol: string } };
-type Options = { suppliers: Option[]; warehouses: Option[]; currencies: (Option & { isBase: boolean })[]; items: ItemOption[] };
+type ItemOption = Option & { lotTrackingMode: "NONE" | "OPTIONAL" | "REQUIRED"; supplierProductCode?: string | null; referenceNetPrice?: string | null; referenceTaxRate?: string | null; unit: { symbol: string }; supplier?: { name: string } | null };
+type Options = { suppliers: Option[]; warehouses: Option[]; currencies: (Option & { isBase: boolean })[]; items: ItemOption[]; igvRate?: string };
 type LineForm = { itemId?: string; presentationType?: string; presentationQuantity?: number; contentPerUnit?: number; pricePerBaseUnit?: number; taxRate?: number; lotCode?: string; supplierLot?: string };
 type PurchaseForm = { supplierId: string; warehouseId: string; currencyId: string; receptionDate: Dayjs; documentNumber: string; exchangeRate: number; lines: LineForm[] };
 
@@ -38,6 +38,8 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
   const router = useRouter();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [pickerLine, setPickerLine] = useState<number | null>(null);
+  const [pickerSearch, setPickerSearch] = useState("");
   const [form] = Form.useForm<PurchaseForm>();
   const watchedLines = Form.useWatch("lines", form) ?? [];
 
@@ -85,6 +87,21 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
     try { return sum.add(new Decimal(line.presentationQuantity ?? 0).mul(line.contentPerUnit ?? 0).mul(line.pricePerBaseUnit ?? 0).mul(new Decimal(1).add(new Decimal(line.taxRate ?? 18).div(100)))); }
     catch { return sum; }
   }, new Decimal(0));
+
+  const companyIgvRate = Number(options.data?.igvRate ?? 18);
+  const normalizeForSearch = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const pickerItems = (options.data?.items ?? []).filter((item) => {
+    const term = normalizeForSearch(pickerSearch.trim());
+    if (!term) return true;
+    return [item.name, item.code, item.supplierProductCode ?? ""].some((value) => normalizeForSearch(value).includes(term));
+  });
+  const selectedItem = (index: number) => options.data?.items.find((item) => item.id === watchedLines[index]?.itemId);
+  const selectMaterial = (index: number, item: ItemOption) => {
+    form.setFieldValue(["lines", index, "itemId"], item.id);
+    form.setFieldValue(["lines", index, "pricePerBaseUnit"], item.referenceNetPrice ? Number(item.referenceNetPrice) : undefined);
+    form.setFieldValue(["lines", index, "taxRate"], item.referenceTaxRate != null ? Number(item.referenceTaxRate) : companyIgvRate);
+    setPickerLine(null);
+  };
 
   const columns: ColumnsType<Purchase> = [
     { title: "Código", dataIndex: "code", fixed: "left", width: 130, render: (value) => <strong>{value}</strong> },
@@ -134,7 +151,8 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
           {(fields, { add, remove }) => <Space direction="vertical" size={14} style={{ width: "100%" }}>
             {fields.map((field, index) => <Card size="small" key={field.key} title={`Línea ${index + 1}`} extra={fields.length > 1 ? <Button type="link" danger onClick={() => remove(field.name)}>Quitar</Button> : null}>
               <div className="purchase-line-grid">
-                <Form.Item name={[field.name, "itemId"]} label="Materia prima" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.items.map((item) => ({ value: item.id, label: `${item.code} · ${item.name} (${item.unit.symbol})` }))} /></Form.Item>
+                <Form.Item name={[field.name, "itemId"]} hidden rules={[{ required: true }]}><Input /></Form.Item>
+                <Form.Item label="Materia prima" required help={selectedItem(index) ? undefined : "Selecciona un material de la lista."}><Button block onClick={() => { setPickerLine(index); setPickerSearch(""); }} style={{ textAlign: "left" }}>{selectedItem(index) ? `${selectedItem(index)!.code} · ${selectedItem(index)!.name}` : "Seleccionar material…"}</Button></Form.Item>
                 <Form.Item name={[field.name, "presentationType"]} label="Tipo de presentación" rules={[{ required: true }]}><Input placeholder="Saco, botella, cilindro…" /></Form.Item>
                 <Form.Item name={[field.name, "presentationQuantity"]} label="Cantidad de presentaciones" rules={[{ required: true }]}><InputNumber min={0.000001} style={{ width: "100%" }} placeholder="20" /></Form.Item>
                 <Form.Item name={[field.name, "contentPerUnit"]} label="Contenido por presentación" rules={[{ required: true }]}><InputNumber min={0.000001} style={{ width: "100%" }} placeholder="10" /></Form.Item>
@@ -145,11 +163,33 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
                 <Form.Item name={[field.name, "supplierLot"]} label="Lote del proveedor"><Input placeholder="Opcional" /></Form.Item>
               </div>
             </Card>)}
-            <Button block onClick={() => add({ taxRate: 18 })} icon={<PlusOutlined />}>Agregar línea</Button>
+            <Button block onClick={() => add({ taxRate: companyIgvRate })} icon={<PlusOutlined />}>Agregar línea</Button>
           </Space>}
         </Form.List>
         <div className="purchase-total"><span>Total estimado con IGV</span><strong>{total.toFixed(2)}</strong></div>
       </Form>
+    </Modal>
+    <Modal title="Seleccionar materia prima" open={pickerLine !== null} onCancel={() => setPickerLine(null)} footer={null} width={960} destroyOnHidden>
+      <Input.Search allowClear placeholder="Buscar por nombre, código o código del proveedor" value={pickerSearch} onChange={(event) => setPickerSearch(event.target.value)} style={{ marginBottom: 12 }} />
+      <Table
+        rowKey="id"
+        size="small"
+        dataSource={pickerItems}
+        pagination={{ pageSize: 8 }}
+        scroll={{ x: 920 }}
+        locale={{ emptyText: <Empty description="No hay materias primas que coincidan" /> }}
+        onRow={(record) => ({ onClick: () => { if (pickerLine !== null) selectMaterial(pickerLine, record); }, style: { cursor: "pointer" } })}
+        columns={[
+          { title: "Código", dataIndex: "code", width: 110, render: (value) => <strong>{value}</strong> },
+          { title: "Material", dataIndex: "name", width: 220 },
+          { title: "Código del proveedor", dataIndex: "supplierProductCode", width: 160, render: (value) => value || "—" },
+          { title: "Proveedor", width: 190, render: (_, row) => row.supplier?.name ?? "—" },
+          { title: "Unidad", width: 80, render: (_, row) => row.unit.symbol },
+          { title: "Precio neto ref.", width: 130, align: "right", render: (_, row) => row.referenceNetPrice ? new Decimal(row.referenceNetPrice).toFixed(4) : "—" },
+          { title: "IGV", width: 90, align: "right", render: (_, row) => `${new Decimal(row.referenceTaxRate ?? companyIgvRate).toFixed(2)}%` },
+          { title: "Costo total ref.", width: 130, align: "right", render: (_, row) => row.referenceNetPrice ? new Decimal(row.referenceNetPrice).mul(new Decimal(1).add(new Decimal(row.referenceTaxRate ?? companyIgvRate).div(100))).toFixed(4) : "—" },
+        ]}
+      />
     </Modal>
   </>;
 }

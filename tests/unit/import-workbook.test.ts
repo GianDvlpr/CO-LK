@@ -196,11 +196,32 @@ describe("import workbooks", () => {
     expect(result.data.Pedidos).toHaveLength(1);
   });
 
+  it("no incluye la columna de tasa de IGV en el formato de Compras", async () => {
+    const bytes = await createWorkbook("purchases");
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(Buffer.from(bytes as ArrayBuffer) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    const headers = workbook.getWorksheet("Compras")?.getRow(1).values;
+    expect(headers).not.toContain("IGV (%)");
+    expect(headers).not.toContain("tasa_igv");
+    expect(headers).toContain("Precio sin IGV por unidad");
+  });
+
+  it("tolera la columna heredada IGV (%) en archivos de Compras anteriores", async () => {
+    const bytes = await createWorkbook("purchases");
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(Buffer.from(bytes as ArrayBuffer) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    const sheet = workbook.getWorksheet("Compras")!;
+    sheet.getRow(1).getCell(28).value = "IGV (%)";
+    const result = await validateWorkbook("purchases", await workbook.xlsx.writeBuffer() as ArrayBuffer);
+
+    expect(result.errors.filter((error) => error.code === "UNKNOWN_HEADER" || error.code === "DUPLICATE_HEADER")).toEqual([]);
+  });
+
   it("permite varios lotes distintos para una misma línea de compra", async () => {
     const bytes = await createWorkbook("purchases", {
       Compras: [
-        ["COMP-001", null, 1, "2026-10-01", "PROV-01", "FACTURA", "F001", "1", "PEN", 1, "PENDIENTE", null, 1, 1, "MAT-01", "LOTE-A", null, 2, "SACO", 5, "KG", 10, 18],
-        ["COMP-001", null, 1, "2026-10-01", "PROV-01", "FACTURA", "F001", "1", "PEN", 1, "PENDIENTE", null, 1, 2, "MAT-01", "LOTE-B", null, 2, "SACO", 5, "KG", 10, 18],
+        ["COMP-001", null, 1, "2026-10-01", "PROV-01", "FACTURA", "F001", "1", "PEN", 1, "PENDIENTE", null, 1, 1, "MAT-01", "LOTE-A", null, 2, "SACO", 5, "KG", 10],
+        ["COMP-001", null, 1, "2026-10-01", "PROV-01", "FACTURA", "F001", "1", "PEN", 1, "PENDIENTE", null, 1, 2, "MAT-01", "LOTE-B", null, 2, "SACO", 5, "KG", 10],
       ],
     });
     const result = await validateWorkbook("purchases", bytes as ArrayBuffer);

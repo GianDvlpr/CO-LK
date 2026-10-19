@@ -59,7 +59,7 @@ Campos esenciales:
 - cantidad base recibida = cantidad de presentaciones × contenido;
 - precio neto por unidad base;
 - moneda y tipo de cambio;
-- IGV, 18% por defecto;
+- IGV configurable por empresa (18 % por defecto);
 - estado pendiente, aprobado o rechazado.
 
 Reglas:
@@ -68,6 +68,7 @@ Reglas:
 - Aprobar una compra ingresa stock exactamente una vez, valoriza en PEN incluyendo el IGV en el costo unitario, actualiza balances y kardex en una transacción.
 - Rechazar no mueve inventario.
 - El documento no debe duplicarse para el mismo proveedor y secuencia de recepción.
+- La tasa de IGV es configurable por empresa en Catálogos → Configuración general (18 % por defecto). El Excel de Compras no solicita tasa por línea y usa la configurada; los archivos anteriores con `IGV (%)` se aceptan ignorando esa columna.
 - No usar `number` para cálculos de cantidad, precio, IGV o totales.
 
 ## 5. Almacén y kardex
@@ -89,8 +90,9 @@ Referencias de abastecimiento:
 Datos de referencia para compras:
 
 - Un ítem puede registrar el código con el que el proveedor identifica el producto (`supplierProductCode`).
-- También puede registrar un costo de referencia opcional: precio neto y tasa de IGV en porcentaje. El costo total de referencia es `precio neto × (1 + IGV/100)`, con 18 % por defecto.
+- También puede registrar un costo de referencia opcional: precio neto y tasa de IGV en porcentaje. El costo total de referencia es `precio neto × (1 + IGV/100)`, usando el IGV configurado por empresa cuando no se informa.
 - Estos datos son informativos para preparar pedidos al proveedor; no generan movimientos ni modifican la valorización del saldo inicial.
+- Al aprobar una compra cuya moneda coincide con la moneda de referencia del ítem, el precio neto y la tasa IGV de la línea reemplazan la referencia del ítem en una operación auditada. Si las monedas difieren, la referencia no cambia.
 
 Distinción crítica:
 

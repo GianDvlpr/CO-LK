@@ -143,6 +143,25 @@ export async function approvePurchase(database: Database, command: ApprovePurcha
       }
     }
 
+    for (const line of purchase.lines) {
+      if (!line.item.currencyId || line.item.currencyId !== purchase.currencyId) continue;
+      await tx.inventoryItem.update({
+        where: { id: line.itemId },
+        data: { referenceNetPrice: line.pricePerBaseUnit.toString(), referenceTaxRate: line.taxRate.toString() },
+      });
+      await tx.auditLog.create({
+        data: {
+          companyId: command.companyId,
+          userId: command.approvedById,
+          entity: "InventoryItem",
+          entityId: line.itemId,
+          action: "UPDATE",
+          beforeData: { referenceNetPrice: line.item.referenceNetPrice?.toString() ?? null, referenceTaxRate: line.item.referenceTaxRate?.toString() ?? null },
+          afterData: { referenceNetPrice: line.pricePerBaseUnit.toString(), referenceTaxRate: line.taxRate.toString(), source: "PURCHASE_APPROVAL", purchaseId: purchase.id },
+        },
+      });
+    }
+
     const approved = await tx.purchase.update({ where: { id: purchase.id }, data: { status: "APPROVED" } });
     await tx.purchaseApproval.create({
       data: { purchaseId: purchase.id, userId: command.approvedById, status: "APPROVED", comment: command.comment },

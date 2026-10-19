@@ -159,6 +159,7 @@ model Company {
   id                   String                @id @default(uuid()) @db.Uuid
   name                 String
   taxId                String?               @map("tax_id")
+  igvRate              Decimal               @default(18) @map("igv_rate") @db.Decimal(7, 4)
   createdAt            DateTime              @default(now()) @map("created_at")
   updatedAt            DateTime              @updatedAt @map("updated_at")
   users                User[]
