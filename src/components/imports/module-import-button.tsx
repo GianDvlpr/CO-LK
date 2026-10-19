@@ -13,9 +13,12 @@ type Preview = { jobId: string; status: string; totalRows: number; importMode: "
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error?.message ?? "No se pudo completar la operación.");
-  return payload.data;
+  const text = await response.text();
+  let payload: { data?: T; error?: { message?: string } } | null = null;
+  try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
+  if (!response.ok) throw new Error(payload?.error?.message ?? `No se pudo completar la operación (HTTP ${response.status}).`);
+  if (!payload) throw new Error("El servidor no devolvió una respuesta válida.");
+  return payload.data as T;
 }
 
 export function ModuleImportButton({ module, permissions }: { module: ModuleKey; permissions: string[] }) {

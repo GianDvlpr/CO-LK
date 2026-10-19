@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { isBlankNumericCell, isNumericCell } from "../domain/numeric-cell";
 
 export const importModules = ["purchases", "inventory", "recipes", "products", "orders"] as const;
 export type ImportModule = (typeof importModules)[number];
@@ -13,38 +14,38 @@ export type WorkbookOptions = {
   currencies?: { code: string; name: string }[];
 };
 
-type SheetSpec = { name: string; columns: string[]; required: string[]; uniqueBy: string[][]; optionalHeaders?: string[] };
+type SheetSpec = { name: string; columns: string[]; required: string[]; uniqueBy: string[][]; optionalHeaders?: string[]; numeric?: string[] };
 type ModuleSpec = { label: string; permission: string; file: string; sheets: SheetSpec[] };
 
 export const workbookSpecs: Record<ImportModule, ModuleSpec> = {
   purchases: {
     label: "Compras", permission: "purchases.read", file: "compras",
     sheets: [
-      { name: "Compras", columns: ["codigo_compra", "referencia_orden_origen", "secuencia_recepcion", "fecha_recepcion", "proveedor_codigo", "tipo_documento", "serie_documento", "numero_documento", "moneda", "tipo_cambio_pen", "estado", "observaciones", "linea_numero", "lote_linea_numero", "material_codigo", "lote_proveedor", "fecha_vencimiento", "cantidad_presentaciones", "tipo_presentacion", "contenido_por_presentacion", "unidad_contenido", "precio_neto_unidad_base", "cantidad_base", "precio_unitario_con_igv", "subtotal_neto", "igv", "total_linea"], required: ["fecha_recepcion", "proveedor_codigo", "numero_documento", "moneda", "estado", "linea_numero", "material_codigo", "cantidad_presentaciones", "tipo_presentacion", "contenido_por_presentacion", "unidad_contenido", "precio_neto_unidad_base"], uniqueBy: [["codigo_compra", "linea_numero", "lote_linea_numero"], ["proveedor_codigo", "numero_documento", "secuencia_recepcion", "linea_numero", "lote_linea_numero"]] },
+      { name: "Compras", columns: ["codigo_compra", "referencia_orden_origen", "secuencia_recepcion", "fecha_recepcion", "proveedor_codigo", "tipo_documento", "serie_documento", "numero_documento", "moneda", "tipo_cambio_pen", "estado", "observaciones", "linea_numero", "lote_linea_numero", "material_codigo", "lote_proveedor", "fecha_vencimiento", "cantidad_presentaciones", "tipo_presentacion", "contenido_por_presentacion", "unidad_contenido", "precio_neto_unidad_base", "cantidad_base", "precio_unitario_con_igv", "subtotal_neto", "igv", "total_linea"], required: ["fecha_recepcion", "proveedor_codigo", "numero_documento", "moneda", "estado", "linea_numero", "material_codigo", "cantidad_presentaciones", "tipo_presentacion", "contenido_por_presentacion", "unidad_contenido", "precio_neto_unidad_base"], uniqueBy: [["codigo_compra", "linea_numero", "lote_linea_numero"], ["proveedor_codigo", "numero_documento", "secuencia_recepcion", "linea_numero", "lote_linea_numero"]], numeric: ["secuencia_recepcion", "tipo_cambio_pen", "linea_numero", "lote_linea_numero", "cantidad_presentaciones", "contenido_por_presentacion", "precio_neto_unidad_base", "cantidad_base"] },
     ],
   },
   inventory: {
     label: "Almacén", permission: "inventory.read", file: "almacen",
     sheets: [
-      { name: "Almacén", columns: ["codigo", "sigla", "nombre", "tipo_item", "proveedor_nombre", "codigo_producto_proveedor", "moneda", "precio_neto", "tasa_igv", "costo_total", "unidad_base", "modo_lote", "stock_minimo", "activo", "almacen_codigo", "stock_inicial", "costo_unitario_pen", "lote", "fecha_inicial", "observaciones"], required: ["nombre", "tipo_item", "proveedor_nombre", "moneda", "unidad_base"], uniqueBy: [["codigo"], ["nombre", "unidad_base", "almacen_codigo", "lote"]], optionalHeaders: ["codigo_producto_proveedor", "precio_neto", "tasa_igv", "costo_total"] },
+      { name: "Almacén", columns: ["codigo", "sigla", "nombre", "tipo_item", "proveedor_nombre", "codigo_producto_proveedor", "moneda", "precio_neto", "tasa_igv", "costo_total", "unidad_base", "modo_lote", "stock_minimo", "activo", "almacen_codigo", "stock_inicial", "costo_unitario_pen", "lote", "fecha_inicial", "observaciones"], required: ["nombre", "tipo_item", "proveedor_nombre", "moneda", "unidad_base"], uniqueBy: [["codigo"], ["nombre", "unidad_base", "almacen_codigo", "lote"]], optionalHeaders: ["codigo_producto_proveedor", "precio_neto", "tasa_igv", "costo_total"], numeric: ["precio_neto", "tasa_igv", "stock_minimo", "stock_inicial", "costo_unitario_pen"] },
     ],
   },
   recipes: {
     label: "Recetas", permission: "recipes.read", file: "recetas",
     sheets: [
-      { name: "Recetas", columns: ["referencia_carga", "receta_codigo", "producto_codigo", "variante_sku", "version", "rendimiento", "unidad_salida", "estado", "material_codigo", "cantidad", "unidad"], required: ["referencia_carga", "producto_codigo", "version", "rendimiento", "material_codigo", "cantidad"], uniqueBy: [["referencia_carga", "version", "material_codigo"], ["receta_codigo", "version", "material_codigo"]] },
+      { name: "Recetas", columns: ["referencia_carga", "receta_codigo", "producto_codigo", "variante_sku", "version", "rendimiento", "unidad_salida", "estado", "material_codigo", "cantidad", "unidad"], required: ["referencia_carga", "producto_codigo", "version", "rendimiento", "material_codigo", "cantidad"], uniqueBy: [["referencia_carga", "version", "material_codigo"], ["receta_codigo", "version", "material_codigo"]], numeric: ["version", "rendimiento", "cantidad"] },
     ],
   },
   products: {
     label: "Productos", permission: "products.read", file: "productos",
     sheets: [
-      { name: "Productos", columns: ["referencia_carga", "producto_codigo", "codigo_matriz", "nombre", "categoria", "descripcion", "producto_activo", "sku", "talla", "color", "color_secundario", "unidad", "stock_minimo", "precio_venta", "variante_activa"], required: ["referencia_carga", "codigo_matriz", "nombre", "talla", "color", "unidad"], uniqueBy: [["sku"], ["codigo_matriz", "talla", "color", "color_secundario"]] },
+      { name: "Productos", columns: ["referencia_carga", "producto_codigo", "codigo_matriz", "nombre", "categoria", "descripcion", "producto_activo", "sku", "talla", "color", "color_secundario", "unidad", "stock_minimo", "precio_venta", "variante_activa"], required: ["referencia_carga", "codigo_matriz", "nombre", "talla", "color", "unidad"], uniqueBy: [["sku"], ["codigo_matriz", "talla", "color", "color_secundario"]], numeric: ["stock_minimo"] },
     ],
   },
   orders: {
     label: "Pedidos", permission: "orders.read", file: "pedidos",
     sheets: [
-      { name: "Pedidos", columns: ["referencia_carga", "numero_pedido", "cliente_codigo", "fecha", "fecha_requerida", "moneda", "tipo_cambio_pen", "estado", "observaciones", "linea_numero", "sku", "cantidad", "precio_neto_unitario", "tasa_igv", "subtotal_neto", "igv", "total_linea"], required: ["referencia_carga", "cliente_codigo", "fecha", "linea_numero", "sku", "cantidad", "precio_neto_unitario"], uniqueBy: [["referencia_carga", "sku"], ["referencia_carga", "linea_numero"], ["numero_pedido", "sku"], ["numero_pedido", "linea_numero"]] },
+      { name: "Pedidos", columns: ["referencia_carga", "numero_pedido", "cliente_codigo", "fecha", "fecha_requerida", "moneda", "tipo_cambio_pen", "estado", "observaciones", "linea_numero", "sku", "cantidad", "precio_neto_unitario", "tasa_igv", "subtotal_neto", "igv", "total_linea"], required: ["referencia_carga", "cliente_codigo", "fecha", "linea_numero", "sku", "cantidad", "precio_neto_unitario"], uniqueBy: [["referencia_carga", "sku"], ["referencia_carga", "linea_numero"], ["numero_pedido", "sku"], ["numero_pedido", "linea_numero"]], numeric: ["linea_numero", "cantidad", "precio_neto_unitario"] },
     ],
   },
 };
@@ -475,6 +476,11 @@ export async function validateWorkbook(module: ImportModule, bytes: ArrayBuffer)
       }
       if (sheetSpec.name === "Almacén" && Number(record.stock_inicial || 0) > 0) {
         for (const field of ["costo_unitario_pen", "fecha_inicial"]) if (!record[field]) errors.push({ rowNumber, field, code: "REQUIRED_FIELD", message: `${sheetSpec.name}: “${friendlyLabel(sheetSpec.name, field)}” es obligatorio cuando existe stock inicial.`, rawData: record });
+      }
+      for (const field of sheetSpec.numeric ?? []) {
+        if (!isBlankNumericCell(record[field]) && !isNumericCell(record[field])) {
+          errors.push({ rowNumber, field, code: "INVALID_NUMBER", message: `${sheetSpec.name}: “${friendlyLabel(sheetSpec.name, field)}” debe ser numérico.`, rawData: record });
+        }
       }
       let identicalDuplicate = false;
       const signature = JSON.stringify(record);

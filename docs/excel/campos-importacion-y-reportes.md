@@ -64,6 +64,7 @@ Estas columnas se conservan para que el reporte tenga el mismo formato, pero no 
 - Los reportes descargados quedan marcados internamente como `REPORT` y al volver a cargarlos se procesan en modo `ONLY_NEW`.
 - En ese modo, una clave que ya existe en la base de datos se omite: no se duplica y tampoco sobrescribe el registro existente.
 - El resultado de la confirmación separa cuántos registros nuevos fueron agregados y cuántos existentes fueron omitidos.
+- La validación previa revisa campos obligatorios, encabezados y valores numéricos. En celdas numéricas, `-`, `—` y `N/A` se interpretan como vacío; un texto no numérico se informa como error por fila antes de permitir la confirmación.
 - La validación previa detecta claves repetidas dentro del mismo libro, ignorando diferencias entre mayúsculas y minúsculas. Una fila completamente idéntica se omite con advertencia; la misma clave con datos diferentes es un conflicto bloqueante.
 - En una plantilla de carga manual, el sistema infiere la operación: sin código crea; con código busca el registro existente.
 - Compras y Pedidos no sobrescriben un código o número ya registrado.

@@ -17,7 +17,8 @@ export async function POST(request: Request, context: { params: Promise<{ module
   try { user = await requirePermission("imports.confirm"); } catch (error) { if (error instanceof AuthError) return apiError(error.code, error.message, error.status); throw error; }
   const { module } = await context.params;
   if (!isImportModule(module)) return apiError("NOT_FOUND", "El módulo no existe.", 404);
-  const body = await request.formData();
+  let body: FormData;
+  try { body = await request.formData(); } catch { return apiError("VALIDATION_ERROR", "No se pudo leer el archivo enviado.", 400); }
   const file = body.get("file"); const jobId = body.get("jobId");
   if (!(file instanceof File) || !file.name.toLowerCase().endsWith(".xlsx") || typeof jobId !== "string") return apiError("VALIDATION_ERROR", "Archivo o validación inválida.", 400);
   if (file.size > MAX_FILE_SIZE) return apiError("FILE_TOO_LARGE", "El archivo no puede superar 5 MB.", 413);
@@ -46,7 +47,10 @@ export async function POST(request: Request, context: { params: Promise<{ module
     return apiSuccess({ jobId: job.id, status: "COMPLETED", successRows: importResult.createdRecords, skippedRows: importResult.skippedRecords, importMode: parsed.importMode });
   } catch (error) {
     const known = error instanceof ImportApplicationError ? error : error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" ? new ImportApplicationError("CONFLICT", "Un código, documento o SKU del archivo ya existe.") : null;
-    if (!known) throw error;
+    if (!known) {
+      console.error("import.confirm.unhandled", { module, jobId }, error instanceof Error ? { name: error.name, message: error.message } : error);
+      return apiError("IMPORT_FAILED", "No se pudo completar la importación. Intenta nuevamente.", 500);
+    }
     const marked = await prisma.importJob.updateMany({ where: { id: job.id, status: { in: ["PENDING", "PROCESSING"] } }, data: { status: "FAILED", successRows: 0, errorRows: 1, finishedAt: new Date() } });
     if (marked.count) await prisma.importError.create({ data: { importId: job.id, rowNumber: known.rowNumber, field: known.field, code: known.code, message: known.message } });
     return apiError(known.code, known.message, known.code === "IMPORT_ALREADY_PROCESSED" ? 409 : 422);

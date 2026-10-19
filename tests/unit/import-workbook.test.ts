@@ -152,7 +152,7 @@ describe("import workbooks", () => {
 
   it("acepta un reporte que conserva el mismo formato de la plantilla", async () => {
     const bytes = await createWorkbook("products", {
-      Productos: [["ZAP-001", "ZAP-001", "Zapato clásico", "Calzado", "Modelo de prueba", "SI", "ZAP-001-38-NEG", "38", "NEG", "UN", 0, 120, "SI"]],
+      Productos: [["ZAP-001", "ZAP-001", "I0034", "Zapato clásico", "Calzado", "Modelo de prueba", "SI", "ZAP-001-38-NEG", "38", "NEG", null, "UN", 0, 120, "SI"]],
     });
     const result = await validateWorkbook("products", bytes as ArrayBuffer);
 
@@ -215,6 +215,30 @@ describe("import workbooks", () => {
     const result = await validateWorkbook("purchases", await workbook.xlsx.writeBuffer() as ArrayBuffer);
 
     expect(result.errors.filter((error) => error.code === "UNKNOWN_HEADER" || error.code === "DUPLICATE_HEADER")).toEqual([]);
+  });
+
+  it("marca como error los valores no numéricos y acepta guiones como vacío", async () => {
+    const bytes = await createWorkbook("inventory", {
+      "Almacén": [[null, "PVC", "PVC flexible", "MATERIA_PRIMA", "Polímeros Andinos SAC", null, "PEN", "abc", "18", null, "KG", "OPTIONAL", "diez", "SI", "PRINCIPAL", "-"]],
+    });
+    const result = await validateWorkbook("inventory", bytes as ArrayBuffer);
+
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: "precio_neto", code: "INVALID_NUMBER" }),
+      expect.objectContaining({ field: "stock_minimo", code: "INVALID_NUMBER" }),
+    ]));
+    expect(result.errors.some((error) => error.field === "stock_inicial" && error.code === "INVALID_NUMBER")).toBe(false);
+  });
+
+  it("rechaza precios no numéricos en Compras", async () => {
+    const bytes = await createWorkbook("purchases", {
+      Compras: [["COMP-001", null, 1, "2026-10-01", "PROV-01", "FACTURA", "F001", "1", "PEN", 1, "PENDIENTE", null, 1, 1, "MAT-01", null, null, 2, "SACO", 5, "KG", "abc"]],
+    });
+    const result = await validateWorkbook("purchases", bytes as ArrayBuffer);
+
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: "precio_neto_unidad_base", code: "INVALID_NUMBER" }),
+    ]));
   });
 
   it("permite varios lotes distintos para una misma línea de compra", async () => {

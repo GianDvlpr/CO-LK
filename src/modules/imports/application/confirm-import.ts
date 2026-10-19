@@ -3,6 +3,7 @@ import Decimal from "decimal.js";
 import { calculateMovingAverage } from "@/modules/inventory/domain/calculate-moving-average";
 import { calculatePurchaseLine } from "@/modules/purchases/domain/calculate-purchase-line";
 import { nextBusinessCode } from "@/lib/database/business-code";
+import { isBlankNumericCell } from "@/modules/imports/domain/numeric-cell";
 import { buildProductSku, normalizeMatrixCode, productVariantColorLabel } from "@/modules/products/domain/product-sku";
 import type { ImportModule, ParsedWorkbookRow } from "./workbook";
 
@@ -20,7 +21,12 @@ export class ImportApplicationError extends Error {
 const text = (row: ParsedWorkbookRow, field: string) => row.values[field]?.trim() ?? "";
 function number(row: ParsedWorkbookRow, field: string, fallback?: number) {
   const raw = text(row, field);
-  const value = raw === "" && fallback !== undefined ? new Decimal(fallback) : new Decimal(raw || Number.NaN);
+  let value: Decimal;
+  try {
+    value = isBlankNumericCell(raw) ? new Decimal(fallback ?? Number.NaN) : new Decimal(raw.trim());
+  } catch {
+    throw new ImportApplicationError("INVALID_NUMBER", `${field} debe ser numérico.`, row.rowNumber, field);
+  }
   if (!value.isFinite()) throw new ImportApplicationError("INVALID_NUMBER", `${field} debe ser numérico.`, row.rowNumber, field);
   return value;
 }
@@ -127,7 +133,8 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
     created(result);
 
     const initialStockText = text(row, "stock_inicial");
-    if (!initialStockText || new Decimal(initialStockText).isZero()) continue;
+    if (isBlankNumericCell(initialStockText)) continue;
+    if (number(row, "stock_inicial").isZero()) continue;
     const quantity = positive(row, "stock_inicial");
     const unitCost = number(row, "costo_unitario_pen");
     if (unitCost.isNegative()) throw new ImportApplicationError("INVALID_NUMBER", "El costo no puede ser negativo.", row.rowNumber, "costo_unitario_pen");

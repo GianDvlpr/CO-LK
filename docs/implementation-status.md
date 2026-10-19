@@ -74,6 +74,8 @@ Actualizado: 19/10/2026.
 - Validación previa de cargas masivas con control de formato, tamaño máximo de 5 MB, hojas, encabezados, campos obligatorios, muestra de resultados e historial por empresa.
 - Cada validación crea un `ImportJob`, conserva hasta 200 errores detallados y registra la operación en auditoría sin modificar datos de negocio.
 - Confirmación transaccional e idempotente de Excel para Compras, Almacén, Recetas, Productos y Pedidos; cualquier error revierte el archivo completo.
+- La validación previa rechaza valores no numéricos en campos numéricos y trata `-`, `—` y `N/A` como celdas vacías.
+- Las rutas de validación y confirmación de importaciones responden siempre JSON; los errores no controlados se registran en el servidor y devuelven un mensaje estable en lugar de un 500 vacío.
 - La confirmación exige el mismo archivo validado mediante huella SHA-256, bloquea reintentos concurrentes y limita cada libro a 1,000 filas.
 - Compras y Pedidos importados quedan en borrador. En los módulos con código autogenerado, un código vacío crea un registro nuevo y un código informado identifica uno existente según el modo de importación; no existe columna `accion`.
 - `Resumen` fue reemplazado por `Analítica`, con KPIs, estados por módulo, inventario valorizado, alertas de stock, pedidos vencidos/próximos y productos más solicitados.

@@ -48,11 +48,17 @@ export async function POST(request: Request, context: { params: Promise<{ module
   try { user = await requirePermission("imports.preview"); } catch (error) { if (error instanceof AuthError) return apiError(error.code, error.message, error.status); throw error; }
   const { module } = await context.params;
   if (!isImportModule(module)) return apiError("NOT_FOUND", "El módulo no existe.", 404);
-  const body = await request.formData();
+  let body: FormData;
+  try { body = await request.formData(); } catch { return apiError("VALIDATION_ERROR", "No se pudo leer el archivo enviado.", 400); }
   const file = body.get("file");
   if (!(file instanceof File) || !file.name.toLowerCase().endsWith(".xlsx")) return apiError("VALIDATION_ERROR", "Selecciona un archivo .xlsx.", 400);
   if (file.size > MAX_FILE_SIZE) return apiError("FILE_TOO_LARGE", "El archivo no puede superar 5 MB.", 413);
-  const job = await prisma.importJob.create({ data: { companyId: user.companyId, createdById: user.id, module, fileName: file.name.slice(0, 250), status: "PROCESSING" } });
+  let job;
+  try { job = await prisma.importJob.create({ data: { companyId: user.companyId, createdById: user.id, module, fileName: file.name.slice(0, 250), status: "PROCESSING" } }); }
+  catch (error) {
+    console.error("import.preview.job-failed", { module }, error instanceof Error ? { name: error.name, message: error.message } : error);
+    return apiError("IMPORT_FAILED", "No se pudo iniciar la validación. Intenta nuevamente.", 500);
+  }
   try {
     const bytes = await file.arrayBuffer();
     const result = await validateWorkbook(module, bytes);
@@ -66,8 +72,9 @@ export async function POST(request: Request, context: { params: Promise<{ module
       await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module, entity: "ImportJob", entityId: job.id, action: "PREVIEW", ipAddress: getRequestIp(request), userAgent: getRequestUserAgent(request), requestPath: new URL(request.url).pathname, afterData: { module, fileName: file.name, sha256: createHash("sha256").update(Buffer.from(bytes)).digest("hex"), totalRows: result.totalRows, errorRows: result.errors.length, warningRows: result.warnings.length, importMode: result.importMode } } });
     });
     return apiSuccess({ jobId: job.id, status, ...publicResult });
-  } catch {
-    await prisma.importJob.update({ where: { id: job.id }, data: { status: "FAILED", errorRows: 1, finishedAt: new Date(), errors: { create: { rowNumber: 1, code: "INVALID_WORKBOOK", message: "El archivo no es un libro Excel válido o está dañado." } } } });
+  } catch (error) {
+    console.error("import.preview.failed", { module }, error instanceof Error ? { name: error.name, message: error.message } : error);
+    await prisma.importJob.update({ where: { id: job.id }, data: { status: "FAILED", errorRows: 1, finishedAt: new Date(), errors: { create: { rowNumber: 1, code: "INVALID_WORKBOOK", message: "El archivo no es un libro Excel válido o está dañado." } } } }).catch(() => undefined);
     return apiError("INVALID_WORKBOOK", "El archivo no es un libro Excel válido o está dañado.", 422);
   }
 }
