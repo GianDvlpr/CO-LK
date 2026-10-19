@@ -112,7 +112,13 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
     if (op === "ACTUALIZAR" && !existing) throw new ImportApplicationError("NOT_FOUND", `El ítem ${suppliedCode} no existe.`, row.rowNumber, "codigo");
     const codeKind = type === "RAW_MATERIAL" ? "INVENTORY_RAW" : type === "WASTE" ? "INVENTORY_WASTE" : "INVENTORY_FINISHED";
     const code = suppliedCode || await nextBusinessCode(tx, companyId, codeKind);
-    const values = { name: text(row, "nombre"), abbreviation: text(row, "sigla") || null, type: type as "RAW_MATERIAL" | "WASTE" | "FINISHED_PRODUCT", supplierId: supplierMatches[0].id, currencyId: currencyMatches[0].id, unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo") };
+    const supplierProductCode = text(row, "codigo_producto_proveedor");
+    if (supplierProductCode.length > 100) throw new ImportApplicationError("INVALID_LENGTH", "El código de producto del proveedor no puede superar 100 caracteres.", row.rowNumber, "codigo_producto_proveedor");
+    const netPrice = text(row, "precio_neto") ? number(row, "precio_neto") : null;
+    if (netPrice?.isNegative()) throw new ImportApplicationError("INVALID_NUMBER", "El precio neto no puede ser negativo.", row.rowNumber, "precio_neto");
+    const taxRate = netPrice ? (text(row, "tasa_igv") ? number(row, "tasa_igv") : new Decimal(existing?.referenceTaxRate?.toString() ?? 18)) : null;
+    if (taxRate && (taxRate.isNegative() || taxRate.greaterThan(100))) throw new ImportApplicationError("INVALID_NUMBER", "El IGV debe estar entre 0 y 100.", row.rowNumber, "tasa_igv");
+    const values = { name: text(row, "nombre"), abbreviation: text(row, "sigla") || null, type: type as "RAW_MATERIAL" | "WASTE" | "FINISHED_PRODUCT", supplierId: supplierMatches[0].id, currencyId: currencyMatches[0].id, unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo"), supplierProductCode: supplierProductCode || existing?.supplierProductCode || null, referenceNetPrice: netPrice ? netPrice.toString() : existing?.referenceNetPrice?.toString() ?? null, referenceTaxRate: taxRate ? taxRate.toString() : existing?.referenceTaxRate?.toString() ?? null };
     const item = existing
       ? await tx.inventoryItem.update({ where: { id: existing.id }, data: values })
       : await tx.inventoryItem.create({ data: { companyId, code, ...values } });

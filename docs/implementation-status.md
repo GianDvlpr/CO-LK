@@ -15,7 +15,7 @@ Actualizado: 19/10/2026.
 - Migración inicial aplicada en Neon y seed idempotente ejecutado para empresa, unidades, monedas, almacén, permisos, roles `SUPERADMIN`/`ADMIN` y sus cuentas iniciales.
 - Primera regla de dominio de Compras: presentación × contenido, subtotal, IGV y total con decimales exactos.
 - Caso de uso de creación de compra pendiente con validación de referencias, documentos duplicados, líneas y asignación de lotes.
-- Caso de uso de aprobación transaccional: bloqueo concurrente, costo neto convertido a PEN, saldo global y por lote, promedio ponderado móvil, kardex valorizado, auditoría y evento outbox.
+- Caso de uso de aprobación transaccional: bloqueo concurrente, costo con IGV convertido a PEN, saldo global y por lote, promedio ponderado móvil, kardex valorizado, auditoría y evento outbox.
 - Secuencia monotónica de contabilización y saldos con cantidad física, reservada, valor y costo promedio por ítem/almacén.
 - Lanzador `npm run test:sandbox` para evitar exclusivamente la consulta `net use` que Vite intenta ejecutar en este entorno restringido.
 - Autenticación exclusivamente por nombre de usuario con Argon2, cookie segura, token con HMAC, expiración, revocación, bloqueo de intentos y cambio obligatorio de contraseña temporal.
@@ -31,6 +31,8 @@ Actualizado: 19/10/2026.
 - Códigos de negocio autogenerados, inmutables y seguros ante concurrencia para Compras, Almacén (`MP`/`PT`), Recetas, Producción, Maquinaria, Pedidos, Pick & Pack, Proveedores y Clientes; los correlativos anuales se reinician por empresa y año, y los continuos no reutilizan números.
 - Registro transaccional e idempotente de stock inicial con saldo global/por lote, promedio ponderado, auditoría, outbox y secuencia de contabilización.
 - Kardex valorizado con filtros por ítem y almacén, lote, cantidades, costos, valor y saldo posterior a cada movimiento.
+- Ítems de Almacén con código de producto del proveedor y costo de referencia opcional (precio neto, IGV y costo total calculado), administrables desde el modal y desde Excel sin afectar la valorización.
+- La aprobación de compras valoriza el inventario con el IGV incluido en el costo unitario; el saldo inicial se registra con el costo total con IGV.
 - Catálogos maestros conectados a Neon para proveedores, clientes, almacenes, unidades y monedas, con alta transaccional, auditoría y outbox.
 - Permiso `catalogs.manage` separado de la lectura y asignado a los roles administrativos iniciales.
 - Módulo operativo de Productos con modelos de calzado, tallas, colores y variantes SKU.

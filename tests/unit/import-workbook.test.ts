@@ -34,7 +34,7 @@ describe("import workbooks", () => {
 
   it("exige costo y fecha cuando se informa stock inicial", async () => {
     const bytes = await createWorkbook("inventory", {
-      "Almacén": [[null, "PVC", "Cuero negro", "MATERIA_PRIMA", "Polímeros Andinos SAC", "PEN", "M2", "OPTIONAL", 20, "SI", "PRINCIPAL", 100]],
+      "Almacén": [[null, "PVC", "Cuero negro", "MATERIA_PRIMA", "Polímeros Andinos SAC", null, "PEN", null, null, null, "M2", "OPTIONAL", 20, "SI", "PRINCIPAL", 100]],
     });
     const result = await validateWorkbook("inventory", bytes as ArrayBuffer);
     expect(result.errors).toEqual(expect.arrayContaining([
@@ -55,10 +55,30 @@ describe("import workbooks", () => {
     expect(instructionText).toContain("Un código vacío crea un registro");
     expect(items?.getRow(1).values).toContain("Unidad de medida");
     expect(items?.getRow(1).values).toContain("Costo unitario");
+    expect(items?.getRow(1).values).toContain("Código de producto del proveedor");
+    expect(items?.getRow(1).values).toContain("Precio neto");
+    expect(items?.getRow(1).values).toContain("IGV (%)");
+    expect(items?.getRow(1).values).toContain("Costo total");
     expect(items?.getRow(1).values).not.toContain("Costo unitario (PEN)");
     expect(items?.getRow(1).values).not.toContain("Código anterior");
     expect(items?.getRow(1).values).not.toContain("accion");
     expect(items?.getRow(1).getCell(1).note).toContain("Código oficial");
+    expect(instructionText).toContain("Código o referencia con la que el proveedor identifica este producto");
+    expect(instructionText).toContain("precio_neto × (1 + IGV/100)");
+  });
+
+  it("acepta archivos anteriores sin las columnas nuevas de costo de referencia", async () => {
+    const bytes = await createWorkbook("inventory");
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(Buffer.from(bytes as ArrayBuffer) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    const sheet = workbook.getWorksheet("Almacén")!;
+    const header = sheet.getRow(1);
+    const newColumns = ["Código de producto del proveedor", "Precio neto", "IGV (%)", "Costo total"];
+    for (let index = 1; index <= header.cellCount; index += 1) {
+      if (newColumns.includes(String(header.getCell(index).value ?? ""))) header.getCell(index).value = null;
+    }
+    const result = await validateWorkbook("inventory", await workbook.xlsx.writeBuffer() as ArrayBuffer);
+    expect(result.errors.filter((error) => error.code === "MISSING_HEADER")).toEqual([]);
   });
 
   it("convierte encabezados amigables, tolera columnas reordenadas y admite encabezados técnicos", async () => {
@@ -101,9 +121,9 @@ describe("import workbooks", () => {
     await registeredWorkbook.xlsx.load(Buffer.from(registeredBytes as ArrayBuffer) as unknown as Parameters<typeof registeredWorkbook.xlsx.load>[0]);
     const registeredList = registeredWorkbook.getWorksheet("_Listas");
     const inventorySheet = registeredWorkbook.getWorksheet("Almacén");
-    const movementValidation = inventorySheet?.getCell("K2").dataValidation;
+    const movementValidation = inventorySheet?.getCell("O2").dataValidation;
     const supplierValidation = inventorySheet?.getCell("E2").dataValidation;
-    const currencyValidation = inventorySheet?.getCell("F2").dataValidation;
+    const currencyValidation = inventorySheet?.getCell("G2").dataValidation;
 
     expect(registeredList?.state).toBe("veryHidden");
     expect(registeredList?.getColumn(1).values).toEqual([undefined, "almacen_codigo", "PRINCIPAL", "INSUMOS"]);
@@ -120,7 +140,7 @@ describe("import workbooks", () => {
 
   it("exige proveedor y moneda en nuevos ítems de Almacén", async () => {
     const bytes = await createWorkbook("inventory", {
-      "Almacén": [[null, "PVC", "PVC flexible", "MATERIA_PRIMA", null, null, "KG", "OPTIONAL", 10, "SI"]],
+      "Almacén": [[null, "PVC", "PVC flexible", "MATERIA_PRIMA", null, null, null, null, null, null, "KG", "OPTIONAL", 10, "SI"]],
     }, { fileKind: "TEMPLATE" });
     const result = await validateWorkbook("inventory", bytes as ArrayBuffer);
 

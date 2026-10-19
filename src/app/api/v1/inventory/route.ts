@@ -6,6 +6,7 @@ import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { nextBusinessCode } from "@/lib/database/business-code";
+import { normalizeReferenceCost, type ReferenceCostValues } from "@/modules/inventory/domain/reference-cost";
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(150),
@@ -16,6 +17,9 @@ const createSchema = z.object({
   currencyId: z.uuid(),
   minimumStock: z.union([z.string(), z.number()]),
   lotTrackingMode: z.enum(["NONE", "OPTIONAL", "REQUIRED"]),
+  supplierProductCode: z.string().trim().max(100).nullable().optional(),
+  referenceNetPrice: z.union([z.string(), z.number()]).nullable().optional(),
+  referenceTaxRate: z.union([z.string(), z.number()]).nullable().optional(),
 });
 
 function knownError(error: unknown) {
@@ -40,6 +44,9 @@ export async function POST(request: Request) {
   try { requireSameOrigin(request); } catch (error) { if (error instanceof AuthError) return apiError(error.code, error.message, error.status); throw error; }
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("VALIDATION_ERROR", "El ítem contiene datos inválidos.", 400);
+  let reference: ReferenceCostValues;
+  try { reference = normalizeReferenceCost(parsed.data.referenceNetPrice, parsed.data.referenceTaxRate); }
+  catch { return apiError("INVENTORY_INVALID_REFERENCE_COST", "El precio neto o el IGV del ítem no son válidos.", 422); }
   try {
     const user = await requirePermission("inventory.create_item");
     const [unit, supplier, currency] = await Promise.all([
@@ -53,8 +60,9 @@ export async function POST(request: Request) {
     const item = await prisma.$transaction(async (tx) => {
       const codeKind = parsed.data.type === "RAW_MATERIAL" ? "INVENTORY_RAW" : parsed.data.type === "WASTE" ? "INVENTORY_WASTE" : "INVENTORY_FINISHED";
       const code = await nextBusinessCode(tx, user.companyId, codeKind);
-      const created = await tx.inventoryItem.create({ data: { ...parsed.data, abbreviation: parsed.data.abbreviation || null, code, minimumStock: parsed.data.minimumStock, companyId: user.companyId } });
-      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "InventoryItem", entityId: created.id, action: "CREATE", afterData: { code: created.code, name: created.name, supplierId: created.supplierId, currencyId: created.currencyId } } });
+      const values = { ...parsed.data, abbreviation: parsed.data.abbreviation || null, supplierProductCode: parsed.data.supplierProductCode || null, ...reference };
+      const created = await tx.inventoryItem.create({ data: { ...values, code, minimumStock: parsed.data.minimumStock, companyId: user.companyId } });
+      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "InventoryItem", entityId: created.id, action: "CREATE", afterData: { code: created.code, name: created.name, supplierId: created.supplierId, currencyId: created.currencyId, supplierProductCode: created.supplierProductCode, referenceNetPrice: created.referenceNetPrice?.toString() ?? null, referenceTaxRate: created.referenceTaxRate?.toString() ?? null } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "inventory.item-created.v1", aggregateId: created.id, payload: { itemId: created.id, code: created.code } } });
       return created;
     });

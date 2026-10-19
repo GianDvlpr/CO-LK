@@ -65,7 +65,7 @@ Campos esenciales:
 Reglas:
 
 - Crear una compra no cambia stock.
-- Aprobar una compra ingresa stock exactamente una vez, valoriza en PEN, actualiza balances y kardex en una transacción.
+- Aprobar una compra ingresa stock exactamente una vez, valoriza en PEN incluyendo el IGV en el costo unitario, actualiza balances y kardex en una transacción.
 - Rechazar no mueve inventario.
 - El documento no debe duplicarse para el mismo proveedor y secuencia de recepción.
 - No usar `number` para cálculos de cantidad, precio, IGV o totales.
@@ -85,6 +85,12 @@ Referencias de abastecimiento:
 - En Excel, `moneda` acepta el código o el nombre de una moneda registrada, aunque la lista desplegable propone sus códigos (`PEN`, `USD`, etc.).
 - Los productos terminados generados internamente desde Productos no requieren proveedor ni moneda de compra.
 - Los registros históricos sin estas referencias permanecen como `Sin asignar`; no se deben completar con datos inventados.
+
+Datos de referencia para compras:
+
+- Un ítem puede registrar el código con el que el proveedor identifica el producto (`supplierProductCode`).
+- También puede registrar un costo de referencia opcional: precio neto y tasa de IGV en porcentaje. El costo total de referencia es `precio neto × (1 + IGV/100)`, con 18 % por defecto.
+- Estos datos son informativos para preparar pedidos al proveedor; no generan movimientos ni modifican la valorización del saldo inicial.
 
 Distinción crítica:
 

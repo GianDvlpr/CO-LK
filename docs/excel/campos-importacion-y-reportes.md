@@ -26,6 +26,8 @@ En Almacén, `proveedor_nombre` hace match contra el nombre de un proveedor acti
 
 El encabezado visible es `Costo unitario`; la moneda se registra por separado en la columna `Moneda`. El identificador técnico interno `costo_unitario_pen` se conserva únicamente para mantener compatibilidad con archivos generados anteriormente.
 
+El ítem también puede registrar datos de referencia para sus pedidos al proveedor: `codigo_producto_proveedor` (código con el que el proveedor identifica el producto), `precio_neto` y `tasa_igv` (porcentaje). El `costo_total` se recalcula como `precio_neto × (1 + IGV/100)` y la tasa predeterminada es 18 %. Estos valores no modifican la valorización del saldo inicial ni generan movimientos. Las cuatro columnas son opcionales: los archivos generados con versiones anteriores siguen siendo válidos y una celda vacía conserva el valor ya registrado en el ítem.
+
 ## Códigos automáticos
 
 Los códigos oficiales no se escriben al crear registros desde la aplicación. Se generan dentro de la misma transacción de guardado, por empresa, sin reutilizar números y con bloqueo para evitar duplicados concurrentes.
@@ -50,7 +52,7 @@ En una plantilla Excel, un código vacío significa “crear” y el sistema asi
 Estas columnas se conservan para que el reporte tenga el mismo formato, pero no determinan el registro importado:
 
 - Compras: `tipo_documento`, `fecha_tipo_cambio`, `fuente_tipo_cambio`, `estado`, `observaciones`, `tipo_presentacion`, `unidad_contenido`, `precio_unitario_con_igv`, `subtotal_neto`, `igv` y `total_linea`.
-- Almacén: `almacen_codigo`, `stock_inicial`, `costo_unitario_pen`, `lote` y `fecha_inicial` están en la misma hoja. Si no hay stock inicial, esos campos pueden quedar vacíos.
+- Almacén: `almacen_codigo`, `stock_inicial`, `costo_unitario_pen`, `lote` y `fecha_inicial` están en la misma hoja. Si no hay stock inicial, esos campos pueden quedar vacíos. `codigo_producto_proveedor`, `precio_neto` y `tasa_igv` son datos de referencia del ítem; `costo_total` se recalcula y no determina la importación.
 - Recetas: `variante_sku`, `unidad_salida` y `estado`. La importación crea la receta o versión como borrador.
 - Productos: `categoria` y `precio_venta`.
 - Pedidos: `moneda`, `tipo_cambio_pen`, `estado`, `tasa_igv`, `subtotal_neto`, `igv` y `total_linea`. El pedido importado queda en borrador.

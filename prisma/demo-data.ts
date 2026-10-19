@@ -142,7 +142,7 @@ async function postOutgoing(input: { companyId: string; userId: string; warehous
 
 async function approveDemoPurchase(companyId: string, purchaseId: string, userId: string) {
   const purchase = await prisma.purchase.findFirstOrThrow({ where: { id: purchaseId, companyId }, include: { lines: true } });
-  for (const line of purchase.lines) await postIncoming({ companyId, userId, warehouseId: purchase.warehouseId, itemId: line.itemId, quantity: numeric(line.receivedQuantity), unitCost: numeric(line.pricePerBaseUnit) * numeric(purchase.exchangeRate), type: "PURCHASE_RECEIPT", referenceType: "PURCHASE", referenceId: purchase.id, occurredAt: purchase.receptionDate });
+  for (const line of purchase.lines) await postIncoming({ companyId, userId, warehouseId: purchase.warehouseId, itemId: line.itemId, quantity: numeric(line.receivedQuantity), unitCost: numeric(line.pricePerBaseUnit) * (1 + numeric(line.taxRate) / 100) * numeric(purchase.exchangeRate), type: "PURCHASE_RECEIPT", referenceType: "PURCHASE", referenceId: purchase.id, occurredAt: purchase.receptionDate });
   await prisma.purchase.update({ where: { id: purchase.id }, data: { status: "APPROVED" } });
   await prisma.purchaseApproval.create({ data: { purchaseId: purchase.id, userId, status: "APPROVED", comment: "Recepción validada para demostración" } });
 }
@@ -380,11 +380,11 @@ async function main() {
     prisma.customer.create({ data: { companyId: company.id, code: "CLI-000003", name: "Servicios Industriales Sur", taxId: "20500000033", fiscalAddress: "Parque Industrial Río Seco, Cerro Colorado", department: "Arequipa", province: "Arequipa", district: "Cerro Colorado", email: "logistica@industrialessur-demo.pe", phone: "+51 988 200 303" } }),
   ]);
 
-  const materialDefinitions: { key: string; code: string; name: string; type: "RAW_MATERIAL" | "WASTE"; unit: string; minimumStock: number; abbreviation?: string }[] = [
-    { key: "DEMO-MP-PVC", code: "MP-000001", name: "PVC", type: "RAW_MATERIAL", unit: "KG", minimumStock: 120, abbreviation: "PVC" },
+  const materialDefinitions: { key: string; code: string; name: string; type: "RAW_MATERIAL" | "WASTE"; unit: string; minimumStock: number; abbreviation?: string; supplierProductCode?: string; referenceNetPrice?: number; referenceTaxRate?: number }[] = [
+    { key: "DEMO-MP-PVC", code: "MP-000001", name: "PVC", type: "RAW_MATERIAL", unit: "KG", minimumStock: 120, abbreviation: "PVC", supplierProductCode: "PVC-450S", referenceNetPrice: 7.2, referenceTaxRate: 18 },
     { key: "DEMO-MP-EXP", code: "MP-000002", name: "PVC Expanso", type: "RAW_MATERIAL", unit: "KG", minimumStock: 60, abbreviation: "EXP" },
-    { key: "DEMO-MP-TR", code: "MP-000003", name: "Termoplástico TR", type: "RAW_MATERIAL", unit: "KG", minimumStock: 70, abbreviation: "TR" },
-    { key: "DEMO-MP-CAU", code: "MP-000004", name: "Caucho", type: "RAW_MATERIAL", unit: "KG", minimumStock: 90, abbreviation: "RB" },
+    { key: "DEMO-MP-TR", code: "MP-000003", name: "Termoplástico TR", type: "RAW_MATERIAL", unit: "KG", minimumStock: 70, abbreviation: "TR", supplierProductCode: "TR-220", referenceNetPrice: 10.8, referenceTaxRate: 18 },
+    { key: "DEMO-MP-CAU", code: "MP-000004", name: "Caucho", type: "RAW_MATERIAL", unit: "KG", minimumStock: 90, abbreviation: "RB", supplierProductCode: "CAU-150", referenceNetPrice: 8.4, referenceTaxRate: 18 },
     { key: "DEMO-MP-PU", code: "MP-000005", name: "Poliuretano", type: "RAW_MATERIAL", unit: "KG", minimumStock: 30, abbreviation: "PU" },
     { key: "DEMO-MP-COL-TR", code: "MER-000001", name: "Colada TR", type: "WASTE", unit: "KG", minimumStock: 0 },
     { key: "DEMO-MP-COL-EXP", code: "MER-000002", name: "Colada EXP", type: "WASTE", unit: "KG", minimumStock: 0 },
@@ -411,7 +411,7 @@ async function main() {
       : item.type === "WASTE" || ["DEMO-MP-CAU", "DEMO-MP-CG", "DEMO-MP-VIRA", "DEMO-MP-INS-TAL"].includes(item.key)
         ? supplierRubber.id
         : supplierPolymers.id;
-    return prisma.inventoryItem.create({ data: { companyId: company.id, code: item.code, abbreviation: item.abbreviation, name: item.name, type: item.type, supplierId, currencyId: pen.id, unitId: unitByCode.get(item.unit)!.id, minimumStock: item.minimumStock, lotTrackingMode: "NONE" } });
+    return prisma.inventoryItem.create({ data: { companyId: company.id, code: item.code, abbreviation: item.abbreviation, name: item.name, type: item.type, supplierId, currencyId: pen.id, unitId: unitByCode.get(item.unit)!.id, minimumStock: item.minimumStock, lotTrackingMode: "NONE", supplierProductCode: item.supplierProductCode ?? null, referenceNetPrice: item.referenceNetPrice ?? null, referenceTaxRate: item.referenceTaxRate ?? null } });
   }));
   const materialByCode = new Map(materials.map((item, index) => [materialDefinitions[index].key, item]));
 

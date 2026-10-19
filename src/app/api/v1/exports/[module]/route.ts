@@ -2,6 +2,7 @@ import { prisma } from "@/lib/database/prisma";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { getRequestIp, getRequestUserAgent } from "@/modules/auth/application/request-metadata";
+import { calculateReferenceTotalCost } from "@/modules/inventory/domain/reference-cost";
 import { createWorkbook, isImportModule, workbookSpecs, type WorkbookData } from "@/modules/imports/application/workbook";
 import { parseReportPeriod, reportDateFilter, ReportPeriodError, type ReportPeriod } from "@/modules/imports/application/report-period";
 
@@ -24,7 +25,8 @@ export async function reportData(module: keyof typeof workbookSpecs, companyId: 
         const balances = item.balances.filter((balance) => balance.lotId === null && Number(balance.onHandQuantity) !== 0);
         const rows = balances.length ? balances : [null];
         const type = item.type === "RAW_MATERIAL" ? "MATERIA_PRIMA" : item.type === "WASTE" ? "MERMA" : "PRODUCTO_TERMINADO";
-        return rows.map((balance) => [item.code, item.abbreviation, item.name, type, item.supplier?.name ?? null, item.currency?.code ?? null, item.unit.code, item.lotTrackingMode, Number(item.minimumStock), item.active ? "SI" : "NO", balance?.warehouse.code ?? null, balance ? Number(balance.onHandQuantity) : null, balance ? Number(balance.averageUnitCost) : null, null, balance ? date(balance.updatedAt) : null, balance ? "Saldo actual exportado" : null]);
+        const referenceTotalCost = item.referenceNetPrice ? Number(calculateReferenceTotalCost({ netPrice: item.referenceNetPrice.toString(), taxRate: item.referenceTaxRate?.toString() ?? null })) : null;
+        return rows.map((balance) => [item.code, item.abbreviation, item.name, type, item.supplier?.name ?? null, item.supplierProductCode, item.currency?.code ?? null, item.referenceNetPrice ? Number(item.referenceNetPrice) : null, item.referenceTaxRate ? Number(item.referenceTaxRate) : null, referenceTotalCost, item.unit.code, item.lotTrackingMode, Number(item.minimumStock), item.active ? "SI" : "NO", balance?.warehouse.code ?? null, balance ? Number(balance.onHandQuantity) : null, balance ? Number(balance.averageUnitCost) : null, null, balance ? date(balance.updatedAt) : null, balance ? "Saldo actual exportado" : null]);
       }),
     };
   }
@@ -68,7 +70,7 @@ export async function GET(request: Request, context: { params: Promise<{ module:
     });
     const stamp = new Date().toISOString().slice(0, 10);
     const periodSuffix = period ? `${period.fromText}-a-${period.toText}` : stamp;
-    const fileName = mode === "report" ? `reporte-${spec.file}-${periodSuffix}.xlsx` : `plantilla-${spec.file}-v1.7.xlsx`;
+    const fileName = mode === "report" ? `reporte-${spec.file}-${periodSuffix}.xlsx` : `plantilla-${spec.file}-v1.8.xlsx`;
     await prisma.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module, entity: mode === "report" ? "Report" : "Template", entityId: module, action: "EXPORT", ipAddress: getRequestIp(request), userAgent: getRequestUserAgent(request), requestPath: new URL(request.url).pathname, afterData: { kind: mode, fileName, period: period ? { from: period.fromText, to: period.toText } : null } } });
     return new Response(new Uint8Array(bytes), { headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "content-disposition": `attachment; filename="${fileName}"`, "cache-control": "no-store" } });
   } catch (error) {

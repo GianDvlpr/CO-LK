@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { calculateMovingAverage } from "@/modules/inventory/domain/calculate-moving-average";
+import { calculatePurchaseUnitCost } from "../domain/calculate-purchase-unit-cost";
 import { PurchaseApplicationError } from "./purchase-errors";
 
 type Database = PrismaClient;
@@ -81,9 +82,11 @@ export async function approvePurchase(database: Database, command: ApprovePurcha
 
     for (const line of purchase.lines) {
       const receivedQuantity = new Decimal(line.receivedQuantity.toString());
-      const unitCostPen = new Decimal(line.pricePerBaseUnit.toString())
-        .mul(purchase.exchangeRate.toString())
-        .toDecimalPlaces(6);
+      const unitCostPen = calculatePurchaseUnitCost({
+        pricePerBaseUnit: line.pricePerBaseUnit.toString(),
+        taxRate: line.taxRate.toString(),
+        exchangeRate: purchase.exchangeRate.toString(),
+      });
       const lotQuantity = line.lots.reduce((sum, entry) => sum.add(entry.quantity.toString()), new Decimal(0));
 
       if (line.item.lotTrackingMode === "REQUIRED" && line.lots.length === 0) {

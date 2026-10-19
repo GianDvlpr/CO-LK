@@ -13,7 +13,7 @@ export type WorkbookOptions = {
   currencies?: { code: string; name: string }[];
 };
 
-type SheetSpec = { name: string; columns: string[]; required: string[]; uniqueBy: string[][] };
+type SheetSpec = { name: string; columns: string[]; required: string[]; uniqueBy: string[][]; optionalHeaders?: string[] };
 type ModuleSpec = { label: string; permission: string; file: string; sheets: SheetSpec[] };
 
 export const workbookSpecs: Record<ImportModule, ModuleSpec> = {
@@ -26,7 +26,7 @@ export const workbookSpecs: Record<ImportModule, ModuleSpec> = {
   inventory: {
     label: "Almacén", permission: "inventory.read", file: "almacen",
     sheets: [
-      { name: "Almacén", columns: ["codigo", "sigla", "nombre", "tipo_item", "proveedor_nombre", "moneda", "unidad_base", "modo_lote", "stock_minimo", "activo", "almacen_codigo", "stock_inicial", "costo_unitario_pen", "lote", "fecha_inicial", "observaciones"], required: ["nombre", "tipo_item", "proveedor_nombre", "moneda", "unidad_base"], uniqueBy: [["codigo"], ["nombre", "unidad_base", "almacen_codigo", "lote"]] },
+      { name: "Almacén", columns: ["codigo", "sigla", "nombre", "tipo_item", "proveedor_nombre", "codigo_producto_proveedor", "moneda", "precio_neto", "tasa_igv", "costo_total", "unidad_base", "modo_lote", "stock_minimo", "activo", "almacen_codigo", "stock_inicial", "costo_unitario_pen", "lote", "fecha_inicial", "observaciones"], required: ["nombre", "tipo_item", "proveedor_nombre", "moneda", "unidad_base"], uniqueBy: [["codigo"], ["nombre", "unidad_base", "almacen_codigo", "lote"]], optionalHeaders: ["codigo_producto_proveedor", "precio_neto", "tasa_igv", "costo_total"] },
     ],
   },
   recipes: {
@@ -67,6 +67,7 @@ function exampleValue(column: string): string | number {
     tipo_item: "MATERIA_PRIMA", unidad_base: "KG", modo_lote: "OPTIONAL", almacen_codigo: "PRINCIPAL",
     stock_minimo: 10, activo: "SI", producto_activo: "SI", variante_activa: "SI", stock_inicial: 100, fecha_inicial: "2026-10-13", item_codigo: "MP-000001", lote: "LOTE-2026-01", fecha: "2026-10-13",
     cantidad: 100, costo_unitario_pen: 4.5, receta_codigo: "(se genera)", producto_codigo: "(se genera)",
+    codigo_producto_proveedor: "PVC-450S", precio_neto: 4.5, costo_total: 5.31,
     variante_sku: "ZAP-001-40-NEG", version: 1, rendimiento: 1, unidad_salida: "PAR",
     unidad: "KG", categoria: "Calzado", descripcion: "Suela urbana", codigo_matriz: "I0034", sku: "(se genera)",
     talla: "39", color: "NEG", color_secundario: "ROJ", precio_venta: 120, numero_pedido: "(se genera)", cliente_codigo: "CLI-000001",
@@ -130,7 +131,10 @@ const columnDescriptions: Record<string, string> = {
   lote: "Código del lote del movimiento inicial, si el ítem controla lotes.",
   fecha: "Fecha del movimiento o del pedido.",
   cantidad: "Cantidad del movimiento, ingrediente o pedido, expresada en la unidad indicada.",
-  costo_unitario_pen: "Costo por cada unidad base utilizado para valorar el saldo inicial del ítem.",
+  costo_unitario_pen: "Costo por cada unidad base, con IGV incluido, utilizado para valorar el saldo inicial del ítem.",
+  codigo_producto_proveedor: "Código o referencia con la que el proveedor identifica este producto. Se usa al hacer pedidos de compra. Es opcional.",
+  precio_neto: "Precio de referencia sin IGV por cada unidad base, expresado en la moneda del ítem. Es opcional.",
+  costo_total: "Costo total por unidad base incluido IGV. Es informativo y el sistema lo recalcula: precio_neto × (1 + IGV/100).",
   receta_codigo: "Código oficial de la receta. Déjalo vacío para crear una nueva; si informas un código existente, el sistema crea la actualización correspondiente.",
   producto_codigo: "Código oficial del producto. En Productos puede dejarse vacío al crear; en Recetas identifica el producto ya registrado.",
   codigo_matriz: "Código interno de la matriz conocido por la fábrica. Se usa para generar el SKU: MATRIZ-C1-C2-TALLA.",
@@ -214,6 +218,9 @@ const friendlyLabels: Record<string, string> = {
   fecha: "Fecha",
   cantidad: "Cantidad",
   costo_unitario_pen: "Costo unitario",
+  codigo_producto_proveedor: "Código de producto del proveedor",
+  precio_neto: "Precio neto",
+  costo_total: "Costo total",
   stock_inicial: "Stock inicial",
   fecha_inicial: "Fecha del stock inicial",
   receta_codigo: "Código de receta",
@@ -269,7 +276,7 @@ export async function createWorkbook(module: ImportModule, data: WorkbookData = 
   instructions.columns = [{ width: 34 }, { width: 78 }, { width: 18 }, { width: 28 }];
   instructions.addRows([
     ["LK INNOVACION", `Formato de ${spec.label}`],
-    ["Versión", "1.7"],
+    ["Versión", "1.8"],
     ["Tipo de archivo", fileKind],
     ["Modo al importar", fileKind === "REPORT" ? "SOLO_NUEVOS: los registros existentes se omiten y nunca se actualizan." : "Un código vacío crea un registro; un código existente actualiza el registro correspondiente."],
     ["Uso", "No cambie los nombres de las hojas ni los encabezados. Complete una fila por registro y conserve los códigos tal como aparecen en el sistema."],
@@ -280,6 +287,7 @@ export async function createWorkbook(module: ImportModule, data: WorkbookData = 
     ...(module === "inventory" ? [
       ["Listas registradas", "En Almacén, selecciona el proveedor por nombre, la moneda por código y el almacén por código. La importación valida estos valores contra los catálogos activos/registrados."],
       ["Coincidencia de proveedor", "El proveedor se busca por nombre ignorando mayúsculas, tildes y espacios repetidos. Si no existe o el nombre coincide con más de un proveedor, la fila se rechaza."],
+      ["Costo de referencia", "El código de producto del proveedor, el precio neto y el IGV son datos de referencia del ítem. El IGV es un porcentaje y el costo total se recalcula como precio neto × (1 + IGV/100)."],
     ] : []),
   ]);
   for (const sheet of spec.sheets) {
@@ -445,7 +453,7 @@ export async function validateWorkbook(module: ImportModule, bytes: ArrayBuffer)
       }
       positions.set(canonical, index);
     }
-    for (const column of sheetSpec.columns) if (!positions.has(column)) {
+    for (const column of sheetSpec.columns) if (!positions.has(column) && !sheetSpec.optionalHeaders?.includes(column)) {
       errors.push({ rowNumber: 1, field: column, code: "MISSING_HEADER", message: `${sheetSpec.name}: falta la columna “${friendlyLabel(sheetSpec.name, column)}”.` });
     }
     const sample: Record<string, string>[] = [];
