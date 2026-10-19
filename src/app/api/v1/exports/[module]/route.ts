@@ -68,7 +68,7 @@ export async function GET(request: Request, context: { params: Promise<{ module:
     });
     const stamp = new Date().toISOString().slice(0, 10);
     const periodSuffix = period ? `${period.fromText}-a-${period.toText}` : stamp;
-    const fileName = mode === "report" ? `reporte-${spec.file}-${periodSuffix}.xlsx` : `plantilla-${spec.file}-v1.6.xlsx`;
+    const fileName = mode === "report" ? `reporte-${spec.file}-${periodSuffix}.xlsx` : `plantilla-${spec.file}-v1.7.xlsx`;
     await prisma.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module, entity: mode === "report" ? "Report" : "Template", entityId: module, action: "EXPORT", ipAddress: getRequestIp(request), userAgent: getRequestUserAgent(request), requestPath: new URL(request.url).pathname, afterData: { kind: mode, fileName, period: period ? { from: period.fromText, to: period.toText } : null } } });
     return new Response(new Uint8Array(bytes), { headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "content-disposition": `attachment; filename="${fileName}"`, "cache-control": "no-store" } });
   } catch (error) {

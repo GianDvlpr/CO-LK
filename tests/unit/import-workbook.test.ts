@@ -54,6 +54,8 @@ describe("import workbooks", () => {
     expect(instructionText).toContain("etiqueta temporal");
     expect(instructionText).toContain("Un código vacío crea un registro");
     expect(items?.getRow(1).values).toContain("Unidad de medida");
+    expect(items?.getRow(1).values).toContain("Costo unitario");
+    expect(items?.getRow(1).values).not.toContain("Costo unitario (PEN)");
     expect(items?.getRow(1).values).not.toContain("Código anterior");
     expect(items?.getRow(1).values).not.toContain("accion");
     expect(items?.getRow(1).getCell(1).note).toContain("Código oficial");

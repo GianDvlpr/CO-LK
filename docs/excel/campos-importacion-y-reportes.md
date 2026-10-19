@@ -24,6 +24,8 @@ Los demás campos pueden quedar vacíos. Algunos reciben valores predeterminados
 
 En Almacén, `proveedor_nombre` hace match contra el nombre de un proveedor activo ignorando mayúsculas, tildes y espacios repetidos. Debe existir una única coincidencia. `moneda` acepta el código o el nombre de cualquier moneda registrada; la plantilla propone los códigos disponibles en una lista desplegable.
 
+El encabezado visible es `Costo unitario`; la moneda se registra por separado en la columna `Moneda`. El identificador técnico interno `costo_unitario_pen` se conserva únicamente para mantener compatibilidad con archivos generados anteriormente.
+
 ## Códigos automáticos
 
 Los códigos oficiales no se escriben al crear registros desde la aplicación. Se generan dentro de la misma transacción de guardado, por empresa, sin reutilizar números y con bloqueo para evitar duplicados concurrentes.

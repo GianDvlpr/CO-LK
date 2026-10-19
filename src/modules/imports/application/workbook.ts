@@ -130,7 +130,7 @@ const columnDescriptions: Record<string, string> = {
   lote: "Código del lote del movimiento inicial, si el ítem controla lotes.",
   fecha: "Fecha del movimiento o del pedido.",
   cantidad: "Cantidad del movimiento, ingrediente o pedido, expresada en la unidad indicada.",
-  costo_unitario_pen: "Costo en soles por cada unidad base del ítem.",
+  costo_unitario_pen: "Costo por cada unidad base utilizado para valorar el saldo inicial del ítem.",
   receta_codigo: "Código oficial de la receta. Déjalo vacío para crear una nueva; si informas un código existente, el sistema crea la actualización correspondiente.",
   producto_codigo: "Código oficial del producto. En Productos puede dejarse vacío al crear; en Recetas identifica el producto ya registrado.",
   codigo_matriz: "Código interno de la matriz conocido por la fábrica. Se usa para generar el SKU: MATRIZ-C1-C2-TALLA.",
@@ -213,7 +213,7 @@ const friendlyLabels: Record<string, string> = {
   lote: "Lote",
   fecha: "Fecha",
   cantidad: "Cantidad",
-  costo_unitario_pen: "Costo unitario (PEN)",
+  costo_unitario_pen: "Costo unitario",
   stock_inicial: "Stock inicial",
   fecha_inicial: "Fecha del stock inicial",
   receta_codigo: "Código de receta",
@@ -269,7 +269,7 @@ export async function createWorkbook(module: ImportModule, data: WorkbookData = 
   instructions.columns = [{ width: 34 }, { width: 78 }, { width: 18 }, { width: 28 }];
   instructions.addRows([
     ["LK INNOVACION", `Formato de ${spec.label}`],
-    ["Versión", "1.6"],
+    ["Versión", "1.7"],
     ["Tipo de archivo", fileKind],
     ["Modo al importar", fileKind === "REPORT" ? "SOLO_NUEVOS: los registros existentes se omiten y nunca se actualizan." : "Un código vacío crea un registro; un código existente actualiza el registro correspondiente."],
     ["Uso", "No cambie los nombres de las hojas ni los encabezados. Complete una fila por registro y conserve los códigos tal como aparecen en el sistema."],
