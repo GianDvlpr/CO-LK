@@ -10,6 +10,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
+import { TableSearch, matchesSearch } from "@/components/common/table-search";
 
 type PickLine = { id: string; requestedQuantity: string; pickedQuantity: string; packedQuantity: string; warehouseLocation?: string; lotCode?: string; incidentType?: string; incidentReason?: string; notes?: string; salesOrderLine: { productVariant: { sku: string; product: { code: string; name: string }; size: { name: string }; color: { name: string }; inventoryItem: { unit: { symbol: string } } } } };
 type Package = { id: string; packageNumber: number; packageType?: string; weight?: string; length?: string; width?: string; height?: string; notes?: string };
@@ -26,10 +27,12 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> { const respo
 export function PickPackWorkspace({ permissions }: { permissions: string[] }) {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<PickPack>();
   const [createForm] = Form.useForm<CreateForm>();
   const [editForm] = Form.useForm<EditForm>();
   const records = useQuery({ queryKey: ["pick-pack"], queryFn: () => api<{ items: PickPack[] }>("/api/v1/pick-pack") });
+  const filteredRecords = (records.data?.items ?? []).filter((record) => matchesSearch(search, record.number, record.carrier, record.salesOrder.number, record.salesOrder.customer.name, record.salesOrder.customer.code));
   const options = useQuery({ queryKey: ["pick-pack-options"], queryFn: () => api<Options>("/api/v1/pick-pack/options") });
   const refresh = async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ["pick-pack"] }), queryClient.invalidateQueries({ queryKey: ["pick-pack-options"] }), queryClient.invalidateQueries({ queryKey: ["orders"] }), queryClient.invalidateQueries({ queryKey: ["inventory"] }), queryClient.invalidateQueries({ queryKey: ["kardex"] })]); };
   const create = useMutation({ mutationFn: (values: CreateForm) => api("/api/v1/pick-pack", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(values) }), onSuccess: async () => { toast.success("Orden de Pick & Pack generada."); setCreateOpen(false); createForm.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
@@ -54,10 +57,10 @@ export function PickPackWorkspace({ permissions }: { permissions: string[] }) {
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Pick & Pack" eyebrow="Preparación y despacho" description="Controla la recolección, empaque, incidencias y salida final. Picking y packing no descuentan stock; el kardex se actualiza al despachar lo realmente empacado." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => records.refetch()}>Actualizar</Button></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Pick & Pack" eyebrow="Preparación y despacho" description="Controla la recolección, empaque, incidencias y salida final. Picking y packing no descuentan stock; el kardex se actualiza al despachar lo realmente empacado." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar número, pedido o cliente" /><Button icon={<ReloadOutlined />} onClick={() => records.refetch()}>Actualizar</Button></Space></div>
     <Card className="section-card" title="Órdenes de preparación" extra={permissions.includes("pick_pack.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { createForm.resetFields(); createForm.setFieldsValue({ priority: "NORMAL" }); setCreateOpen(true); }}>Generar Pick & Pack</Button> : null}>
       {records.error ? <Alert type="error" showIcon message={records.error.message} style={{ marginBottom: 16 }} /> : null}
-      <Table rowKey="id" loading={records.isLoading} columns={columns} dataSource={records.data?.items ?? []} scroll={{ x: 1240 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay órdenes de preparación" /> }} />
+      <Table rowKey="id" loading={records.isLoading} columns={columns} dataSource={filteredRecords} scroll={{ x: 1240 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay órdenes de preparación" /> }} />
     </Card>
 
     <Modal title="Generar orden de Pick & Pack" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} okText="Generar" confirmLoading={create.isPending} width={720} destroyOnHidden>

@@ -10,6 +10,7 @@ import { calculateReferenceTotalCost } from "@/modules/inventory/domain/referenc
 import { ModuleImportButton } from "@/components/imports/module-import-button";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
+import { TableSearch, matchesSearch } from "@/components/common/table-search";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -26,6 +27,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> { const respo
 export function InventoryWorkspace({ permissions, canCreate, canOpenStock, canManageImages, cloudinaryConfigured }: { permissions: string[]; canCreate: boolean; canOpenStock: boolean; canManageImages: boolean; cloudinaryConfigured: boolean }) {
   const queryClient = useQueryClient();
   const [itemOpen, setItemOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [editingItem, setEditingItem] = useState<Item>();
   const [openingOpen, setOpeningOpen] = useState(false);
   const [pendingImage, setPendingImage] = useState<File>();
@@ -37,6 +39,7 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock, canMa
   const referenceNetPrice = Form.useWatch("referenceNetPrice", itemForm);
   const referenceTaxRate = Form.useWatch("referenceTaxRate", itemForm);
   const itemType = Form.useWatch("type", itemForm);
+  const filteredItems = (inventory.data?.items ?? []).filter((item) => matchesSearch(search, item.code, item.name, item.abbreviation, item.supplier?.name, item.supplierProductCode));
   const companyIgvRate = options.data?.igvRate ? Number(options.data.igvRate) : 18;
   const referenceTotal = (() => {
     if (referenceNetPrice === null || referenceNetPrice === undefined) return null;
@@ -91,8 +94,8 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock, canMa
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Almacén" eyebrow="Operativo" description="Administra materias primas, productos terminados, existencias, costo promedio y stock mínimo." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => inventory.refetch()}>Actualizar</Button><ModuleImportButton module="inventory" permissions={permissions} /><Link href="/dashboard/inventory/kardex"><Button icon={<HistoryOutlined />}>Ver kardex</Button></Link>{canOpenStock ? <Dropdown menu={{ items: [{ key: "opening", label: "Registrar saldo inicial" }], onClick: ({ key }) => { if (key === "opening") setOpeningOpen(true); } }} trigger={["click"]}><Button icon={<MoreOutlined />}>Más acciones</Button></Dropdown> : null}</Space></div>
-    <Card className="section-card" title="Ítems y existencias" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingItem(undefined); itemForm.resetFields(); clearPendingImage(); itemForm.setFieldsValue({ type: "RAW_MATERIAL", currencyId: options.data?.currencies.find((currency) => currency.isBase)?.id, minimumStock: 0, lotTrackingMode: "NONE", active: true, referenceTaxRate: companyIgvRate }); setItemOpen(true); }}>Nuevo ítem</Button> : null}>{inventory.error ? <Alert type="error" showIcon message={inventory.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={inventory.isLoading} columns={columns} dataSource={inventory.data?.items ?? []} scroll={{ x: 2050 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay ítems registrados" /> }} /></Card>
+    <div className="page-heading"><ModuleHeadingIntro title="Almacén" eyebrow="Operativo" description="Administra materias primas, productos terminados, existencias, costo promedio y stock mínimo." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar código, nombre, sigla o proveedor" /><Button icon={<ReloadOutlined />} onClick={() => inventory.refetch()}>Actualizar</Button><ModuleImportButton module="inventory" permissions={permissions} /><Link href="/dashboard/inventory/kardex"><Button icon={<HistoryOutlined />}>Ver kardex</Button></Link>{canOpenStock ? <Dropdown menu={{ items: [{ key: "opening", label: "Registrar saldo inicial" }], onClick: ({ key }) => { if (key === "opening") setOpeningOpen(true); } }} trigger={["click"]}><Button icon={<MoreOutlined />}>Más acciones</Button></Dropdown> : null}</Space></div>
+    <Card className="section-card" title="Ítems y existencias" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingItem(undefined); itemForm.resetFields(); clearPendingImage(); itemForm.setFieldsValue({ type: "RAW_MATERIAL", currencyId: options.data?.currencies.find((currency) => currency.isBase)?.id, minimumStock: 0, lotTrackingMode: "NONE", active: true, referenceTaxRate: companyIgvRate }); setItemOpen(true); }}>Nuevo ítem</Button> : null}>{inventory.error ? <Alert type="error" showIcon message={inventory.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={inventory.isLoading} columns={columns} dataSource={filteredItems} scroll={{ x: 2050 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay ítems registrados" /> }} /></Card>
     <Modal className="compact-form-modal" title={editingItem ? "Editar ítem de almacén" : "Nuevo ítem de almacén"} open={itemOpen} onCancel={() => { setItemOpen(false); setEditingItem(undefined); clearPendingImage(); }} onOk={() => itemForm.submit()} okText={editingItem ? "Guardar cambios" : "Crear ítem"} confirmLoading={createItem.isPending || updateItem.isPending} width={920} destroyOnHidden>
       <Form form={itemForm} layout="vertical" onFinish={(values) => editingItem ? updateItem.mutate(values) : createItem.mutate(values)} initialValues={{ type: "RAW_MATERIAL", minimumStock: 0, lotTrackingMode: "NONE", active: true }}>
         <div className="modal-form-grid modal-form-grid-3">
@@ -107,7 +110,7 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock, canMa
           <Form.Item name="referenceNetPrice" label="Precio neto" tooltip="Precio de referencia sin IGV por unidad base, en la moneda del ítem."><InputNumber min={0} precision={6} style={{ width: "100%" }} placeholder="Precio sin IGV por unidad base" /></Form.Item>
           <Form.Item name="referenceTaxRate" label="IGV (%)"><InputNumber min={0} max={100} precision={2} style={{ width: "100%" }} /></Form.Item>
           <Form.Item label="Costo total (con IGV)"><Input readOnly value={referenceTotal ? referenceTotal.toDecimalPlaces(4).toString() : ""} placeholder="Cálculo automático" /></Form.Item>
-          <Form.Item name="unitId" label="Unidad base" rules={[{ required: true }]}><Select loading={options.isLoading} options={options.data?.units.map((unit) => ({ value: unit.id, label: `${unit.code} · ${unit.name} (${unit.symbol})` }))} /></Form.Item>
+          <Form.Item name="unitId" label="Unidad base" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" loading={options.isLoading} options={options.data?.units.map((unit) => ({ value: unit.id, label: `${unit.code} · ${unit.name} (${unit.symbol})` }))} /></Form.Item>
           <Form.Item name="minimumStock" label="Stock mínimo" rules={[{ required: true }]}><InputNumber min={0} precision={3} style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="lotTrackingMode" label="Control de lotes" rules={[{ required: true }]}><Select options={[{ value: "NONE", label: "Sin lotes" }, { value: "OPTIONAL", label: "Opcional" }, { value: "REQUIRED", label: "Obligatorio" }]} /></Form.Item>
         </div>
@@ -123,7 +126,7 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock, canMa
         <div className="modal-form-grid modal-form-grid-2"><Form.Item name="referenceNumber" label="Referencia del saldo inicial" rules={[{ required: true }]}><Input placeholder="SALDO-2026-0001" /></Form.Item>
           <Form.Item name="occurredAt" label="Fecha de corte" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>
           <Form.Item className="form-span-all" name="itemId" label="Ítem" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" onChange={(value) => { const item = options.data?.items.find((candidate) => candidate.id === value); openingForm.setFieldValue("warehouseId", item?.defaultWarehouseId ?? undefined); }} options={options.data?.items.map((item) => ({ value: item.id, label: `${item.code} · ${item.name} (${item.unit.symbol})` }))} /></Form.Item>
-          <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select options={options.data?.warehouses.map((warehouse) => ({ value: warehouse.id, label: `${warehouse.code} · ${warehouse.name}` }))} /></Form.Item>
+          <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.warehouses.map((warehouse) => ({ value: warehouse.id, label: `${warehouse.code} · ${warehouse.name}` }))} /></Form.Item>
           <Form.Item name="lotCode" label="Código de lote"><Input placeholder="Según configuración del ítem" /></Form.Item>
           <Form.Item name="quantity" label="Cantidad" rules={[{ required: true }]}><InputNumber min={0.001} precision={3} style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="unitCost" label="Costo unitario con IGV (PEN)" rules={[{ required: true }]}><InputNumber min={0} precision={6} prefix="S/" style={{ width: "100%" }} /></Form.Item></div>

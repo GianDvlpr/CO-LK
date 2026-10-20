@@ -8,6 +8,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
+import { TableSearch, matchesSearch } from "@/components/common/table-search";
 
 type CatalogType = "SUPPLIER" | "CUSTOMER" | "WAREHOUSE" | "UNIT" | "CURRENCY";
 type DocumentType = "DNI" | "RUC";
@@ -114,6 +115,7 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
   const [editing, setEditing] = useState<Common>();
   const [checkedDocument, setCheckedDocument] = useState<string>();
   const [form] = Form.useForm<CatalogForm>();
+  const [search, setSearch] = useState("");
   const [settingsForm] = Form.useForm<{ igvRate: number }>();
   const taxId = Form.useWatch("taxId", form);
   const documentType = Form.useWatch("documentType", form) ?? "RUC";
@@ -260,7 +262,7 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
     return <Table
       rowKey="id"
       loading={catalogs.isLoading}
-      dataSource={data}
+      dataSource={data.filter((row) => matchesSearch(search, row.code, row.name, row.taxId, row.symbol))}
       columns={[...columns, ...actionColumns]}
       scroll={{ x: type === "SUPPLIER" || type === "CUSTOMER" ? 900 : 720 }}
       pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }}
@@ -279,7 +281,7 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
   return <>
     <div className="page-heading">
       <ModuleHeadingIntro title="Catálogos" eyebrow="Maestros" description="Administra los datos base usados por compras, almacén, producción y pedidos." />
-      <Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => catalogs.refetch()}>Actualizar</Button></Space>
+      <Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar código, nombre o documento" /><Button icon={<ReloadOutlined />} onClick={() => catalogs.refetch()}>Actualizar</Button></Space>
     </div>
     <Card className="section-card" title={labels[active].plural} extra={canManage ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo {labels[active].singular}</Button> : null}>
       {catalogs.error ? <Alert type="error" showIcon message={catalogs.error.message} style={{ marginBottom: 16 }} /> : null}

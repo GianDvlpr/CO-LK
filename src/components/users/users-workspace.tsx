@@ -9,6 +9,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
+import { TableSearch, matchesSearch } from "@/components/common/table-search";
 
 type Role = { id: string; code: string; name: string };
 type User = {
@@ -33,11 +34,13 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 export function UsersWorkspace({ currentUserId, canCreate, canUpdate, canDeactivate, canResetPassword }: { currentUserId: string; canCreate: boolean; canUpdate: boolean; canDeactivate: boolean; canResetPassword: boolean }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<User>();
   const [resetting, setResetting] = useState<User>();
   const [form] = Form.useForm<UserForm>();
   const [resetForm] = Form.useForm<ResetPasswordForm>();
   const users = useQuery({ queryKey: ["users"], queryFn: () => api<{ items: User[]; roles: Role[] }>("/api/v1/users") });
+  const filteredUsers = (users.data?.items ?? []).filter((user) => matchesSearch(search, user.username, user.name, user.userRoles.map((entry) => entry.role.name).join(" ")));
   const create = useMutation({
     mutationFn: (values: UserForm) => api("/api/v1/users", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(values) }),
     onSuccess: async () => {
@@ -69,8 +72,8 @@ export function UsersWorkspace({ currentUserId, canCreate, canUpdate, canDeactiv
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Usuarios" eyebrow="Seguridad" description="Administra cuentas y roles. Las cuentas nuevas deben cambiar su contraseña en el primer ingreso y usar al menos 6 caracteres." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => users.refetch()}>Actualizar</Button></Space></div>
-    <Card className="section-card" title="Usuarios registrados" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(undefined); form.resetFields(); setOpen(true); }}>Nuevo usuario</Button> : null}>{users.error ? <Alert type="error" showIcon message={users.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={users.isLoading} columns={columns} dataSource={users.data?.items ?? []} scroll={{ x: 1240 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay usuarios registrados" /> }} /></Card>
+    <div className="page-heading"><ModuleHeadingIntro title="Usuarios" eyebrow="Seguridad" description="Administra cuentas y roles. Las cuentas nuevas deben cambiar su contraseña en el primer ingreso y usar al menos 6 caracteres." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar nombre, usuario o rol" /><Button icon={<ReloadOutlined />} onClick={() => users.refetch()}>Actualizar</Button></Space></div>
+    <Card className="section-card" title="Usuarios registrados" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(undefined); form.resetFields(); setOpen(true); }}>Nuevo usuario</Button> : null}>{users.error ? <Alert type="error" showIcon message={users.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={users.isLoading} columns={columns} dataSource={filteredUsers} scroll={{ x: 1240 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay usuarios registrados" /> }} /></Card>
     <Modal title={editing ? "Editar usuario" : "Nuevo usuario"} open={open} onCancel={() => { setOpen(false); setEditing(undefined); }} onOk={() => form.submit()} okText={editing ? "Guardar cambios" : "Crear usuario"} confirmLoading={create.isPending || update.isPending} width={720} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={(values) => editing ? update.mutate(values) : create.mutate(values)}>
         <div className="modal-form-grid modal-form-grid-2"><Form.Item name="name" label="Nombre completo" rules={[{ required: true, message: "Ingresa el nombre." }]}><Input /></Form.Item><Form.Item name="username" label="Usuario" rules={[{ required: true, message: "Ingresa el usuario." }, { min: 3 }, { pattern: /^[a-zA-Z0-9._-]+$/, message: "Usa letras, números, punto, guion o guion bajo." }]}><Input autoComplete="off" /></Form.Item>{!editing ? <Form.Item name="password" label="Contraseña temporal" rules={[{ required: true, message: "Ingresa la contraseña." }, { min: 6, message: "Debe tener al menos 6 caracteres." }]}><Input.Password autoComplete="new-password" /></Form.Item> : null}<Form.Item className={!editing ? undefined : "form-span-all"} name="roleIds" label="Roles" rules={[{ required: true, message: "Selecciona al menos un rol." }]}><Select mode="multiple" placeholder="Selecciona uno o más roles" options={users.data?.roles.map((role) => ({ value: role.id, label: `${role.code} · ${role.name}` }))} /></Form.Item></div>

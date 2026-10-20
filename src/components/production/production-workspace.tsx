@@ -15,6 +15,7 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
+import { TableSearch, matchesSearch } from "@/components/common/table-search";
 import { ProductionKanban } from "@/components/production/production-kanban";
 import { productionBoardTransition } from "@/modules/production/domain/production-board";
 
@@ -192,6 +193,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   const [editOrder, setEditOrder] = useState<Order>();
   const [completeOrder, setCompleteOrder] = useState<Order>();
   const [viewMode, setViewMode] = useState<"list" | "board">("list");
+  const [search, setSearch] = useState("");
   const [form] = Form.useForm<FormValues>();
   const [editForm] = Form.useForm<SheetValues>();
   const [completeForm] = Form.useForm<CompleteValues>();
@@ -200,6 +202,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   const program = (Form.useWatch("sizeProgram", form) ?? []) as SizeProgram[];
   const completeOutputs = Form.useWatch("outputs", completeForm) ?? [];
   const orders = useQuery({ queryKey: ["production"], queryFn: () => api<{ items: Order[] }>("/api/v1/production") });
+  const filteredOrders = (orders.data?.items ?? []).filter((order) => matchesSearch(search, order.number, order.productVariant.sku, order.productVariant.product.name, order.machine?.name, order.machineEquipment));
   const options = useQuery({ queryKey: ["production-options"], queryFn: () => api<Options>("/api/v1/production/options") });
   const selectedRecipe = options.data?.recipes.find((recipe) => recipe.versions[0]?.id === recipeVersionId);
   const secondaryRecipe = options.data?.recipes.find((recipe) => recipe.versions[0]?.id === secondaryRecipeVersionId);
@@ -280,17 +283,17 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   };
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Producción" eyebrow="Manufactura" description="Órdenes de fabricación por producto, formulación, talla y turno." /><Space wrap className="module-actions"><Segmented value={viewMode} onChange={(value) => setViewMode(value as "list" | "board")} options={[{ value: "list", label: "Lista", icon: <UnorderedListOutlined /> }, { value: "board", label: "Tablero", icon: <AppstoreOutlined /> }]} /><Button icon={<ReloadOutlined />} onClick={() => orders.refetch()}>Actualizar</Button></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Producción" eyebrow="Manufactura" description="Órdenes de fabricación por producto, formulación, talla y turno." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar orden, producto, SKU o máquina" /><Segmented value={viewMode} onChange={(value) => setViewMode(value as "list" | "board")} options={[{ value: "list", label: "Lista", icon: <UnorderedListOutlined /> }, { value: "board", label: "Tablero", icon: <AppstoreOutlined /> }]} /><Button icon={<ReloadOutlined />} onClick={() => orders.refetch()}>Actualizar</Button></Space></div>
     <Card className="section-card production-board-card" title={viewMode === "list" ? "Órdenes de producción" : "Tablero de producción"} extra={permissions.includes("production.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Nueva orden</Button> : null}>
       {orders.error ? <Alert type="error" showIcon message={orders.error.message} style={{ marginBottom: 16 }} /> : null}
-      {viewMode === "list" ? <Table rowKey="id" loading={orders.isLoading} columns={columns} dataSource={orders.data?.items ?? []} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" pagination={false} columns={materialColumns} dataSource={row.materials} /> }} scroll={{ x: 1510 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay órdenes de producción" /> }} /> : <ProductionKanban orders={orders.data?.items ?? []} onMove={moveOrder} onOpen={(order) => { if (!permissions.includes("production.create")) return; setEditOrder(order); editForm.setFieldsValue(orderToSheet(order, options.data?.variants ?? [])); }} />}
+      {viewMode === "list" ? <Table rowKey="id" loading={orders.isLoading} columns={columns} dataSource={filteredOrders} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" sticky={false} pagination={false} columns={materialColumns} dataSource={row.materials} /> }} scroll={{ x: 1510 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay órdenes de producción" /> }} /> : <ProductionKanban orders={filteredOrders} onMove={moveOrder} onOpen={(order) => { if (!permissions.includes("production.create")) return; setEditOrder(order); editForm.setFieldsValue(orderToSheet(order, options.data?.variants ?? [])); }} />}
     </Card>
 
     <Modal className="compact-form-modal" title="Nueva orden de producción" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Crear orden pendiente" confirmLoading={create.isPending} width={1180} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={(values) => create.mutate(values)} initialValues={{ recipeVersionId: requestedRecipeVersionId, priority: 2, plannedAt: dayjs(), sizeProgram: [], productionTurns: [], components: [], dailyProduction: [] }}>
         <Divider titlePlacement="left">Orden y formulaciones</Divider>
         <div className="purchase-form-grid">
-          <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select options={options.data?.warehouses.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
+          <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.warehouses.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
           <Form.Item name="plannedAt" label="Fecha programada" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}><Select options={[1, 2, 3].map((value) => ({ value, label: `Prioridad ${value}` }))} /></Form.Item>
           <Form.Item name="machineId" label="Máquina"><Select allowClear showSearch optionFilterProp="label" options={options.data?.machines.map((machine) => ({ value: machine.id, label: `${machine.code} · ${machine.name}${machine.status === "MAINTENANCE" ? " · En mantenimiento" : ""}` }))} /></Form.Item>

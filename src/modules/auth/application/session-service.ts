@@ -1,5 +1,6 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { prisma } from "@/lib/database/prisma";
 import { readServerEnv } from "@/lib/env/server";
 import { sessionExpiresAt } from "@/modules/auth/domain/session-expiration";
@@ -27,6 +28,22 @@ export type AuthenticatedUser = {
   email: string;
   name: string;
   mustChangePassword: boolean;
+  roles: string[];
+  permissions: string[];
+};
+
+type SessionUserRow = {
+  sessionId: string;
+  expiresAt: Date;
+  lastSeenAt: Date;
+  endedAt: Date | null;
+  userId: string;
+  companyId: string;
+  username: string;
+  email: string;
+  name: string;
+  mustChangePassword: boolean;
+  status: string;
   roles: string[];
   permissions: string[];
 };
@@ -68,34 +85,50 @@ export async function deleteCurrentSession() {
   store.delete(cookieName);
 }
 
-export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
+async function loadCurrentUser(): Promise<AuthenticatedUser | null> {
   const { secret, cookieName } = sessionConfig();
   const token = (await cookies()).get(cookieName)?.value;
   if (!token) return null;
 
-  const session = await prisma.session.findUnique({
-    where: { tokenHash: hashToken(token, secret) },
-    include: {
-      user: {
-        include: {
-          userRoles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
-        },
-      },
-    },
-  });
+  const tokenHash = hashToken(token, secret);
+  const [session] = await prisma.$queryRaw<SessionUserRow[]>`
+    SELECT
+      s.id AS "sessionId",
+      s.expires_at AS "expiresAt",
+      s.last_seen_at AS "lastSeenAt",
+      s.ended_at AS "endedAt",
+      u.id AS "userId",
+      u.company_id AS "companyId",
+      u.username,
+      u.email,
+      u.name,
+      u.must_change_password AS "mustChangePassword",
+      u.status::text AS status,
+      COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), ARRAY[]::text[]) AS roles,
+      COALESCE(array_agg(DISTINCT p.code) FILTER (WHERE p.code IS NOT NULL), ARRAY[]::text[]) AS permissions
+    FROM sessions s
+    INNER JOIN users u ON u.id = s.user_id
+    LEFT JOIN user_roles ur ON ur.user_id = u.id
+    LEFT JOIN roles r ON r.id = ur.role_id
+    LEFT JOIN role_permissions rp ON rp.role_id = r.id
+    LEFT JOIN permissions p ON p.id = rp.permission_id
+    WHERE s.token_hash = ${tokenHash}
+    GROUP BY s.id, u.id
+    LIMIT 1
+  `;
   const now = new Date();
   if (!session) return null;
   if (session.endedAt) return null;
   if (session.expiresAt <= now) {
     await prisma.session.updateMany({
-      where: { id: session.id, endedAt: null },
+      where: { id: session.sessionId, endedAt: null },
       data: { endedAt: session.expiresAt, endReason: "EXPIRED" },
     });
     return null;
   }
-  if (session.user.status !== "ACTIVE") {
+  if (session.status !== "ACTIVE") {
     await prisma.session.updateMany({
-      where: { id: session.id, endedAt: null },
+      where: { id: session.sessionId, endedAt: null },
       data: { endedAt: now, endReason: "ACCOUNT_DISABLED" },
     });
     return null;
@@ -103,23 +136,27 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
 
   if (now.getTime() - session.lastSeenAt.getTime() >= LAST_SEEN_WRITE_INTERVAL_MS) {
     await prisma.session.updateMany({
-      where: { id: session.id, endedAt: null, lastSeenAt: { lte: new Date(now.getTime() - LAST_SEEN_WRITE_INTERVAL_MS) } },
+      where: { id: session.sessionId, endedAt: null, lastSeenAt: { lte: new Date(now.getTime() - LAST_SEEN_WRITE_INTERVAL_MS) } },
       data: { lastSeenAt: now },
     });
   }
 
   return {
-    sessionId: session.id,
-    id: session.user.id,
-    companyId: session.user.companyId,
-    username: session.user.username,
-    email: session.user.email,
-    name: session.user.name,
-    mustChangePassword: session.user.mustChangePassword,
-    roles: session.user.userRoles.map(({ role }) => role.code),
-    permissions: [...new Set(session.user.userRoles.flatMap(({ role }) => role.permissions.map(({ permission }) => permission.code)))],
+    sessionId: session.sessionId,
+    id: session.userId,
+    companyId: session.companyId,
+    username: session.username,
+    email: session.email,
+    name: session.name,
+    mustChangePassword: session.mustChangePassword,
+    roles: session.roles,
+    permissions: session.permissions,
   };
 }
+
+// Evita repetir la misma consulta cuando el layout y la página validan
+// la sesión dentro de una única navegación renderizada por el servidor.
+export const getCurrentUser = cache(loadCurrentUser);
 
 export async function requireUser() {
   const user = await getCurrentUser();

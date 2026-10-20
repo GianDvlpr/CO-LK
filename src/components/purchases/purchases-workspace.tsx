@@ -1,17 +1,19 @@
 "use client";
 
 import { CheckOutlined, CloseCircleOutlined, PlusOutlined, ReloadOutlined, WhatsAppOutlined } from "@ant-design/icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Alert, Button, Card, DatePicker, Divider, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import Decimal from "decimal.js";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
 import { toast } from "sonner";
 import { ModuleImportButton } from "@/components/imports/module-import-button";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
+import { TableSearch } from "@/components/common/table-search";
+import { PRESENTATION_TYPES } from "@/modules/purchases/domain/presentation-types";
 import { buildPurchaseRequestMessage, normalizeWhatsAppPhone } from "@/modules/purchases/domain/whatsapp-request";
 
 type PurchaseLine = { id: string; lineNumber: number; presentationType: string; presentationQty: string; contentPerUnit: string; receivedQuantity: string; pricePerBaseUnit: string; taxRate: string; total: string; item: { code: string; name: string; supplierProductCode?: string | null; unit: { symbol: string }; images: { secureUrl: string }[] }; lots: { lot: { supplierLot: string | null } }[] };
@@ -20,7 +22,7 @@ type Purchase = {
   total: string; supplier: { code: string; name: string; phone?: string | null }; currency: { code: string }; lines: PurchaseLine[]; _count: { lines: number };
 };
 type Option = { id: string; code: string; name: string };
-type ItemOption = Option & { lotTrackingMode: "NONE" | "OPTIONAL" | "REQUIRED"; supplierProductCode?: string | null; referenceNetPrice?: string | null; referenceTaxRate?: string | null; unit: { symbol: string }; supplier?: { name: string } | null };
+type ItemOption = Option & { supplierId?: string | null; lotTrackingMode: "NONE" | "OPTIONAL" | "REQUIRED"; supplierProductCode?: string | null; referenceNetPrice?: string | null; referenceTaxRate?: string | null; unit: { symbol: string }; supplier?: { id: string; name: string } | null };
 type Options = { suppliers: Option[]; warehouses: Option[]; currencies: (Option & { isBase: boolean })[]; items: ItemOption[]; igvRate?: string };
 type LineForm = { itemId?: string; presentationType?: string; presentationQuantity?: number; contentPerUnit?: number; pricePerBaseUnit?: number; taxRate?: number; lotCode?: string; supplierLot?: string };
 type PurchaseForm = { supplierId: string; warehouseId: string; currencyId: string; receptionDate: Dayjs; documentNumber: string; exchangeRate: number; lines: LineForm[] };
@@ -41,11 +43,18 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
   const [open, setOpen] = useState(false);
   const [pickerLine, setPickerLine] = useState<number | null>(null);
   const [pickerSearch, setPickerSearch] = useState("");
+  const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search.trim());
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
   const [form] = Form.useForm<PurchaseForm>();
   const watchedLines = Form.useWatch("lines", form) ?? [];
+  const selectedSupplierId = Form.useWatch("supplierId", form);
 
   const purchases = useQuery({
-    queryKey: ["purchases"], queryFn: () => api<{ items: Purchase[] }>("/api/v1/purchases"),
+    queryKey: ["purchases", page, pageSize, deferredSearch],
+    queryFn: () => api<{ items: Purchase[]; total: number }>(`/api/v1/purchases?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(deferredSearch)}`),
+    placeholderData: keepPreviousData,
   });
   const options = useQuery({
     queryKey: ["purchase-options"], queryFn: () => api<Options>("/api/v1/purchases/options"), enabled: open && canCreate,
@@ -92,11 +101,24 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
   const companyIgvRate = Number(options.data?.igvRate ?? 18);
   const normalizeForSearch = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const pickerItems = (options.data?.items ?? []).filter((item) => {
+    if (!selectedSupplierId || item.supplierId !== selectedSupplierId) return false;
     const term = normalizeForSearch(pickerSearch.trim());
     if (!term) return true;
     return [item.name, item.code, item.supplierProductCode ?? ""].some((value) => normalizeForSearch(value).includes(term));
   });
   const selectedItem = (index: number) => options.data?.items.find((item) => item.id === watchedLines[index]?.itemId);
+  const selectedSupplier = options.data?.suppliers.find((supplier) => supplier.id === selectedSupplierId);
+  const changeSupplier = () => {
+    const lines = form.getFieldValue("lines") ?? [];
+    form.setFieldValue("lines", lines.map((line: LineForm) => ({
+      ...line,
+      itemId: undefined,
+      pricePerBaseUnit: undefined,
+      taxRate: companyIgvRate,
+    })));
+    setPickerLine(null);
+    setPickerSearch("");
+  };
   const selectMaterial = (index: number, item: ItemOption) => {
     form.setFieldValue(["lines", index, "itemId"], item.id);
     form.setFieldValue(["lines", index, "pricePerBaseUnit"], item.referenceNetPrice ? Number(item.referenceNetPrice) : undefined);
@@ -157,11 +179,11 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
   return <>
     <div className="page-heading">
       <ModuleHeadingIntro title="Compras y recepciones" eyebrow="Operativo" description="Registra documentos de proveedor, presentaciones, lotes, moneda, IGV y aprobación de entradas al kardex." />
-      <Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => purchases.refetch()}>Actualizar</Button><ModuleImportButton module="purchases" permissions={permissions} /></Space>
+      <Space wrap className="module-actions"><TableSearch value={search} onChange={(value) => { setSearch(value); setPage(1); }} placeholder="Buscar código, documento o proveedor" /><Button icon={<ReloadOutlined />} onClick={() => purchases.refetch()}>Actualizar</Button><ModuleImportButton module="purchases" permissions={permissions} /></Space>
     </div>
     <Card className="section-card" title="Recepciones registradas" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Nueva recepción</Button> : null}>
       {purchases.error ? <Alert type="error" showIcon message={purchases.error.message} action={<Button onClick={() => router.refresh()}>Reintentar</Button>} /> : null}
-      <Table rowKey="id" loading={purchases.isLoading} columns={columns} dataSource={purchases.data?.items ?? []} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" columns={lineColumns} dataSource={row.lines} pagination={false} scroll={{ x: 1180 }} /> }} scroll={{ x: 1230 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay recepciones registradas" /> }} />
+      <Table rowKey="id" loading={purchases.isLoading} columns={columns} dataSource={purchases.data?.items ?? []} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" sticky={false} columns={lineColumns} dataSource={row.lines} pagination={false} scroll={{ x: 1180 }} /> }} scroll={{ x: 1230 }} pagination={{ current: page, pageSize, total: purchases.data?.total ?? 0, pageSizeOptions: [8, 16, 32], onChange: (nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }, showTotal: (total) => `${total} recepciones` }} locale={{ emptyText: <Empty description="Aún no hay recepciones registradas" /> }} />
     </Card>
 
     <Modal className="compact-form-modal" title="Nueva recepción de compra" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Registrar pendiente" cancelText="Cancelar" confirmLoading={create.isPending} width={980} destroyOnHidden>
@@ -169,10 +191,10 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
       <Form form={form} layout="vertical" onFinish={(values) => create.mutate(values)} initialValues={{ receptionDate: dayjs(), exchangeRate: 1, lines: [{ taxRate: 18 }] }}>
         <div className="purchase-form-grid">
           <Form.Item name="receptionDate" label="Fecha de recepción" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>
-          <Form.Item name="supplierId" label="Proveedor" rules={[{ required: true }]}><Select loading={options.isLoading} showSearch optionFilterProp="label" options={options.data?.suppliers.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
+          <Form.Item name="supplierId" label="Proveedor" rules={[{ required: true }]}><Select loading={options.isLoading} showSearch optionFilterProp="label" onChange={changeSupplier} options={options.data?.suppliers.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
           <Form.Item name="documentNumber" label="Documento / guía" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select options={options.data?.warehouses.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
-          <Form.Item name="currencyId" label="Moneda" rules={[{ required: true }]}><Select options={options.data?.currencies.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
+          <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.warehouses.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
+          <Form.Item name="currencyId" label="Moneda" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.currencies.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
           <Form.Item name="exchangeRate" label="Tipo de cambio" tooltip="Valor en soles de una unidad de la moneda de la compra. Para PEN usa 1." rules={[{ required: true }]}><InputNumber min={0.000001} precision={6} style={{ width: "100%" }} /></Form.Item>
         </div>
         <Divider>Productos recibidos</Divider>
@@ -181,8 +203,8 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
             {fields.map((field, index) => <Card size="small" key={field.key} title={`Línea ${index + 1}`} extra={fields.length > 1 ? <Button type="link" danger onClick={() => remove(field.name)}>Quitar</Button> : null}>
               <div className="purchase-line-grid">
                 <Form.Item name={[field.name, "itemId"]} hidden rules={[{ required: true }]}><Input /></Form.Item>
-                <Form.Item label="Materia prima" required help={selectedItem(index) ? undefined : "Selecciona un material de la lista."}><Button block onClick={() => { setPickerLine(index); setPickerSearch(""); }} style={{ textAlign: "left" }}>{selectedItem(index) ? `${selectedItem(index)!.code} · ${selectedItem(index)!.name}` : "Seleccionar material…"}</Button></Form.Item>
-                <Form.Item name={[field.name, "presentationType"]} label="Presentación" tooltip="Tipo de empaque recibido, por ejemplo SACO, BOTELLA o CILINDRO." rules={[{ required: true }]}><Input placeholder="Saco, botella, cilindro…" /></Form.Item>
+                <Form.Item label="Materia prima" required help={!selectedSupplierId ? "Selecciona primero un proveedor." : selectedItem(index) ? undefined : "Selecciona un material de la lista."}><Button block disabled={!selectedSupplierId} onClick={() => { setPickerLine(index); setPickerSearch(""); }} style={{ textAlign: "left" }}>{selectedItem(index) ? `${selectedItem(index)!.code} · ${selectedItem(index)!.name}` : selectedSupplierId ? "Seleccionar material…" : "Selecciona un proveedor"}</Button></Form.Item>
+                <Form.Item name={[field.name, "presentationType"]} label="Presentación" tooltip="Tipo de empaque recibido, por ejemplo SACO, BOTELLA o CILINDRO." rules={[{ required: true }]}><Select showSearch optionFilterProp="label" placeholder="Selecciona el empaque" options={PRESENTATION_TYPES.map((type) => ({ value: type, label: type }))} /></Form.Item>
                 <Form.Item name={[field.name, "presentationQuantity"]} label="Presentaciones" tooltip="Número de bultos o envases recibidos, por ejemplo 25 sacos." rules={[{ required: true }]}><InputNumber min={0.000001} style={{ width: "100%" }} placeholder="20" /></Form.Item>
                 <Form.Item name={[field.name, "contentPerUnit"]} label="Contenido" tooltip="Unidades base por presentación, por ejemplo 20 kg por saco." rules={[{ required: true }]}><InputNumber min={0.000001} style={{ width: "100%" }} placeholder="10" /></Form.Item>
                 <Form.Item label="Recibido" tooltip="Cantidad total en unidad base: presentaciones × contenido."><Input value={new Decimal(watchedLines[index]?.presentationQuantity ?? 0).mul(watchedLines[index]?.contentPerUnit ?? 0).toString()} disabled suffix={options.data?.items.find((item) => item.id === watchedLines[index]?.itemId)?.unit.symbol} /></Form.Item>
@@ -198,7 +220,7 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
         <div className="purchase-total"><span>Total estimado con IGV</span><strong>{total.toFixed(2)}</strong></div>
       </Form>
     </Modal>
-    <Modal title="Seleccionar materia prima" open={pickerLine !== null} onCancel={() => setPickerLine(null)} footer={null} width={960} destroyOnHidden>
+    <Modal title={`Seleccionar materia prima${selectedSupplier ? ` · ${selectedSupplier.name}` : ""}`} open={pickerLine !== null} onCancel={() => setPickerLine(null)} footer={null} width={960} destroyOnHidden>
       <Input.Search allowClear placeholder="Buscar por nombre, código o código del proveedor" value={pickerSearch} onChange={(event) => setPickerSearch(event.target.value)} style={{ marginBottom: 12 }} />
       <Table
         rowKey="id"
@@ -207,7 +229,7 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
         pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }}
         sticky={false}
         scroll={{ x: 920 }}
-        locale={{ emptyText: <Empty description="No hay materias primas que coincidan" /> }}
+        locale={{ emptyText: <Empty description={selectedSupplier ? `No hay materias primas registradas para ${selectedSupplier.name}` : "Selecciona primero un proveedor"} /> }}
         onRow={(record) => ({ onClick: () => { if (pickerLine !== null) selectMaterial(pickerLine, record); }, style: { cursor: "pointer" } })}
         columns={[
           { title: "Código", dataIndex: "code", width: 110, render: (value) => <strong>{value}</strong> },

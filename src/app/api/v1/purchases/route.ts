@@ -42,7 +42,16 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const page = Math.max(1, Number(url.searchParams.get("page") ?? 1));
     const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize") ?? 20)));
-    const where = { companyId: user.companyId };
+    const search = (url.searchParams.get("search") ?? "").trim();
+    const where = {
+      companyId: user.companyId,
+      ...(search ? { OR: [
+        { code: { contains: search, mode: "insensitive" as const } },
+        { documentNumber: { contains: search, mode: "insensitive" as const } },
+        { supplier: { name: { contains: search, mode: "insensitive" as const } } },
+        { supplier: { code: { contains: search, mode: "insensitive" as const } } },
+      ] } : {}),
+    };
     const [items, total] = await prisma.$transaction([
       prisma.purchase.findMany({
         where, skip: (page - 1) * pageSize, take: pageSize, orderBy: { createdAt: "desc" },

@@ -52,7 +52,7 @@ export async function createPurchase(database: PrismaClient, command: CreatePurc
       tx.supplier.findFirst({ where: { id: command.supplierId, companyId: command.companyId, active: true } }),
       tx.warehouse.findFirst({ where: { id: command.warehouseId, companyId: command.companyId, active: true } }),
       tx.currency.findFirst({ where: { id: command.currencyId, companyId: command.companyId } }),
-      tx.inventoryItem.findMany({ where: { id: { in: command.lines.map((line) => line.itemId) }, companyId: command.companyId, active: true } }),
+      tx.inventoryItem.findMany({ where: { id: { in: command.lines.map((line) => line.itemId) }, companyId: command.companyId, supplierId: command.supplierId, active: true } }),
       tx.purchase.findFirst({
         where: {
           companyId: command.companyId,
@@ -65,7 +65,7 @@ export async function createPurchase(database: PrismaClient, command: CreatePurc
     ]);
 
     if (!supplier || !warehouse || !currency || items.length !== new Set(command.lines.map((line) => line.itemId)).size) {
-      throw new PurchaseApplicationError("PURCHASE_INVALID_REFERENCE", "Proveedor, almacén, moneda o ítem inválido.");
+      throw new PurchaseApplicationError("PURCHASE_INVALID_REFERENCE", "Proveedor, almacén, moneda o material inválido. Verifica que cada material pertenezca al proveedor seleccionado.");
     }
     if (duplicate) throw new PurchaseApplicationError("PURCHASE_DUPLICATE_DOCUMENT", "El documento del proveedor ya fue registrado.");
 

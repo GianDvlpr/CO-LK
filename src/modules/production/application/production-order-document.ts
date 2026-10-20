@@ -46,8 +46,16 @@ export function statusLabel(status: string) {
 
 export function skuPattern(order: ProductionOrderDocumentData) {
   const program = programEntries(order.sizeProgram);
-  if (program.length === 1 && program[0].sku) return program[0].sku;
-  return [order.productVariant.product.matrixCode, order.productVariant.color.code, order.productVariant.secondaryColor?.code, "{TALLA}"].filter(Boolean).join("-");
+  const skus = [...new Set(program.map((entry) => entry.sku?.trim()).filter((sku): sku is string => Boolean(sku)))];
+  if (skus.length === 1) return skus[0];
+
+  const sizes = [...new Set(program.map((entry) => entry.size?.trim()).filter(Boolean))];
+  if (sizes.length > 0) {
+    const prefix = [order.productVariant.product.matrixCode, order.productVariant.color.code, order.productVariant.secondaryColor?.code].filter(Boolean).join("-");
+    return `${prefix}-${sizes.join("/")}`;
+  }
+
+  return order.productVariant.sku;
 }
 
 export function salesOrderReferences(order: ProductionOrderDocumentData) {

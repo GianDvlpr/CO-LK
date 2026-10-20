@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { buildProductionOrderPdf } from "@/modules/production/application/production-order-pdf";
+import { skuPattern } from "@/modules/production/application/production-order-document";
 import { buildProductionOrderWorkbook } from "@/modules/production/application/production-order-workbook";
 import { validateProductionSheetTotals } from "@/modules/production/domain/production-sheet";
 
@@ -18,6 +19,11 @@ const documentData = {
 };
 
 describe("orden de producción A5", () => {
+  it("muestra las tallas reales en el SKU cuando la orden tiene varias tallas", () => {
+    expect(skuPattern(documentData)).toBe("I0034-NEG-ROJ-38/39");
+    expect(skuPattern(documentData)).not.toContain("{TALLA}");
+  });
+
   it("genera un Excel A5 con dos colores, componentes, tallas y turnos", async () => {
     const workbook = await buildProductionOrderWorkbook(documentData);
     const buffer = await workbook.xlsx.writeBuffer();

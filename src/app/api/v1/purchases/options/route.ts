@@ -12,7 +12,7 @@ export async function GET() {
       prisma.currency.findMany({ where: { companyId: user.companyId }, orderBy: [{ isBase: "desc" }, { code: "asc" }], select: { id: true, code: true, name: true, isBase: true } }),
       prisma.inventoryItem.findMany({
         where: { companyId: user.companyId, active: true, type: "RAW_MATERIAL" }, orderBy: { name: "asc" },
-        select: { id: true, code: true, name: true, lotTrackingMode: true, supplierProductCode: true, referenceNetPrice: true, referenceTaxRate: true, unit: { select: { symbol: true } }, supplier: { select: { name: true } } },
+        select: { id: true, code: true, name: true, supplierId: true, lotTrackingMode: true, supplierProductCode: true, referenceNetPrice: true, referenceTaxRate: true, unit: { select: { symbol: true } }, supplier: { select: { id: true, name: true } } },
       }),
       prisma.company.findUniqueOrThrow({ where: { id: user.companyId }, select: { igvRate: true } }),
     ]);

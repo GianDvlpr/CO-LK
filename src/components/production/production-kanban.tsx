@@ -1,8 +1,8 @@
 "use client";
 
-import { DragOutlined, SearchOutlined } from "@ant-design/icons";
+import { DragOutlined } from "@ant-design/icons";
 import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
-import { Empty, Input, Select, Tag } from "antd";
+import { Empty, Select, Tag } from "antd";
 import dayjs from "dayjs";
 import Decimal from "decimal.js";
 import { useMemo, useState } from "react";
@@ -48,15 +48,10 @@ function KanbanColumn({ column, orders, active, onOpen }: { column: typeof colum
 
 export function ProductionKanban({ orders, onMove, onOpen }: { orders: Order[]; onMove: (order: Order, targetStatus: string) => void; onOpen: (order: Order) => void }) {
   const [activeId, setActiveId] = useState<string>();
-  const [search, setSearch] = useState("");
   const [machineId, setMachineId] = useState<string>();
   const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 12 } }), useSensor(KeyboardSensor));
   const machines = useMemo(() => [...new Map(orders.filter((order) => order.machine).map((order) => [order.machine!.id, order.machine!])).values()], [orders]);
-  const filtered = useMemo(() => orders.filter((order) => {
-    const term = search.trim().toLowerCase();
-    if (machineId && order.machine?.id !== machineId) return false;
-    return !term || [order.number, order.productVariant.sku, order.productVariant.product.name, order.machine?.name].some((value) => value?.toLowerCase().includes(term));
-  }), [machineId, orders, search]);
+  const filtered = useMemo(() => orders.filter((order) => !machineId || order.machine?.id === machineId), [machineId, orders]);
   const activeOrder = orders.find((order) => order.id === activeId);
 
   const handleStart = ({ active }: DragStartEvent) => setActiveId(String(active.id));
@@ -68,7 +63,7 @@ export function ProductionKanban({ orders, onMove, onOpen }: { orders: Order[]; 
   };
 
   return <>
-    <div className="production-kanban-tools"><Input allowClear prefix={<SearchOutlined />} placeholder="Buscar orden, producto, SKU o máquina" value={search} onChange={(event) => setSearch(event.target.value)} /><Select allowClear showSearch optionFilterProp="label" placeholder="Todas las máquinas" value={machineId} onChange={setMachineId} options={machines.map((machine) => ({ value: machine.id, label: `${machine.code} · ${machine.name}` }))} /></div>
+    <div className="production-kanban-tools"><Select allowClear showSearch optionFilterProp="label" placeholder="Todas las máquinas" value={machineId} onChange={setMachineId} options={machines.map((machine) => ({ value: machine.id, label: `${machine.code} · ${machine.name}` }))} /></div>
     <DndContext sensors={sensors} onDragStart={handleStart} onDragCancel={() => setActiveId(undefined)} onDragEnd={handleEnd}>
       <div className="production-kanban-board">{columns.map((column) => <KanbanColumn key={column.status} column={column} orders={filtered.filter((order) => productionBoardColumnStatus(order.status) === column.status)} active={Boolean(activeId)} onOpen={onOpen} />)}</div>
       <DragOverlay>{activeOrder ? <KanbanCardOverlay order={activeOrder} /> : null}</DragOverlay>

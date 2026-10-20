@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { ModuleImportButton } from "@/components/imports/module-import-button";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
+import { TableSearch, matchesSearch } from "@/components/common/table-search";
 
 type Variant = { id: string; sku: string; product: { code: string; name: string }; size: { name: string }; color: { name: string }; inventoryItem: { unit: { symbol: string } } };
 type Options = { customers: { id: string; code: string; name: string; taxId?: string }[]; variants: Variant[] };
@@ -24,9 +25,11 @@ const labels: Record<string, [string, string]> = { DRAFT: ["Borrador", "blue"], 
 export function OrdersWorkspace({ permissions }: { permissions: string[] }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Order>();
   const [form] = Form.useForm<OrderForm>();
   const orders = useQuery({ queryKey: ["orders"], queryFn: () => api<{ items: Order[] }>("/api/v1/orders") });
+  const filteredOrders = (orders.data?.items ?? []).filter((order) => matchesSearch(search, order.number, order.customer.name, order.customer.code));
   const options = useQuery({ queryKey: ["order-options"], queryFn: () => api<Options>("/api/v1/orders/options") });
   const refresh = async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ["orders"] }), queryClient.invalidateQueries({ queryKey: ["pick-pack-options"] }), queryClient.invalidateQueries({ queryKey: ["inventory"] }), queryClient.invalidateQueries({ queryKey: ["kardex"] })]); };
   const save = useMutation({ mutationFn: (values: OrderForm) => api(editing ? `/api/v1/orders/${editing.id}` : "/api/v1/orders", { method: editing ? "PATCH" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...values, requestedAt: values.requestedAt.format("YYYY-MM-DD"), promisedAt: values.promisedAt?.format("YYYY-MM-DD") }) }), onSuccess: async () => { toast.success(editing ? "Pedido actualizado." : "Pedido creado como borrador."); setOpen(false); setEditing(undefined); form.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
@@ -58,8 +61,8 @@ export function OrdersWorkspace({ permissions }: { permissions: string[] }) {
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Pedidos" eyebrow="Ventas" description="Registra pedidos por cliente y variante. Al confirmar se reserva el stock; Pick & Pack registra la preparación y habilita el despacho final." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => orders.refetch()}>Actualizar</Button><ModuleImportButton module="orders" permissions={permissions} /></Space></div>
-    <Card className="section-card" title="Órdenes de pedido" extra={permissions.includes("orders.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo pedido</Button> : null}>{orders.error ? <Alert type="error" showIcon message={orders.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={orders.isLoading} columns={columns} dataSource={orders.data?.items ?? []} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" pagination={false} columns={lineColumns} dataSource={row.lines} /> }} scroll={{ x: 1200 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay pedidos registrados" /> }} /></Card>
+    <div className="page-heading"><ModuleHeadingIntro title="Pedidos" eyebrow="Ventas" description="Registra pedidos por cliente y variante. Al confirmar se reserva el stock; Pick & Pack registra la preparación y habilita el despacho final." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar número o cliente" /><Button icon={<ReloadOutlined />} onClick={() => orders.refetch()}>Actualizar</Button><ModuleImportButton module="orders" permissions={permissions} /></Space></div>
+    <Card className="section-card" title="Órdenes de pedido" extra={permissions.includes("orders.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo pedido</Button> : null}>{orders.error ? <Alert type="error" showIcon message={orders.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={orders.isLoading} columns={columns} dataSource={filteredOrders} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" sticky={false} pagination={false} columns={lineColumns} dataSource={row.lines} /> }} scroll={{ x: 1200 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay pedidos registrados" /> }} /></Card>
     <Modal className="compact-form-modal" title={editing ? `Editar ${editing.number}` : "Nuevo pedido"} open={open} onCancel={() => { setOpen(false); setEditing(undefined); }} onOk={() => form.submit()} okText={editing ? "Guardar cambios" : "Crear borrador"} confirmLoading={save.isPending} width={900} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={(values) => save.mutate(values)}>
         <div className="purchase-form-grid">{editing ? <Form.Item label="Número"><Input disabled value={editing.number} /></Form.Item> : null}<Form.Item name="customerId" label="Cliente" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` }))} /></Form.Item><Form.Item name="requestedAt" label="Fecha de pedido" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item><Form.Item name="promisedAt" label="Fecha prometida"><DatePicker style={{ width: "100%" }} /></Form.Item></div>
