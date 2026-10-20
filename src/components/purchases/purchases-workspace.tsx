@@ -144,7 +144,7 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
           <Form.Item name="documentNumber" label="Documento / guía" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select options={options.data?.warehouses.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
           <Form.Item name="currencyId" label="Moneda" rules={[{ required: true }]}><Select options={options.data?.currencies.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
-          <Form.Item name="exchangeRate" label="Tipo de cambio a PEN" rules={[{ required: true }]}><InputNumber min={0.000001} precision={6} style={{ width: "100%" }} /></Form.Item>
+          <Form.Item name="exchangeRate" label="Tipo de cambio" tooltip="Valor en soles de una unidad de la moneda de la compra. Para PEN usa 1." rules={[{ required: true }]}><InputNumber min={0.000001} precision={6} style={{ width: "100%" }} /></Form.Item>
         </div>
         <Divider>Productos recibidos</Divider>
         <Form.List name="lines">
@@ -153,13 +153,13 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
               <div className="purchase-line-grid">
                 <Form.Item name={[field.name, "itemId"]} hidden rules={[{ required: true }]}><Input /></Form.Item>
                 <Form.Item label="Materia prima" required help={selectedItem(index) ? undefined : "Selecciona un material de la lista."}><Button block onClick={() => { setPickerLine(index); setPickerSearch(""); }} style={{ textAlign: "left" }}>{selectedItem(index) ? `${selectedItem(index)!.code} · ${selectedItem(index)!.name}` : "Seleccionar material…"}</Button></Form.Item>
-                <Form.Item name={[field.name, "presentationType"]} label="Tipo de presentación" rules={[{ required: true }]}><Input placeholder="Saco, botella, cilindro…" /></Form.Item>
-                <Form.Item name={[field.name, "presentationQuantity"]} label="Cantidad de presentaciones" rules={[{ required: true }]}><InputNumber min={0.000001} style={{ width: "100%" }} placeholder="20" /></Form.Item>
-                <Form.Item name={[field.name, "contentPerUnit"]} label="Contenido por presentación" rules={[{ required: true }]}><InputNumber min={0.000001} style={{ width: "100%" }} placeholder="10" /></Form.Item>
-                <Form.Item label="Cantidad recibida"><Input value={new Decimal(watchedLines[index]?.presentationQuantity ?? 0).mul(watchedLines[index]?.contentPerUnit ?? 0).toString()} disabled suffix={options.data?.items.find((item) => item.id === watchedLines[index]?.itemId)?.unit.symbol} /></Form.Item>
-                <Form.Item name={[field.name, "pricePerBaseUnit"]} label="Precio neto por unidad" rules={[{ required: true }]}><InputNumber min={0.000001} precision={6} style={{ width: "100%" }} /></Form.Item>
+                <Form.Item name={[field.name, "presentationType"]} label="Presentación" tooltip="Tipo de empaque recibido, por ejemplo SACO, BOTELLA o CILINDRO." rules={[{ required: true }]}><Input placeholder="Saco, botella, cilindro…" /></Form.Item>
+                <Form.Item name={[field.name, "presentationQuantity"]} label="Presentaciones" tooltip="Número de bultos o envases recibidos, por ejemplo 25 sacos." rules={[{ required: true }]}><InputNumber min={0.000001} style={{ width: "100%" }} placeholder="20" /></Form.Item>
+                <Form.Item name={[field.name, "contentPerUnit"]} label="Contenido" tooltip="Unidades base por presentación, por ejemplo 20 kg por saco." rules={[{ required: true }]}><InputNumber min={0.000001} style={{ width: "100%" }} placeholder="10" /></Form.Item>
+                <Form.Item label="Recibido" tooltip="Cantidad total en unidad base: presentaciones × contenido."><Input value={new Decimal(watchedLines[index]?.presentationQuantity ?? 0).mul(watchedLines[index]?.contentPerUnit ?? 0).toString()} disabled suffix={options.data?.items.find((item) => item.id === watchedLines[index]?.itemId)?.unit.symbol} /></Form.Item>
+                <Form.Item name={[field.name, "pricePerBaseUnit"]} label="Precio neto" tooltip="Precio sin IGV por unidad base." rules={[{ required: true }]}><InputNumber min={0.000001} precision={6} style={{ width: "100%" }} /></Form.Item>
                 <Form.Item name={[field.name, "taxRate"]} label="IGV %" rules={[{ required: true }]}><InputNumber min={0} max={100} precision={2} style={{ width: "100%" }} /></Form.Item>
-                <Form.Item name={[field.name, "lotCode"]} label="Código interno de lote"><Input placeholder="Según configuración del ítem" /></Form.Item>
+                <Form.Item name={[field.name, "lotCode"]} label="Lote interno" tooltip="Código de lote según la configuración del ítem."><Input placeholder="Según configuración del ítem" /></Form.Item>
                 <Form.Item name={[field.name, "supplierLot"]} label="Lote del proveedor"><Input placeholder="Opcional" /></Form.Item>
               </div>
             </Card>)}

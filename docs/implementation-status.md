@@ -79,6 +79,8 @@ Actualizado: 19/10/2026.
 - La confirmación exige el mismo archivo validado mediante huella SHA-256, bloquea reintentos concurrentes y limita cada libro a 1,000 filas.
 - Compras y Pedidos importados quedan en borrador. En los módulos con código autogenerado, un código vacío crea un registro nuevo y un código informado identifica uno existente según el modo de importación; no existe columna `accion`.
 - `Resumen` fue reemplazado por `Analítica`, con KPIs, estados por módulo, inventario valorizado, alertas de stock, pedidos vencidos/próximos y productos más solicitados.
+- Analítica incorpora gráficos interactivos con Recharts: actividad diaria, estados por módulo, inventario valorizado por tipo y almacén, productos más pedidos y materiales más consumidos en producción, adaptados a modo claro/oscuro y móvil.
+- Etiquetas de formularios acortadas con tooltips explicativos para mantener alineados los controles en los modales.
 - Acciones de cabecera reorganizadas y comportamiento móvil mejorado para botones, filtros, tablas y modales Excel.
 - Modo oscuro global y persistente disponible desde el login, el cambio de contraseña y el dashboard.
 - Procesador de outbox para Pusher con reclamo concurrente, hasta 5 intentos, backoff exponencial, registro del último error y payload deduplicable mediante `eventId`.
@@ -86,6 +88,7 @@ Actualizado: 19/10/2026.
 - Publicación en canales privados por empresa y dominio, autorizados según permisos; procesamiento oportunista cada 15 segundos mientras el dashboard está activo y endpoint adicional protegido con `WORKER_SECRET` para ejecución programada.
 - Suite de integración ejecutada contra ramas Neon temporales: 5 escenarios para rollback de compra inválida, idempotencia de stock inicial, aprobación concurrente sin doble contabilización, autenticación/bloqueo/cambio de contraseña y flujo completo Producción-Pedidos.
 - Producción validada de extremo a extremo con reserva, consumo valorizado, liberación de reserva e ingreso de producto terminado; Pedidos validado con reserva, despacho y protección ante reintentos duplicados.
+- Producción admite consolidar varias órdenes de pedido mediante una relación normalizada; el A5 actualizado muestra fecha de emisión en cabecera, mayor espacio en componentes y las columnas `TOTAL` y `TOTAL ESPERADO`.
 - Lógica comprobable de credenciales y cambio de contraseña separada de la sesión/cookies de Next.js, manteniendo sin cambios el contrato de las rutas web.
 - Compatibilidad corregida con el adaptador HTTP de Neon para bloqueos consultivos PostgreSQL y mapeo explícito de saldos sin campos calculados ajenos al modelo.
 - Verificación visual local aprobada para el login y la redirección de visitantes anónimos.

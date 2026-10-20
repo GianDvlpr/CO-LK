@@ -154,7 +154,7 @@ type DemoProductionInput = {
   warehouseId: string;
   recipeVersionId: string;
   secondaryRecipeVersionId?: string;
-  salesOrderId?: string;
+  salesOrderIds?: string[];
   materialItemId?: string;
   machineId: string;
   priority: 1 | 2 | 3;
@@ -217,7 +217,6 @@ async function createDemoProduction(input: DemoProductionInput) {
     productVariantId: primaryVariant.id,
     recipeVersionId: input.recipeVersionId,
     secondaryRecipeVersionId: input.secondaryRecipeVersionId,
-    salesOrderId: input.salesOrderId,
     materialItemId: input.materialItemId,
     machineId: input.machineId,
     number: input.number,
@@ -241,21 +240,22 @@ async function createDemoProduction(input: DemoProductionInput) {
     sizeProgram: normalizedProgram,
     dailyProduction: [],
     productionTurns: normalizedTurns,
+    salesOrders: input.salesOrderIds?.length ? { create: input.salesOrderIds.map((salesOrderId) => ({ salesOrderId })) } : undefined,
     materials: { create: Array.from(plannedMaterials, ([itemId, plannedQuantity]) => ({ itemId, plannedQuantity })) },
     components: { create: (input.components ?? []).map((component) => ({ itemId: component.itemId, componentType: component.componentType, quantity: component.quantity, colorDetail: component.colorDetail })) },
   } });
-  if (input.salesOrderId) await prisma.salesOrderLine.updateMany({ where: { salesOrderId: input.salesOrderId, productVariantId: { in: normalizedProgram.map((item) => item.productVariantId) } }, data: { productionOrderId: order.id } });
+  if (input.salesOrderIds?.length) await prisma.salesOrderLine.updateMany({ where: { salesOrderId: { in: input.salesOrderIds }, productVariantId: { in: normalizedProgram.map((item) => item.productVariantId) } }, data: { productionOrderId: order.id } });
   return order;
 }
 
 async function releaseDemoProduction(companyId: string, orderId: string) {
-  const order = await prisma.productionOrder.findFirstOrThrow({ where: { id: orderId, companyId }, include: { materials: true } });
+  const order = await prisma.productionOrder.findFirstOrThrow({ where: { id: orderId, companyId }, include: { materials: true, salesOrders: { select: { salesOrderId: true } } } });
   for (const material of order.materials) await reserveStock({ warehouseId: order.warehouseId, itemId: material.itemId, quantity: numeric(material.plannedQuantity), referenceType: "PRODUCTION_ORDER", referenceId: order.id });
   await prisma.productionOrder.update({ where: { id: order.id }, data: { status: "RELEASED" } });
 }
 
 async function startDemoProduction(companyId: string, orderId: string, userId: string, startedAt = relativeDate(-1)) {
-  const order = await prisma.productionOrder.findFirstOrThrow({ where: { id: orderId, companyId }, include: { materials: true } });
+  const order = await prisma.productionOrder.findFirstOrThrow({ where: { id: orderId, companyId }, include: { materials: true, salesOrders: { select: { salesOrderId: true } } } });
   for (const material of order.materials) {
     const quantity = numeric(material.plannedQuantity);
     await postOutgoing({ companyId, userId, warehouseId: order.warehouseId, itemId: material.itemId, quantity, reservedQuantity: quantity, type: "PRODUCTION_CONSUMPTION", referenceType: "PRODUCTION_ORDER", referenceId: order.id, occurredAt: startedAt });
@@ -263,11 +263,11 @@ async function startDemoProduction(companyId: string, orderId: string, userId: s
   }
   await prisma.stockReservation.updateMany({ where: { referenceType: "PRODUCTION_ORDER", referenceId: order.id, active: true }, data: { active: false } });
   await prisma.productionOrder.update({ where: { id: order.id }, data: { status: "IN_PROGRESS", startedAt } });
-  if (order.salesOrderId) await prisma.salesOrder.update({ where: { id: order.salesOrderId }, data: { status: "IN_PRODUCTION" } });
+  if (order.salesOrders.length) await prisma.salesOrder.updateMany({ where: { id: { in: order.salesOrders.map((link) => link.salesOrderId) } }, data: { status: "IN_PRODUCTION" } });
 }
 
 async function completeDemoProduction(companyId: string, orderId: string, userId: string, outputs: { productVariantId: string; quantity: number }[], completedAt = relativeDate(-10)) {
-  const order = await prisma.productionOrder.findFirstOrThrow({ where: { id: orderId, companyId }, include: { materials: true } });
+  const order = await prisma.productionOrder.findFirstOrThrow({ where: { id: orderId, companyId }, include: { materials: true, salesOrders: { select: { salesOrderId: true } } } });
   const consumed = await prisma.stockMovement.aggregate({ where: { referenceType: "PRODUCTION_ORDER", referenceId: order.id, type: "PRODUCTION_CONSUMPTION" }, _sum: { movementValue: true } });
   const totalCost = Math.abs(numeric(consumed._sum.movementValue ?? 0));
   const producedQuantity = outputs.reduce((sum, output) => sum + output.quantity, 0);
@@ -288,9 +288,9 @@ async function completeDemoProduction(companyId: string, orderId: string, userId
     await prisma.productionMaterial.update({ where: { id: material.id }, data: { actualWasteQuantity } });
   }
   await prisma.productionOrder.update({ where: { id: order.id }, data: { status: "COMPLETED", producedQuantity, sizeProgram, completedAt } });
-  if (order.salesOrderId) {
-    const pendingLines = await prisma.salesOrderLine.count({ where: { salesOrderId: order.salesOrderId, OR: [{ productionOrderId: null }, { productionOrder: { status: { not: "COMPLETED" } } }] } });
-    if (pendingLines === 0) await prisma.salesOrder.update({ where: { id: order.salesOrderId }, data: { status: "READY" } });
+  for (const link of order.salesOrders) {
+    const pendingLines = await prisma.salesOrderLine.count({ where: { salesOrderId: link.salesOrderId, OR: [{ productionOrderId: null }, { productionOrder: { status: { not: "COMPLETED" } } }] } });
+    if (pendingLines === 0) await prisma.salesOrder.update({ where: { id: link.salesOrderId }, data: { status: "READY" } });
   }
 }
 
@@ -370,14 +370,14 @@ async function main() {
 
   const businessYear = new Date().getFullYear();
   const [supplierPolymers, supplierRubber, supplierChemicals] = await Promise.all([
-    prisma.supplier.create({ data: { companyId: company.id, code: "PROV-000001", name: "Polímeros Andinos SAC", taxId: "20100000011", fiscalAddress: "Av. Industrial 245, Ate", department: "Lima", province: "Lima", district: "Ate", email: "ventas@polimeros-demo.pe", phone: "+51 999 100 101" } }),
-    prisma.supplier.create({ data: { companyId: company.id, code: "PROV-000002", name: "Cauchos Técnicos del Pacífico EIRL", taxId: "20100000022", fiscalAddress: "Calle Los Cauchos 180, Callao", department: "Callao", province: "Callao", district: "Callao", email: "pedidos@cauchostecnicos-demo.pe", phone: "+51 999 100 202" } }),
-    prisma.supplier.create({ data: { companyId: company.id, code: "PROV-000003", name: "Químicos Industriales Lima SAC", taxId: "20100000033", fiscalAddress: "Jr. Química 810, San Luis", department: "Lima", province: "Lima", district: "San Luis", email: "comercial@quimicos-demo.pe", phone: "+51 999 100 303" } }),
+    prisma.supplier.create({ data: { companyId: company.id, code: "PROV-000100", name: "Polímeros Andinos SAC", taxId: "20100000011", fiscalAddress: "Av. Industrial 245, Ate", department: "Lima", province: "Lima", district: "Ate", email: "ventas@polimeros-demo.pe", phone: "+51 999 100 101" } }),
+    prisma.supplier.create({ data: { companyId: company.id, code: "PROV-000101", name: "Cauchos Técnicos del Pacífico EIRL", taxId: "20100000022", fiscalAddress: "Calle Los Cauchos 180, Callao", department: "Callao", province: "Callao", district: "Callao", email: "pedidos@cauchostecnicos-demo.pe", phone: "+51 999 100 202" } }),
+    prisma.supplier.create({ data: { companyId: company.id, code: "PROV-000102", name: "Químicos Industriales Lima SAC", taxId: "20100000033", fiscalAddress: "Jr. Química 810, San Luis", department: "Lima", province: "Lima", district: "San Luis", email: "comercial@quimicos-demo.pe", phone: "+51 999 100 303" } }),
   ]);
   const [customerRetail, customerStore, customerCorporate] = await Promise.all([
-    prisma.customer.create({ data: { companyId: company.id, code: "CLI-000001", name: "Calzados Centro SAC", taxId: "20500000011", fiscalAddress: "Av. Gamarra 540, La Victoria", department: "Lima", province: "Lima", district: "La Victoria", email: "compras@calzadoscentro-demo.pe", phone: "+51 988 200 101" } }),
-    prisma.customer.create({ data: { companyId: company.id, code: "CLI-000002", name: "Tiendas Paso Firme", taxId: "20500000022", fiscalAddress: "Av. Grau 1120, Trujillo", department: "La Libertad", province: "Trujillo", district: "Trujillo", email: "abastecimiento@pasofirme-demo.pe", phone: "+51 988 200 202" } }),
-    prisma.customer.create({ data: { companyId: company.id, code: "CLI-000003", name: "Servicios Industriales Sur", taxId: "20500000033", fiscalAddress: "Parque Industrial Río Seco, Cerro Colorado", department: "Arequipa", province: "Arequipa", district: "Cerro Colorado", email: "logistica@industrialessur-demo.pe", phone: "+51 988 200 303" } }),
+    prisma.customer.create({ data: { companyId: company.id, code: "CLI-000100", name: "Calzados Centro SAC", taxId: "20500000011", fiscalAddress: "Av. Gamarra 540, La Victoria", department: "Lima", province: "Lima", district: "La Victoria", email: "compras@calzadoscentro-demo.pe", phone: "+51 988 200 101" } }),
+    prisma.customer.create({ data: { companyId: company.id, code: "CLI-000101", name: "Tiendas Paso Firme", taxId: "20500000022", fiscalAddress: "Av. Grau 1120, Trujillo", department: "La Libertad", province: "Trujillo", district: "Trujillo", email: "abastecimiento@pasofirme-demo.pe", phone: "+51 988 200 202" } }),
+    prisma.customer.create({ data: { companyId: company.id, code: "CLI-000102", name: "Servicios Industriales Sur", taxId: "20500000033", fiscalAddress: "Parque Industrial Río Seco, Cerro Colorado", department: "Arequipa", province: "Arequipa", district: "Cerro Colorado", email: "logistica@industrialessur-demo.pe", phone: "+51 988 200 303" } }),
   ]);
 
   const materialDefinitions: { key: string; code: string; name: string; type: "RAW_MATERIAL" | "WASTE"; unit: string; minimumStock: number; abbreviation?: string; supplierProductCode?: string; referenceNetPrice?: number; referenceTaxRate?: number }[] = [
@@ -556,7 +556,7 @@ async function main() {
 
   const activeProduction = await createDemoProduction({
     companyId: company.id, userId: operatorUser.id, number: `OP-${businessYear}-000002`, warehouseId: warehouse.id,
-    recipeVersionId: urbanVersionId, secondaryRecipeVersionId: urbanRedVersionId, salesOrderId: productionLinkedOrder.id,
+    recipeVersionId: urbanVersionId, secondaryRecipeVersionId: urbanRedVersionId, salesOrderIds: [productionLinkedOrder.id],
     materialItemId: materialByCode.get("DEMO-MP-TR")!.id, machineId: press.id, priority: 1,
     plannedAt: relativeDate(0), operatorName: "Carlos Rojas", processType: "PRENSA", modelLogo: "Urbana Flex Bicolor / Paso Firme", brandColor: "Negro",
     pressNumber: "PR-01", pressLoad: "46 kg C1 + 14 kg C2",
@@ -630,8 +630,8 @@ async function main() {
   ] });
 
   await prisma.correlativeCounter.createMany({ data: [
-    { companyId: company.id, scope: "SUPPLIER", year: 0, value: 3 },
-    { companyId: company.id, scope: "CUSTOMER", year: 0, value: 3 },
+    { companyId: company.id, scope: "SUPPLIER", year: 0, value: 102 },
+    { companyId: company.id, scope: "CUSTOMER", year: 0, value: 102 },
     { companyId: company.id, scope: "INVENTORY_RAW", year: 0, value: 17 },
     { companyId: company.id, scope: "INVENTORY_WASTE", year: 0, value: 5 },
     { companyId: company.id, scope: "RECIPE", year: 0, value: 3 },

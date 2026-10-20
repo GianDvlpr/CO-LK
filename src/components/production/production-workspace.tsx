@@ -39,7 +39,7 @@ export type Order = {
   id: string; number: string; status: string; priority: number; recipeRuns: string; secondaryRecipeRuns?: string;
   plannedQuantity: string; producedQuantity: string; plannedAt?: string; productionTurns?: Turn[];
   machineEquipment?: string;
-  salesOrder?: { id: string; number: string }; materialItem?: { id: string; code: string; name: string; unit: { symbol: string } };
+  salesOrders: { salesOrder: { id: string; number: string } }[]; materialItem?: { id: string; code: string; name: string; unit: { symbol: string } };
   machine?: { id: string; code: string; name: string; type: string; status: string };
   warehouse: { code: string; name: string };
   productVariant: Variant;
@@ -58,7 +58,7 @@ type Options = {
   salesOrders: { id: string; number: string; customer: { name: string }; promisedAt?: string; lines: { id: string; productVariantId: string; quantity: string }[] }[];
 };
 type FormValues = SheetValues & {
-  warehouseId: string; recipeVersionId: string; secondaryRecipeVersionId?: string; salesOrderId?: string;
+  warehouseId: string; recipeVersionId: string; secondaryRecipeVersionId?: string; salesOrderIds?: string[];
   materialItemId?: string; machineId?: string; priority: number; plannedAt?: Dayjs;
 };
 type CompleteValues = { outputs: { productVariantId: string; quantity: number }[]; waste: { productionMaterialId: string; quantity: number }[] };
@@ -129,7 +129,7 @@ function ProductionDetailsFields({ form, variants, materials, structureLocked = 
       {(fields, { add, remove }) => <Space direction="vertical" style={{ width: "100%" }}>
         {fields.map((field) => <div key={field.key} className="purchase-form-grid">
           <Form.Item {...field} name={[field.name, "componentType"]} label="Componente" rules={[{ required: true }]}><Select disabled={structureLocked} options={Object.entries(componentLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
-          <Form.Item {...field} name={[field.name, "itemId"]} label="Artículo de almacén" rules={[{ required: true }]}><Select disabled={structureLocked} showSearch optionFilterProp="label" options={materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name} · ${item.unit.symbol}` }))} /></Form.Item>
+          <Form.Item {...field} name={[field.name, "itemId"]} label="Artículo" tooltip="Ítem de almacén: materia prima, merma o componente." rules={[{ required: true }]}><Select disabled={structureLocked} showSearch optionFilterProp="label" options={materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name} · ${item.unit.symbol}` }))} /></Form.Item>
           <Form.Item {...field} name={[field.name, "quantity"]} label="Cantidad total" rules={[{ required: true }]}><InputNumber disabled={structureLocked} min={0.000001} precision={6} style={{ width: "100%" }} /></Form.Item>
           <Form.Item {...field} name={[field.name, "colorDetail"]} label="Color / detalle"><Input disabled={structureLocked} maxLength={150} suffix={!structureLocked ? <Button danger type="text" size="small" icon={<DeleteOutlined />} onClick={() => remove(field.name)} /> : undefined} /></Form.Item>
         </div>)}
@@ -206,20 +206,28 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   const plannedPairs = program.reduce((sum, item) => sum + Number(item?.requestedPairs ?? 0), 0);
   const refresh = async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ["production"] }), queryClient.invalidateQueries({ queryKey: ["inventory"] }), queryClient.invalidateQueries({ queryKey: ["kardex"] }), queryClient.invalidateQueries({ queryKey: ["calendar"] }), queryClient.invalidateQueries({ queryKey: ["orders"] })]); };
 
-  const create = useMutation({ mutationFn: (values: FormValues) => api("/api/v1/production", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...sheetPayload(values), warehouseId: values.warehouseId, recipeVersionId: values.recipeVersionId, secondaryRecipeVersionId: values.secondaryRecipeVersionId, salesOrderId: values.salesOrderId, materialItemId: values.materialItemId, machineId: values.machineId, priority: values.priority, plannedAt: values.plannedAt?.format("YYYY-MM-DD") }) }), onSuccess: async () => { toast.success("Orden creada en estado pendiente."); setOpen(false); form.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
+  const create = useMutation({ mutationFn: (values: FormValues) => api("/api/v1/production", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...sheetPayload(values), warehouseId: values.warehouseId, recipeVersionId: values.recipeVersionId, secondaryRecipeVersionId: values.secondaryRecipeVersionId, salesOrderIds: values.salesOrderIds ?? [], materialItemId: values.materialItemId, machineId: values.machineId, priority: values.priority, plannedAt: values.plannedAt?.format("YYYY-MM-DD") }) }), onSuccess: async () => { toast.success("Orden creada en estado pendiente."); setOpen(false); form.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
   const update = useMutation({ mutationFn: ({ id, values }: { id: string; values: SheetValues }) => api(`/api/v1/production/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(sheetPayload(values)) }), onSuccess: async () => { toast.success("Orden de producción actualizada."); setEditOrder(undefined); editForm.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
   const transition = useMutation({ mutationFn: ({ id, action, body }: { id: string; action: string; body?: object }) => api(`/api/v1/production/${id}/${action}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body ?? {}) }), onSuccess: async (_, variables) => { toast.success(variables.action === "release" ? "Materiales reservados." : variables.action === "start" ? "Orden iniciada y materiales descontados." : "Producción finalizada e ingresada al almacén."); setCompleteOrder(undefined); completeForm.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
   const startFromBoard = useMutation({ mutationFn: async (order: Order) => { if (order.status === "DRAFT") await api(`/api/v1/production/${order.id}/release`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); return api(`/api/v1/production/${order.id}/start`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); }, onSuccess: async () => { toast.success("Orden iniciada y materiales descontados del kardex."); await refresh(); }, onError: (error) => toast.error(error.message) });
 
-  const loadSalesOrder = (salesOrderId?: string) => {
-    if (!salesOrderId || !selectedRecipe) return;
-    const salesOrder = options.data?.salesOrders.find((item) => item.id === salesOrderId);
-    const candidates = salesOrder?.lines.map((line) => ({ line, variant: allowedVariants.find((variant) => variant.id === line.productVariantId) })).filter((item): item is { line: Options["salesOrders"][number]["lines"][number]; variant: Variant } => Boolean(item.variant)) ?? [];
+  const loadSalesOrders = (salesOrderIds: string[]) => {
+    if (!salesOrderIds.length || !selectedRecipe) return form.setFieldsValue({ sizeProgram: [], productionTurns: [] });
+    const selectedOrders = options.data?.salesOrders.filter((item) => salesOrderIds.includes(item.id)) ?? [];
+    const candidates = selectedOrders.flatMap((salesOrder) => salesOrder.lines.map((line) => ({ line, variant: allowedVariants.find((variant) => variant.id === line.productVariantId) }))).filter((item): item is { line: Options["salesOrders"][number]["lines"][number]; variant: Variant } => Boolean(item.variant));
     if (!candidates.length) return toast.error("El pedido no tiene variantes del producto seleccionado.");
     const pair = colorPair(candidates[0].variant);
     const compatible = candidates.filter((item) => colorPair(item.variant) === pair);
-    form.setFieldsValue({ sizeProgram: compatible.map(({ line, variant }) => ({ productVariantId: variant.id, sku: variant.sku, size: variant.size.name, color: colorLabel(variant), requestedPairs: Number(line.quantity) })), productionTurns: [] });
-    if (compatible.length !== candidates.length) toast.info("El pedido contiene otras combinaciones de color; deberán producirse en otra orden.");
+    const compatibleVariantIds = new Set(compatible.map((item) => item.variant.id));
+    const compatibleOrderIds = selectedOrders.filter((order) => order.lines.some((line) => compatibleVariantIds.has(line.productVariantId))).map((order) => order.id);
+    if (compatibleOrderIds.length !== salesOrderIds.length) form.setFieldValue("salesOrderIds", compatibleOrderIds);
+    const grouped = new Map<string, SizeProgram>();
+    for (const { line, variant } of compatible) {
+      const current = grouped.get(variant.id);
+      grouped.set(variant.id, { productVariantId: variant.id, sku: variant.sku, size: variant.size.name, color: colorLabel(variant), requestedPairs: Number(line.quantity) + Number(current?.requestedPairs ?? 0) });
+    }
+    form.setFieldsValue({ sizeProgram: Array.from(grouped.values()).sort((a, b) => Number(a.size) - Number(b.size)), productionTurns: [] });
+    if (compatible.length !== candidates.length) toast.info("Los pedidos contienen otras combinaciones de color; deberán producirse en otra orden.");
   };
 
   const openCompletion = (order: Order) => {
@@ -233,7 +241,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
 
   const columns: ColumnsType<Order> = [
     { title: "Orden", dataIndex: "number", width: 135, render: (value, row) => <><strong>{value}</strong><br /><Tag color={row.priority === 1 ? "red" : row.priority === 2 ? "gold" : "blue"}>Prioridad {row.priority}</Tag></> },
-    { title: "Pedido", width: 125, render: (_, row) => row.salesOrder?.number ?? "—" },
+    { title: "Pedidos", width: 180, render: (_, row) => row.salesOrders.length ? row.salesOrders.map((link) => link.salesOrder.number).join(", ") : "—" },
     { title: "Producto / seriado", width: 300, render: (_, row) => <><strong>{row.productVariant.product.code} · {row.productVariant.product.name}</strong><br /><Typography.Text type="secondary">Matriz {row.productVariant.product.matrixCode} · {colorLabel(row.productVariant)} · Tallas {(row.sizeProgram ?? []).map((item) => item.size).join(", ")}</Typography.Text></> },
     { title: "Máquina", width: 180, render: (_, row) => row.machine ? `${row.machine.code} · ${row.machine.name}` : "—" },
     { title: "Planificado", dataIndex: "plannedQuantity", width: 110, align: "right", render: (value) => `${new Decimal(value).toFixed(0)} pares` },
@@ -283,9 +291,9 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
           <Form.Item name="plannedAt" label="Fecha programada" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}><Select options={[1, 2, 3].map((value) => ({ value, label: `Prioridad ${value}` }))} /></Form.Item>
           <Form.Item name="machineId" label="Máquina"><Select allowClear showSearch optionFilterProp="label" options={options.data?.machines.map((machine) => ({ value: machine.id, label: `${machine.code} · ${machine.name}${machine.status === "MAINTENANCE" ? " · En mantenimiento" : ""}` }))} /></Form.Item>
-          <Form.Item name="recipeVersionId" label="Formulación C1" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" onChange={() => form.setFieldsValue({ secondaryRecipeVersionId: undefined, salesOrderId: undefined, sizeProgram: [], productionTurns: [] })} options={options.data?.recipes.filter((recipe) => recipe.versions[0]).map((recipe) => ({ value: recipe.versions[0].id, label: `${recipe.code} · ${recipe.name} · ${recipe.versions[0].yieldQuantity} pares` }))} /></Form.Item>
+          <Form.Item name="recipeVersionId" label="Formulación C1" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" onChange={() => form.setFieldsValue({ secondaryRecipeVersionId: undefined, salesOrderIds: [], sizeProgram: [], productionTurns: [] })} options={options.data?.recipes.filter((recipe) => recipe.versions[0]).map((recipe) => ({ value: recipe.versions[0].id, label: `${recipe.code} · ${recipe.name} · ${recipe.versions[0].yieldQuantity} pares` }))} /></Form.Item>
           <Form.Item name="secondaryRecipeVersionId" label="Formulación C2"><Select allowClear showSearch optionFilterProp="label" options={options.data?.recipes.filter((recipe) => recipe.productId === selectedRecipe?.productId && recipe.versions[0]?.id !== recipeVersionId).map((recipe) => ({ value: recipe.versions[0].id, label: `${recipe.code} · ${recipe.name} · ${recipe.versions[0].yieldQuantity} pares` }))} /></Form.Item>
-          <Form.Item name="salesOrderId" label="Referencia de pedido"><Select allowClear showSearch optionFilterProp="label" onChange={loadSalesOrder} options={options.data?.salesOrders.filter((order) => order.lines.some((line) => allowedVariants.some((variant) => variant.id === line.productVariantId))).map((order) => ({ value: order.id, label: `${order.number} · ${order.customer.name}${order.promisedAt ? ` · ${dayjs(order.promisedAt).format("DD/MM/YYYY")}` : ""}` }))} /></Form.Item>
+          <Form.Item name="salesOrderIds" label="Pedidos" tooltip="Pedidos de cliente vinculados a la orden; puedes seleccionar varios."><Select mode="multiple" maxTagCount="responsive" allowClear showSearch optionFilterProp="label" placeholder="Selecciona uno o varios pedidos" onChange={loadSalesOrders} options={options.data?.salesOrders.filter((order) => order.lines.some((line) => allowedVariants.some((variant) => variant.id === line.productVariantId))).map((order) => ({ value: order.id, label: `${order.number} · ${order.customer.name}${order.promisedAt ? ` · ${dayjs(order.promisedAt).format("DD/MM/YYYY")}` : ""}` }))} /></Form.Item>
           <Form.Item name="materialItemId" label="Material"><Select allowClear showSearch optionFilterProp="label" options={options.data?.materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
         </div>
         {selectedRecipe ? <Alert type={firstProgramVariant?.secondaryColor && !secondaryRecipe ? "warning" : "info"} showIcon message={`${plannedPairs} pares programados · C1 rinde ${selectedRecipe.versions[0].yieldQuantity} pares por formulación${secondaryRecipe ? ` · C2 rinde ${secondaryRecipe.versions[0].yieldQuantity} pares` : ""}`} description={firstProgramVariant?.secondaryColor && !secondaryRecipe ? "La variante bicolor requiere seleccionar la formulación C2." : "El sistema calculará automáticamente cuántas ejecuciones necesita de cada formulación."} style={{ marginBottom: 12 }} /> : null}

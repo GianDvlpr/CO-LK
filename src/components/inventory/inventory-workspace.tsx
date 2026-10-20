@@ -76,11 +76,11 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock }: { p
         <Form.Item name="type" label="Tipo" rules={[{ required: true }]}><Select disabled={Boolean(editingItem)} options={[{ value: "RAW_MATERIAL", label: "Materia prima" }, { value: "WASTE", label: "Merma" }, { value: "FINISHED_PRODUCT", label: "Producto terminado" }]} /></Form.Item>
         <div className="purchase-form-grid">
           <Form.Item name="supplierId" label="Proveedor" rules={[{ required: true, message: "Selecciona el proveedor." }]}><Select showSearch optionFilterProp="label" loading={options.isLoading} placeholder="Selecciona un proveedor activo" options={options.data?.suppliers.map((supplier) => ({ value: supplier.id, label: `${supplier.name} · ${supplier.code}` }))} /></Form.Item>
-          <Form.Item name="currencyId" label="Moneda de referencia" rules={[{ required: true, message: "Selecciona la moneda." }]}><Select showSearch optionFilterProp="label" loading={options.isLoading} placeholder="Selecciona una moneda" options={options.data?.currencies.map((currency) => ({ value: currency.id, label: `${currency.code} · ${currency.name} (${currency.symbol})` }))} /></Form.Item>
+          <Form.Item name="currencyId" label="Moneda" tooltip="Moneda de referencia del ítem para el precio de compra." rules={[{ required: true, message: "Selecciona la moneda." }]}><Select showSearch optionFilterProp="label" loading={options.isLoading} placeholder="Selecciona una moneda" options={options.data?.currencies.map((currency) => ({ value: currency.id, label: `${currency.code} · ${currency.name} (${currency.symbol})` }))} /></Form.Item>
         </div>
         <Form.Item name="supplierProductCode" label="Código de producto del proveedor"><Input maxLength={100} placeholder="Código con el que el proveedor identifica el producto" /></Form.Item>
         <div className="purchase-form-grid">
-          <Form.Item name="referenceNetPrice" label="Precio neto de referencia"><InputNumber min={0} precision={6} style={{ width: "100%" }} placeholder="Precio sin IGV por unidad base" /></Form.Item>
+          <Form.Item name="referenceNetPrice" label="Precio neto" tooltip="Precio de referencia sin IGV por unidad base, en la moneda del ítem."><InputNumber min={0} precision={6} style={{ width: "100%" }} placeholder="Precio sin IGV por unidad base" /></Form.Item>
           <Form.Item name="referenceTaxRate" label="IGV (%)"><InputNumber min={0} max={100} precision={2} style={{ width: "100%" }} /></Form.Item>
         </div>
         <Form.Item label="Costo total (con IGV)"><Input readOnly value={referenceTotal ? referenceTotal.toDecimalPlaces(4).toString() : ""} placeholder="Se calcula con el precio neto y el IGV" /></Form.Item>

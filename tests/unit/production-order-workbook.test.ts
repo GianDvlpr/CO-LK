@@ -6,7 +6,7 @@ import { validateProductionSheetTotals } from "@/modules/production/domain/produ
 
 const documentData = {
   number: "OP-2026-000001", status: "IN_PROGRESS", priority: 1, createdAt: new Date("2026-10-14T12:00:00Z"), plannedAt: new Date("2026-10-15T12:00:00Z"),
-  operatorName: "Ana", modelLogo: "LK", brandColor: "Blanco", machine: { code: "MAQ-01", name: "Prensa 1" }, salesOrder: { number: "PED-2026-000001" }, materialItem: { code: "MP-001", name: "TR" },
+  operatorName: "Ana", modelLogo: "LK", brandColor: "Blanco", machine: { code: "MAQ-01", name: "Prensa 1" }, salesOrders: [{ salesOrder: { number: "PED-2026-000001" } }, { salesOrder: { number: "PED-2026-000002" } }], materialItem: { code: "MP-001", name: "TR" },
   productVariant: { sku: "I0034-NEG-ROJ-38", product: { code: "PROD-2026-000001", matrixCode: "I0034", name: "Suela Urbana" }, size: { name: "38" }, color: { code: "NEG", name: "Negro" }, secondaryColor: { code: "ROJ", name: "Rojo" } },
   recipeVersion: { recipe: { code: "REC-001", name: "Formulación negra" } }, secondaryRecipeVersion: { recipe: { code: "REC-002", name: "Formulación roja" } },
   sizeProgram: [
@@ -25,13 +25,16 @@ describe("orden de producción A5", () => {
     await reopened.xlsx.load(buffer);
     const sheet = reopened.getWorksheet("Orden de producción");
     expect(sheet?.getCell("A1").value).toContain("LK INNOVACION");
-    expect(sheet?.getCell("B21").value).toBe("38");
-    expect(sheet?.getCell("B22").value).toBe(6);
-    expect(sheet?.getCell("B23").value).toBe(4);
+    expect(sheet?.getCell("B19").value).toBe("38");
+    expect(sheet?.getCell("B20").value).toBe(6);
+    expect(sheet?.getCell("B21").value).toBe(4);
     expect(sheet?.pageSetup.paperSize).toBe(11);
     const values = sheet?.getSheetValues().flat(2).filter(Boolean) ?? [];
     expect(values).toContain("Formulación C2");
     expect(values).toContain("Rojo");
+    expect(values).toContain("PED-2026-000001, PED-2026-000002");
+    expect(values).toContain("TOTAL ESPERADO");
+    expect(values).not.toContain("Serie / modelo");
   });
 
   it("genera un PDF A5 descargable", async () => {

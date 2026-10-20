@@ -157,6 +157,8 @@ Reglas:
 - Finalizar ingresa el producto terminado al SKU correspondiente y actualiza pedido/stock.
 - El documento se exporta en Excel y PDF con tamaño físico A5, pero no imprime la palabra “A5” en la cabecera.
 - El formato muestra solo la sección de prensa, inyectora, ambas o ninguna según el tipo de proceso seleccionado.
+- Una orden de producción puede consolidar varias órdenes de pedido. Las cantidades programadas por talla no pueden superar la suma disponible de las líneas seleccionadas.
+- El A5 muestra la fecha de emisión en la cabecera, omite estado, prioridad y serie/modelo, y separa `TOTAL` de `TOTAL ESPERADO` en el control por talla.
 
 ## 9. Maquinaria
 
@@ -176,7 +178,7 @@ DRAFT → CONFIRMED → IN_PRODUCTION/READY → DISPATCHED
 
 - Confirmar reserva producto terminado disponible.
 - Un faltante puede atenderse mediante Producción.
-- La orden de producción puede vincular líneas del pedido una sola vez.
+- Cada línea de pedido puede vincularse a una sola orden de producción, pero una orden de producción puede atender varios pedidos.
 
 Pick & Pack:
 

@@ -24,6 +24,7 @@ El producto está en etapa MVP avanzada y usa datos reales en Neon junto con una
 | Imágenes | Cloudinary |
 | Excel | ExcelJS |
 | PDF | pdf-lib |
+| Gráficos | Recharts |
 | Pruebas | Vitest y Playwright |
 | Contraseñas | Argon2 |
 

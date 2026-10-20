@@ -14,7 +14,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       where: { id, companyId: user.companyId },
       include: {
         machine: { select: { code: true, name: true } },
-        salesOrder: { select: { number: true } },
+        salesOrders: { select: { salesOrder: { select: { number: true } } }, orderBy: { salesOrder: { number: "asc" } } },
         materialItem: { select: { code: true, name: true } },
         recipeVersion: { select: { recipe: { select: { code: true, name: true } } } },
         secondaryRecipeVersion: { select: { recipe: { select: { code: true, name: true } } } },

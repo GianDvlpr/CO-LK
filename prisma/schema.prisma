@@ -813,7 +813,6 @@ model ProductionOrder {
   productVariantId         String                @map("product_variant_id") @db.Uuid
   recipeVersionId          String                @map("recipe_version_id") @db.Uuid
   secondaryRecipeVersionId String?               @map("secondary_recipe_version_id") @db.Uuid
-  salesOrderId             String?               @map("sales_order_id") @db.Uuid
   materialItemId           String?               @map("material_item_id") @db.Uuid
   machineId                String?               @map("machine_id") @db.Uuid
   number                   String
@@ -847,7 +846,7 @@ model ProductionOrder {
   productVariant           ProductVariant        @relation(fields: [productVariantId], references: [id])
   recipeVersion            RecipeVersion         @relation("PrimaryProductionRecipe", fields: [recipeVersionId], references: [id])
   secondaryRecipeVersion   RecipeVersion?        @relation("SecondaryProductionRecipe", fields: [secondaryRecipeVersionId], references: [id])
-  salesOrder               SalesOrder?           @relation(fields: [salesOrderId], references: [id])
+  salesOrders              ProductionOrderSalesOrder[]
   materialItem             InventoryItem?        @relation("ProductionOrderMaterialItem", fields: [materialItemId], references: [id])
   machine                  Machine?              @relation(fields: [machineId], references: [id])
   materials                ProductionMaterial[]
@@ -973,11 +972,22 @@ model SalesOrder {
   customer         Customer          @relation(fields: [customerId], references: [id])
   lines            SalesOrderLine[]
   pickPackOrder    PickPackOrder?
-  productionOrders ProductionOrder[]
+  productionOrders ProductionOrderSalesOrder[]
 
   @@unique([companyId, number])
   @@index([companyId, status, requestedAt])
   @@map("sales_orders")
+}
+
+model ProductionOrderSalesOrder {
+  productionOrderId String          @map("production_order_id") @db.Uuid
+  salesOrderId      String          @map("sales_order_id") @db.Uuid
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  salesOrder        SalesOrder      @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+
+  @@id([productionOrderId, salesOrderId])
+  @@index([salesOrderId])
+  @@map("production_order_sales_orders")
 }
 
 model SalesOrderLine {

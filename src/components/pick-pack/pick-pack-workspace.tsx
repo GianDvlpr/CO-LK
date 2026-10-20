@@ -74,9 +74,9 @@ export function PickPackWorkspace({ permissions }: { permissions: string[] }) {
         <div className="purchase-form-grid">
           <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}><Select options={[{ value: "NORMAL", label: "Normal" }, { value: "URGENT", label: "Urgente" }]} /></Form.Item>
           <Form.Item name="carrier" label="Transportista"><Input /></Form.Item>
-          <Form.Item name="shippingDocument" label="Documento / guía de salida"><Input /></Form.Item>
+          <Form.Item name="shippingDocument" label="Documento de salida" tooltip="Documento o guía generada para el despacho."><Input /></Form.Item>
         </div>
-        <Form.Item name="notes" label="Observaciones generales"><Input.TextArea rows={2} /></Form.Item>
+        <Form.Item name="notes" label="Observaciones"><Input.TextArea rows={2} /></Form.Item>
         <Typography.Title level={5}>Productos</Typography.Title>
         <Form.List name="lines">{(fields) => <Space direction="vertical" size="middle" style={{ width: "100%" }}>{fields.map((field, index) => { const line = editing?.lines[index]; return <Card size="small" key={field.key} title={line ? `${line.salesOrderLine.productVariant.sku} · ${line.salesOrderLine.productVariant.product.name} · Talla ${line.salesOrderLine.productVariant.size.name} · ${line.salesOrderLine.productVariant.color.name}` : `Línea ${index + 1}`} extra={line ? <Tag>Solicitado: {new Decimal(line.requestedQuantity).toFixed(0)} {line.salesOrderLine.productVariant.inventoryItem.unit.symbol}</Tag> : null}>
           <Form.Item name={[field.name, "id"]} hidden><Input /></Form.Item>

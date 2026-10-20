@@ -19,7 +19,7 @@ export type ProductionOrderDocumentData = {
   };
   recipeVersion: { recipe: { code: string; name: string } };
   secondaryRecipeVersion: { recipe: { code: string; name: string } } | null;
-  salesOrder: { number: string } | null;
+  salesOrders: { salesOrder: { number: string } }[];
   materialItem: { code: string; name: string } | null;
   components: { componentType: string; quantity: unknown; colorDetail: string | null; item: { code: string; name: string; unit: { symbol: string } } }[];
 };
@@ -48,6 +48,10 @@ export function skuPattern(order: ProductionOrderDocumentData) {
   const program = programEntries(order.sizeProgram);
   if (program.length === 1 && program[0].sku) return program[0].sku;
   return [order.productVariant.product.matrixCode, order.productVariant.color.code, order.productVariant.secondaryColor?.code, "{TALLA}"].filter(Boolean).join("-");
+}
+
+export function salesOrderReferences(order: ProductionOrderDocumentData) {
+  return order.salesOrders.map((link) => link.salesOrder.number).join(", ");
 }
 
 export const componentNames: Record<string, string> = {

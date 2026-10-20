@@ -19,7 +19,7 @@ type ProductionWaste = { productionMaterialId: string; quantity: Decimal.Value }
 
 export async function createProductionOrder(database: PrismaClient, command: {
   companyId: string; userId: string; number?: string; warehouseId: string; productVariantId?: string;
-  recipeVersionId: string; secondaryRecipeVersionId?: string; salesOrderId?: string; materialItemId?: string;
+  recipeVersionId: string; secondaryRecipeVersionId?: string; salesOrderIds?: string[]; materialItemId?: string;
   machineId?: string; recipeRuns?: Decimal.Value; priority?: number; plannedAt?: Date; operatorName?: string;
   sizeProgram?: ProductionProgramEntry[]; productionTurns?: ProductionTurn[]; components?: ProductionComponentInput[];
   machineEquipment?: string; modelLogo?: string; materialLoad?: string; seriesLot?: string;
@@ -28,16 +28,17 @@ export async function createProductionOrder(database: PrismaClient, command: {
 }) {
   return database.$transaction(async (tx) => {
     const componentIds = Array.from(new Set((command.components ?? []).map((item) => item.itemId)));
-    const [warehouse, version, secondaryVersion, machine, salesOrder, materialItem, componentItems] = await Promise.all([
+    const salesOrderIds = Array.from(new Set(command.salesOrderIds ?? []));
+    const [warehouse, version, secondaryVersion, machine, salesOrders, materialItem, componentItems] = await Promise.all([
       tx.warehouse.findFirst({ where: { id: command.warehouseId, companyId: command.companyId, active: true } }),
       tx.recipeVersion.findFirst({ where: { id: command.recipeVersionId, isActive: true, recipe: { companyId: command.companyId, status: "ACTIVE" } }, include: { recipe: true, ingredients: true } }),
       command.secondaryRecipeVersionId ? tx.recipeVersion.findFirst({ where: { id: command.secondaryRecipeVersionId, isActive: true, recipe: { companyId: command.companyId, status: "ACTIVE" } }, include: { recipe: true, ingredients: true } }) : null,
       command.machineId ? tx.machine.findFirst({ where: { id: command.machineId, companyId: command.companyId, status: { not: "OUT_OF_SERVICE" } } }) : null,
-      command.salesOrderId ? tx.salesOrder.findFirst({ where: { id: command.salesOrderId, companyId: command.companyId, status: { not: "CANCELLED" } }, include: { lines: true } }) : null,
+      salesOrderIds.length ? tx.salesOrder.findMany({ where: { id: { in: salesOrderIds }, companyId: command.companyId, status: { not: "CANCELLED" } }, include: { lines: { where: { productionOrderId: null } } } }) : [],
       command.materialItemId ? tx.inventoryItem.findFirst({ where: { id: command.materialItemId, companyId: command.companyId, active: true } }) : null,
       tx.inventoryItem.findMany({ where: { id: { in: componentIds }, companyId: command.companyId, active: true } }),
     ]);
-    if (!warehouse || !version || (command.secondaryRecipeVersionId && !secondaryVersion) || (command.machineId && !machine) || (command.salesOrderId && !salesOrder) || (command.materialItemId && !materialItem) || componentItems.length !== componentIds.length) throw new ProductionError("PRODUCTION_INVALID_REFERENCE", "El almacén, formulación, pedido, material, componente o máquina no es válido para esta orden.");
+    if (!warehouse || !version || (command.secondaryRecipeVersionId && !secondaryVersion) || (command.machineId && !machine) || salesOrders.length !== salesOrderIds.length || (command.materialItemId && !materialItem) || componentItems.length !== componentIds.length) throw new ProductionError("PRODUCTION_INVALID_REFERENCE", "El almacén, formulación, pedido, material, componente o máquina no es válido para esta orden.");
     if (secondaryVersion && secondaryVersion.recipe.productId !== version.recipe.productId) throw new ProductionError("PRODUCTION_INVALID_RECIPE_PAIR", "Las formulaciones C1 y C2 deben pertenecer al mismo producto.");
     const variantIds = Array.from(new Set([command.productVariantId, ...(command.sizeProgram ?? []).map((item) => item.productVariantId), ...(command.productionTurns ?? []).flatMap((turn) => turn.quantities.map((item) => item.productVariantId)), ...(command.dailyProduction ?? []).map((item) => item.productVariantId)].filter((value): value is string => Boolean(value))));
     const variants = await tx.productVariant.findMany({
@@ -65,11 +66,15 @@ export async function createProductionOrder(database: PrismaClient, command: {
     }
     if (variants.some((item) => item.colorId !== variant.colorId || (item.secondaryColorId ?? null) !== (variant.secondaryColorId ?? null))) throw new ProductionError("PRODUCTION_INVALID_COLOR_PAIR", "Todas las tallas de la orden deben usar la misma combinación C1/C2.");
     if (Boolean(variant.secondaryColorId) !== Boolean(secondaryVersion)) throw new ProductionError("PRODUCTION_INVALID_RECIPE_PAIR", variant.secondaryColorId ? "Una suela bicolor requiere la formulación C2." : "Una suela monocolor no debe incluir formulación C2.");
-    if (salesOrder) {
-      const orderedVariants = new Map(salesOrder.lines.map((line) => [line.productVariantId, line]));
-      if (normalizedProgram.some((item) => !orderedVariants.has(item.productVariantId))) throw new ProductionError("PRODUCTION_INVALID_SALES_ORDER", "El pedido seleccionado no contiene todas las tallas programadas.");
-      if (normalizedProgram.some((item) => new Decimal(item.requestedPairs).greaterThan(orderedVariants.get(item.productVariantId)!.quantity.toString()))) throw new ProductionError("PRODUCTION_EXCEEDS_SALES_ORDER", "La programación no puede superar los pares solicitados en el pedido.");
-      if (normalizedProgram.some((item) => Boolean(orderedVariants.get(item.productVariantId)!.productionOrderId))) throw new ProductionError("PRODUCTION_ORDER_LINE_ASSIGNED", "Una línea del pedido ya está vinculada con otra orden de producción.");
+    if (salesOrders.length) {
+      const orderedQuantities = new Map<string, Decimal>();
+      const programmedIds = new Set(normalizedProgram.map((item) => item.productVariantId));
+      for (const salesOrder of salesOrders) {
+        if (!salesOrder.lines.some((line) => programmedIds.has(line.productVariantId))) throw new ProductionError("PRODUCTION_INVALID_SALES_ORDER", `El pedido ${salesOrder.number} no contiene tallas disponibles para esta orden.`);
+        for (const line of salesOrder.lines) orderedQuantities.set(line.productVariantId, (orderedQuantities.get(line.productVariantId) ?? new Decimal(0)).add(line.quantity.toString()));
+      }
+      if (normalizedProgram.some((item) => !orderedQuantities.has(item.productVariantId))) throw new ProductionError("PRODUCTION_INVALID_SALES_ORDER", "Los pedidos seleccionados no contienen todas las tallas programadas.");
+      if (normalizedProgram.some((item) => new Decimal(item.requestedPairs).greaterThan(orderedQuantities.get(item.productVariantId)!.toString()))) throw new ProductionError("PRODUCTION_EXCEEDS_SALES_ORDER", "La programación no puede superar la suma de pares disponibles en los pedidos seleccionados.");
     }
     const plannedQuantity = normalizedProgram.reduce((total, item) => total.add(item.requestedPairs), new Decimal(0)).toDecimalPlaces(6);
     if (!plannedQuantity.greaterThan(0)) throw new ProductionError("PRODUCTION_INVALID_QUANTITY", "La cantidad planificada debe ser mayor que cero.");
@@ -90,7 +95,7 @@ export async function createProductionOrder(database: PrismaClient, command: {
     const order = await tx.productionOrder.create({ data: {
       companyId: command.companyId, warehouseId: command.warehouseId, productVariantId: variant.id,
       recipeVersionId: command.recipeVersionId, secondaryRecipeVersionId: command.secondaryRecipeVersionId || null,
-      salesOrderId: command.salesOrderId || null, materialItemId: command.materialItemId || null, machineId: command.machineId || null,
+      materialItemId: command.materialItemId || null, machineId: command.machineId || null,
       number, recipeRuns: runs, secondaryRecipeRuns: secondaryRuns, plannedQuantity, priority: command.priority ?? 2, plannedAt: command.plannedAt,
       machineEquipment: machine ? `${machine.code} · ${machine.name}` : command.machineEquipment || null,
       operatorName: command.operatorName || null, modelLogo: command.modelLogo || null,
@@ -100,10 +105,11 @@ export async function createProductionOrder(database: PrismaClient, command: {
       injectorNumber: command.injectorNumber || null, curve: command.curve || null,
       sizeProgram: normalizedProgram as Prisma.InputJsonValue, dailyProduction: normalizedDaily as Prisma.InputJsonValue,
       productionTurns: normalizedTurns as Prisma.InputJsonValue,
+      salesOrders: salesOrderIds.length ? { create: salesOrderIds.map((salesOrderId) => ({ salesOrderId })) } : undefined,
       materials: { create: Array.from(plannedMaterials, ([itemId, plannedQuantity]) => ({ itemId, plannedQuantity })) },
       components: { create: (command.components ?? []).map((component) => ({ itemId: component.itemId, componentType: component.componentType, quantity: new Decimal(component.quantity), colorDetail: component.colorDetail || null })) },
     } });
-    if (salesOrder) await tx.salesOrderLine.updateMany({ where: { salesOrderId: salesOrder.id, productVariantId: { in: normalizedProgram.map((item) => item.productVariantId) }, productionOrderId: null }, data: { productionOrderId: order.id } });
+    if (salesOrderIds.length) await tx.salesOrderLine.updateMany({ where: { salesOrderId: { in: salesOrderIds }, productVariantId: { in: normalizedProgram.map((item) => item.productVariantId) }, productionOrderId: null }, data: { productionOrderId: order.id } });
     await event(tx, command.companyId, command.userId, order.id, "CREATE", "DRAFT"); return order;
   });
 }
@@ -148,12 +154,12 @@ async function consumeMaterial(tx: Prisma.TransactionClient, companyId: string, 
 
 export async function startProductionOrder(database: PrismaClient, command: { companyId: string; userId: string; orderId: string }) {
   return database.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM production_orders WHERE id = ${command.orderId}::uuid FOR UPDATE`; const order = await tx.productionOrder.findFirst({ where: { id: command.orderId, companyId: command.companyId }, include: { materials: true } });
+    await tx.$queryRaw`SELECT id FROM production_orders WHERE id = ${command.orderId}::uuid FOR UPDATE`; const order = await tx.productionOrder.findFirst({ where: { id: command.orderId, companyId: command.companyId }, include: { materials: true, salesOrders: { select: { salesOrderId: true } } } });
     if (!order) throw new ProductionError("PRODUCTION_NOT_FOUND", "La orden no existe."); if (order.status !== "RELEASED") throw new ProductionError("PRODUCTION_INVALID_STATE", "Solo puede iniciarse una orden liberada.");
     for (const material of order.materials) await consumeMaterial(tx, command.companyId, command.userId, order, material);
     await tx.stockReservation.updateMany({ where: { referenceType: "PRODUCTION_ORDER", referenceId: order.id, active: true }, data: { active: false } });
     const result = await tx.productionOrder.update({ where: { id: order.id }, data: { status: "IN_PROGRESS", startedAt: new Date() } });
-    if (order.salesOrderId) await tx.salesOrder.update({ where: { id: order.salesOrderId }, data: { status: "IN_PRODUCTION" } });
+    if (order.salesOrders.length) await tx.salesOrder.updateMany({ where: { id: { in: order.salesOrders.map((link) => link.salesOrderId) } }, data: { status: "IN_PRODUCTION" } });
     await event(tx, command.companyId, command.userId, order.id, "START", "IN_PROGRESS"); return result;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
@@ -168,7 +174,7 @@ export async function completeProductionOrder(database: PrismaClient, command: {
   if (rawWaste.some((entry) => entry.quantity.isNegative())) throw new ProductionError("PRODUCTION_INVALID_WASTE", "La merma real no puede ser negativa.");
   if (new Set(rawWaste.map((entry) => entry.productionMaterialId)).size !== rawWaste.length) throw new ProductionError("PRODUCTION_INVALID_WASTE", "Cada material debe aparecer una sola vez en la merma real.");
   return database.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM production_orders WHERE id = ${command.orderId}::uuid FOR UPDATE`; const order = await tx.productionOrder.findFirst({ where: { id: command.orderId, companyId: command.companyId }, include: { productVariant: true, materials: true } });
+    await tx.$queryRaw`SELECT id FROM production_orders WHERE id = ${command.orderId}::uuid FOR UPDATE`; const order = await tx.productionOrder.findFirst({ where: { id: command.orderId, companyId: command.companyId }, include: { productVariant: true, materials: true, salesOrders: { select: { salesOrderId: true } } } });
     if (!order) throw new ProductionError("PRODUCTION_NOT_FOUND", "La orden no existe."); if (order.status !== "IN_PROGRESS") throw new ProductionError("PRODUCTION_INVALID_STATE", "Solo puede completarse una orden en proceso.");
     const programmed = Array.isArray(order.sizeProgram) ? order.sizeProgram.filter((item): item is ProductionProgramEntry => Boolean(item && typeof item === "object" && "size" in item && "requestedPairs" in item)) : [];
     const scheduledByVariant = new Map(programmed.filter((item) => item.productVariantId).map((item) => [item.productVariantId!, new Decimal(item.requestedPairs)]));
@@ -216,9 +222,9 @@ export async function completeProductionOrder(database: PrismaClient, command: {
     const producedByVariant = new Map(outputs.map((output) => [output.productVariantId, output.quantity.toNumber()]));
     const completedProgram = programmed.map((item) => ({ ...item, producedPairs: item.productVariantId ? producedByVariant.get(item.productVariantId) ?? 0 : item.producedPairs }));
     const result = await tx.productionOrder.update({ where: { id: order.id }, data: { status: "COMPLETED", producedQuantity: produced, sizeProgram: completedProgram as Prisma.InputJsonValue, completedAt: new Date() } });
-    if (order.salesOrderId) {
-      const remaining = await tx.salesOrderLine.count({ where: { salesOrderId: order.salesOrderId, OR: [{ productionOrderId: null }, { productionOrder: { status: { not: "COMPLETED" } } }] } });
-      if (remaining === 0) await tx.salesOrder.update({ where: { id: order.salesOrderId }, data: { status: "READY" } });
+    for (const link of order.salesOrders) {
+      const remaining = await tx.salesOrderLine.count({ where: { salesOrderId: link.salesOrderId, OR: [{ productionOrderId: null }, { productionOrder: { status: { not: "COMPLETED" } } }] } });
+      if (remaining === 0) await tx.salesOrder.update({ where: { id: link.salesOrderId }, data: { status: "READY" } });
     }
     await event(tx, command.companyId, command.userId, order.id, "COMPLETE", "COMPLETED"); return result;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

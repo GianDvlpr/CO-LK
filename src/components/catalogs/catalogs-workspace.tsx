@@ -320,7 +320,7 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
           <Form.Item name="sunatCheckedAt" hidden><Input /></Form.Item>
           {editing ? <Form.Item label="Código"><Input disabled value={editing.code} /></Form.Item> : null}
           <div className="catalog-document-grid">
-            <Form.Item name="documentType" label="Tipo de documento" rules={[{ required: true }]}>
+            <Form.Item name="documentType" label="Tipo" tooltip="Tipo de comprobante: DNI o RUC." rules={[{ required: true }]}>
               <Select
                 options={[{ value: "DNI", label: "DNI" }, { value: "RUC", label: "RUC" }]}
                 onChange={() => {

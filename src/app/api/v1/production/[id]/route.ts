@@ -30,7 +30,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         productVariant: true,
         recipeVersion: { include: { ingredients: true } },
         secondaryRecipeVersion: { include: { ingredients: true } },
-        salesOrder: { include: { lines: true } },
+        salesOrders: { include: { salesOrder: { include: { lines: true } } } },
         components: true,
       },
     });
@@ -59,11 +59,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const plannedQuantity = normalized.sizeProgram.reduce((total, item) => total.add(item.requestedPairs), new Decimal(0));
     const sheetIssue = validateProductionSheetTotals(normalized, existing.status === "DRAFT" ? plannedQuantity : existing.plannedQuantity.toString());
     if (sheetIssue) return apiError("PRODUCTION_SHEET_INVALID", sheetIssue, 422);
-    if (existing.salesOrder) {
-      const lines = new Map(existing.salesOrder.lines.map((line) => [line.productVariantId, line]));
-      if (normalized.sizeProgram.some((item) => !lines.has(item.productVariantId))) return apiError("PRODUCTION_INVALID_SALES_ORDER", "El pedido vinculado no contiene todas las tallas programadas.", 422);
-      if (normalized.sizeProgram.some((item) => new Decimal(item.requestedPairs).greaterThan(lines.get(item.productVariantId)!.quantity.toString()))) return apiError("PRODUCTION_EXCEEDS_SALES_ORDER", "La programación no puede superar los pares solicitados en el pedido.", 422);
-      if (normalized.sizeProgram.some((item) => { const line = lines.get(item.productVariantId)!; return line.productionOrderId && line.productionOrderId !== id; })) return apiError("PRODUCTION_ORDER_LINE_ASSIGNED", "Una línea del pedido ya pertenece a otra orden de producción.", 422);
+    if (existing.salesOrders.length) {
+      const quantities = new Map<string, Decimal>();
+      for (const link of existing.salesOrders) for (const line of link.salesOrder.lines) {
+        if (!line.productionOrderId || line.productionOrderId === id) quantities.set(line.productVariantId, (quantities.get(line.productVariantId) ?? new Decimal(0)).add(line.quantity.toString()));
+      }
+      if (normalized.sizeProgram.some((item) => !quantities.has(item.productVariantId))) return apiError("PRODUCTION_INVALID_SALES_ORDER", "Los pedidos vinculados no contienen todas las tallas programadas.", 422);
+      if (normalized.sizeProgram.some((item) => new Decimal(item.requestedPairs).greaterThan(quantities.get(item.productVariantId)!.toString()))) return apiError("PRODUCTION_EXCEEDS_SALES_ORDER", "La programación no puede superar la suma de pares de los pedidos vinculados.", 422);
     }
 
     const oldComponents = existing.components.map(componentKey).sort();
@@ -85,9 +87,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         await tx.productionComponent.deleteMany({ where: { productionOrderId: id } });
         await tx.productionMaterial.createMany({ data: Array.from(plannedMaterials, ([itemId, plannedQuantity]) => ({ productionOrderId: id, itemId, plannedQuantity })) });
         if (normalized.components.length) await tx.productionComponent.createMany({ data: normalized.components.map((component) => ({ productionOrderId: id, itemId: component.itemId, componentType: component.componentType, quantity: component.quantity, colorDetail: component.colorDetail || null })) });
-        if (existing.salesOrderId) {
+        if (existing.salesOrders.length) {
           await tx.salesOrderLine.updateMany({ where: { productionOrderId: id }, data: { productionOrderId: null } });
-          await tx.salesOrderLine.updateMany({ where: { salesOrderId: existing.salesOrderId, productVariantId: { in: normalized.sizeProgram.map((item) => item.productVariantId) }, productionOrderId: null }, data: { productionOrderId: id } });
+          await tx.salesOrderLine.updateMany({ where: { salesOrderId: { in: existing.salesOrders.map((link) => link.salesOrderId) }, productVariantId: { in: normalized.sizeProgram.map((item) => item.productVariantId) }, productionOrderId: null }, data: { productionOrderId: id } });
         }
       }
       return tx.productionOrder.update({
