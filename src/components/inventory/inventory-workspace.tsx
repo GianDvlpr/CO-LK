@@ -1,8 +1,8 @@
 "use client";
 
-import { DeleteOutlined, EditOutlined, HistoryOutlined, MoreOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, DeleteOutlined, EditOutlined, HistoryOutlined, MoreOutlined, PlusOutlined, ReloadOutlined, TableOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Avatar, Button, Card, Checkbox, DatePicker, Dropdown, Empty, Form, Image, Input, InputNumber, Modal, Popconfirm, Select, Space, Tag, Upload } from "antd";
+import { Alert, Avatar, Button, Card, Checkbox, DatePicker, Dropdown, Empty, Form, Image, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Space, Tag, Upload } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import Decimal from "decimal.js";
@@ -11,6 +11,7 @@ import { ModuleImportButton } from "@/components/imports/module-import-button";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 import { TableSearch, matchesSearch } from "@/components/common/table-search";
+import { WarehouseLayout } from "@/components/inventory/warehouse-layout";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -27,6 +28,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> { const respo
 export function InventoryWorkspace({ permissions, canCreate, canOpenStock, canManageImages, cloudinaryConfigured }: { permissions: string[]; canCreate: boolean; canOpenStock: boolean; canManageImages: boolean; cloudinaryConfigured: boolean }) {
   const queryClient = useQueryClient();
   const [itemOpen, setItemOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"items" | "layout">("items");
   const [search, setSearch] = useState("");
   const [editingItem, setEditingItem] = useState<Item>();
   const [openingOpen, setOpeningOpen] = useState(false);
@@ -94,8 +96,8 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock, canMa
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Almacén" eyebrow="Operativo" description="Administra materias primas, productos terminados, existencias, costo promedio y stock mínimo." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar código, nombre, sigla o proveedor" /><Button icon={<ReloadOutlined />} onClick={() => inventory.refetch()}>Actualizar</Button><ModuleImportButton module="inventory" permissions={permissions} /><Link href="/dashboard/inventory/kardex"><Button icon={<HistoryOutlined />}>Ver kardex</Button></Link>{canOpenStock ? <Dropdown menu={{ items: [{ key: "opening", label: "Registrar saldo inicial" }], onClick: ({ key }) => { if (key === "opening") setOpeningOpen(true); } }} trigger={["click"]}><Button icon={<MoreOutlined />}>Más acciones</Button></Dropdown> : null}</Space></div>
-    <Card className="section-card" title="Ítems y existencias" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingItem(undefined); itemForm.resetFields(); clearPendingImage(); itemForm.setFieldsValue({ type: "RAW_MATERIAL", currencyId: options.data?.currencies.find((currency) => currency.isBase)?.id, minimumStock: 0, lotTrackingMode: "NONE", active: true, referenceTaxRate: companyIgvRate }); setItemOpen(true); }}>Nuevo ítem</Button> : null}>{inventory.error ? <Alert type="error" showIcon message={inventory.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={inventory.isLoading} columns={columns} dataSource={filteredItems} scroll={{ x: 2050 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay ítems registrados" /> }} /></Card>
+    <div className="page-heading"><ModuleHeadingIntro title="Almacén" eyebrow="Operativo" description="Administra materias primas, productos terminados, existencias, costo promedio y stock mínimo." /><Space wrap className="module-actions">{viewMode === "items" ? <TableSearch value={search} onChange={setSearch} placeholder="Buscar código, nombre, sigla o proveedor" /> : null}<Segmented value={viewMode} onChange={(value) => setViewMode(value as "items" | "layout")} options={[{ value: "items", label: "Existencias", icon: <TableOutlined /> }, { value: "layout", label: "Plano", icon: <AppstoreOutlined /> }]} /><Button icon={<ReloadOutlined />} onClick={() => viewMode === "items" ? inventory.refetch() : queryClient.invalidateQueries({ queryKey: ["warehouse-layout"] })}>Actualizar</Button>{viewMode === "items" ? <><ModuleImportButton module="inventory" permissions={permissions} /><Link href="/dashboard/inventory/kardex"><Button icon={<HistoryOutlined />}>Ver kardex</Button></Link>{canOpenStock ? <Dropdown menu={{ items: [{ key: "opening", label: "Registrar saldo inicial" }], onClick: ({ key }) => { if (key === "opening") setOpeningOpen(true); } }} trigger={["click"]}><Button icon={<MoreOutlined />}>Más acciones</Button></Dropdown> : null}</> : null}</Space></div>
+    {viewMode === "items" ? <Card className="section-card" title="Ítems y existencias" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingItem(undefined); itemForm.resetFields(); clearPendingImage(); itemForm.setFieldsValue({ type: "RAW_MATERIAL", currencyId: options.data?.currencies.find((currency) => currency.isBase)?.id, minimumStock: 0, lotTrackingMode: "NONE", active: true, referenceTaxRate: companyIgvRate }); setItemOpen(true); }}>Nuevo ítem</Button> : null}>{inventory.error ? <Alert type="error" showIcon message={inventory.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={inventory.isLoading} columns={columns} dataSource={filteredItems} scroll={{ x: 2050 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay ítems registrados" /> }} /></Card> : <WarehouseLayout canManage={permissions.includes("catalogs.manage")} />}
     <Modal className="compact-form-modal" title={editingItem ? "Editar ítem de almacén" : "Nuevo ítem de almacén"} open={itemOpen} onCancel={() => { setItemOpen(false); setEditingItem(undefined); clearPendingImage(); }} onOk={() => itemForm.submit()} okText={editingItem ? "Guardar cambios" : "Crear ítem"} confirmLoading={createItem.isPending || updateItem.isPending} width={920} destroyOnHidden>
       <Form form={itemForm} layout="vertical" onFinish={(values) => editingItem ? updateItem.mutate(values) : createItem.mutate(values)} initialValues={{ type: "RAW_MATERIAL", minimumStock: 0, lotTrackingMode: "NONE", active: true }}>
         <div className="modal-form-grid modal-form-grid-3">

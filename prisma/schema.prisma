@@ -389,6 +389,10 @@ model Warehouse {
   companyId                String                    @map("company_id") @db.Uuid
   code                     String
   name                     String
+  description              String?
+  layoutOrder              Int                       @default(0) @map("layout_order")
+  layoutWidth              Int                       @default(1) @map("layout_width")
+  layoutColor              String                    @default("#1677ff") @map("layout_color") @db.VarChar(7)
   active                   Boolean                   @default(true)
   company                  Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   lots                     InventoryLot[]
@@ -403,6 +407,7 @@ model Warehouse {
   defaultInventoryItems    InventoryItem[]           @relation("InventoryItemDefaultWarehouse")
 
   @@unique([companyId, code])
+  @@index([companyId, layoutOrder])
   @@map("warehouses")
 }
 
