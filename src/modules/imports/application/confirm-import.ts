@@ -151,6 +151,7 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
       : await tx.inventoryItem.create({ data: { companyId, code, ...values } });
     created(result);
 
+    if (existing) continue;
     const initialStockText = text(row, "stock_inicial");
     if (isBlankNumericCell(initialStockText)) continue;
     if (number(row, "stock_inicial").isZero()) continue;

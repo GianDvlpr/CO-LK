@@ -223,6 +223,7 @@ Módulos con plantilla, importación y reporte: Compras, Almacén, Recetas, Prod
 - Filas idénticas repetidas se omiten con advertencia.
 - La misma clave con datos distintos bloquea la carga.
 - Un reporte reimportado en modo `ONLY_NEW` agrega solo registros nuevos y omite los existentes.
+- Después de validar, el usuario puede elegir el modo `CREATE_UPDATE` para aplicar los cambios del archivo sobre los registros existentes (Almacén y Productos actualizan; Recetas crea una nueva versión). Compras y Pedidos no sobrescriben registros existentes.
 - Validar archivo y huella antes de confirmar; la confirmación es transaccional.
 - Máximo actual: 5 MB y 1,000 filas.
 - En la plantilla de Recetas no existe merma; se informa al finalizar Producción.

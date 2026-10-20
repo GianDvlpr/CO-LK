@@ -19,13 +19,14 @@ export async function POST(request: Request, context: { params: Promise<{ module
   if (!isImportModule(module)) return apiError("NOT_FOUND", "El módulo no existe.", 404);
   let body: FormData;
   try { body = await request.formData(); } catch { return apiError("VALIDATION_ERROR", "No se pudo leer el archivo enviado.", 400); }
-  const file = body.get("file"); const jobId = body.get("jobId");
+  const file = body.get("file"); const jobId = body.get("jobId"); const requestedMode = body.get("mode");
   if (!(file instanceof File) || !file.name.toLowerCase().endsWith(".xlsx") || typeof jobId !== "string") return apiError("VALIDATION_ERROR", "Archivo o validación inválida.", 400);
   if (file.size > MAX_FILE_SIZE) return apiError("FILE_TOO_LARGE", "El archivo no puede superar 5 MB.", 413);
   const bytes = await file.arrayBuffer();
   const parsed = await validateWorkbook(module, bytes).catch(() => null);
   if (!parsed) return apiError("INVALID_WORKBOOK", "El archivo no es un libro Excel válido o está dañado.", 422);
   if (parsed.errors.length) return apiError("IMPORT_HAS_ERRORS", "El archivo contiene errores y no puede confirmarse.", 422);
+  const mode: "ONLY_NEW" | "CREATE_UPDATE" = requestedMode === "ONLY_NEW" || requestedMode === "CREATE_UPDATE" ? requestedMode : parsed.importMode;
   const digest = createHash("sha256").update(Buffer.from(bytes)).digest("hex");
   const job = await prisma.importJob.findFirst({ where: { id: jobId, companyId: user.companyId, module }, include: { errors: true } });
   if (!job) return apiError("NOT_FOUND", "La validación no existe.", 404);
@@ -39,12 +40,12 @@ export async function POST(request: Request, context: { params: Promise<{ module
     await prisma.$transaction(async (tx) => {
       const claimed = await tx.importJob.updateMany({ where: { id: job.id, companyId: user.companyId, status: "PENDING" }, data: { status: "PROCESSING" } });
       if (claimed.count !== 1) throw new ImportApplicationError("IMPORT_ALREADY_PROCESSED", "La importación ya fue procesada.");
-      importResult = await applyImport(tx, module, parsed.data, user.companyId, user.id, job.id, parsed.importMode);
+      importResult = await applyImport(tx, module, parsed.data, user.companyId, user.id, job.id, mode);
       await tx.importJob.update({ where: { id: job.id }, data: { status: "COMPLETED", successRows: importResult.createdRecords, errorRows: 0, finishedAt: new Date() } });
-      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module, entity: "ImportJob", entityId: job.id, action: "CONFIRM", ipAddress: getRequestIp(request), userAgent: getRequestUserAgent(request), requestPath: new URL(request.url).pathname, afterData: { module, totalRows: parsed.totalRows, importMode: parsed.importMode, createdRecords: importResult.createdRecords, skippedRecords: importResult.skippedRecords, sha256: digest } } });
+      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module, entity: "ImportJob", entityId: job.id, action: "CONFIRM", ipAddress: getRequestIp(request), userAgent: getRequestUserAgent(request), requestPath: new URL(request.url).pathname, afterData: { module, totalRows: parsed.totalRows, importMode: mode, createdRecords: importResult.createdRecords, skippedRecords: importResult.skippedRecords, sha256: digest } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "import.completed.v1", aggregateId: job.id, payload: { importJobId: job.id, module, totalRows: parsed.totalRows, createdRecords: importResult.createdRecords, skippedRecords: importResult.skippedRecords } } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 15_000, timeout: 120_000 });
-    return apiSuccess({ jobId: job.id, status: "COMPLETED", successRows: importResult.createdRecords, skippedRows: importResult.skippedRecords, importMode: parsed.importMode });
+    return apiSuccess({ jobId: job.id, status: "COMPLETED", successRows: importResult.createdRecords, skippedRows: importResult.skippedRecords, importMode: mode });
   } catch (error) {
     const known = error instanceof ImportApplicationError ? error : error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" ? new ImportApplicationError("CONFLICT", "Un código, documento o SKU del archivo ya existe.") : null;
     if (!known) {

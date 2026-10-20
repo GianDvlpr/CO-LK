@@ -61,8 +61,11 @@ Estas columnas se conservan para que el reporte tenga el mismo formato, pero no 
 
 ## Prevención de duplicados y modo “Solo nuevos”
 
-- Los reportes descargados quedan marcados internamente como `REPORT` y al volver a cargarlos se procesan en modo `ONLY_NEW`.
-- En ese modo, una clave que ya existe en la base de datos se omite: no se duplica y tampoco sobrescribe el registro existente.
+- Los reportes descargados quedan marcados internamente como `REPORT` y al volver a cargarlos se procesan por defecto en modo `ONLY_NEW`.
+- Después de validar, el usuario puede cambiar el modo a `CREATE_UPDATE` (Crear o actualizar) para aplicar los cambios del archivo sobre los registros existentes. En Almacén y Productos se actualizan los campos modificados; en Recetas el código existente crea una nueva versión.
+- En modo `ONLY_NEW`, una clave que ya existe en la base de datos se omite: no se duplica y tampoco sobrescribe el registro existente.
+- Al elegir `CREATE_UPDATE` se actualizan todos los campos modificados de la fila; si el archivo es antiguo puede sobrescribir datos más recientes.
+- Al actualizar un registro existente no se reaplica el `stock_inicial` del archivo: solo las filas nuevas registran saldo inicial. Los ajustes posteriores se hacen con movimientos de ajuste.
 - El resultado de la confirmación separa cuántos registros nuevos fueron agregados y cuántos existentes fueron omitidos.
 - La validación previa revisa campos obligatorios, encabezados y valores numéricos. En celdas numéricas, `-`, `—` y `N/A` se interpretan como vacío; un texto no numérico se informa como error por fila antes de permitir la confirmación.
 - La validación previa detecta claves repetidas dentro del mismo libro, ignorando diferencias entre mayúsculas y minúsculas. Una fila completamente idéntica se omite con advertencia; la misma clave con datos diferentes es un conflicto bloqueante.
