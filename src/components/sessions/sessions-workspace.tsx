@@ -75,6 +75,7 @@ export function SessionsWorkspace({ canRevoke }: { canRevoke: boolean }) {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search.trim());
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -82,9 +83,9 @@ export function SessionsWorkspace({ canRevoke }: { canRevoke: boolean }) {
     return () => window.clearInterval(timer);
   }, []);
 
-  const params = useMemo(() => new URLSearchParams({ status, search: deferredSearch, page: String(page), pageSize: "25" }).toString(), [status, deferredSearch, page]);
+  const params = useMemo(() => new URLSearchParams({ status, search: deferredSearch, page: String(page), pageSize: String(pageSize) }).toString(), [status, deferredSearch, page, pageSize]);
   const sessions = useQuery({
-    queryKey: ["sessions", status, deferredSearch, page],
+    queryKey: ["sessions", status, deferredSearch, page, pageSize],
     queryFn: () => api<SessionsResponse>(`/api/v1/sessions?${params}`),
     refetchInterval: 30_000,
   });
@@ -172,7 +173,7 @@ export function SessionsWorkspace({ canRevoke }: { canRevoke: boolean }) {
         columns={columns}
         dataSource={sessions.data?.items ?? []}
         scroll={{ x: 1450 }}
-        pagination={{ current: page, pageSize: 25, total: sessions.data?.pagination.total ?? 0, showSizeChanger: false, onChange: setPage, showTotal: (total) => `${total} sesiones` }}
+        pagination={{ current: page, pageSize, total: sessions.data?.pagination.total ?? 0, pageSizeOptions: [8, 16, 32], onChange: (nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }, showTotal: (total) => `${total} sesiones` }}
         locale={{ emptyText: <Empty description="No hay sesiones para este filtro" /> }}
       />
     </Card>

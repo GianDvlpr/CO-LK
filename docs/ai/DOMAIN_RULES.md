@@ -128,13 +128,17 @@ El kardex es inmutable. Correcciones contables deben realizarse mediante movimie
 
 ## 7. Recetas
 
-- Una receta pertenece a un producto y tiene versiones.
-- Una versión contiene rendimiento manual: cuántos pares produce una ejecución completa.
+- Recetas es el único lugar donde se define la combinación de ingredientes; no se mantiene una fórmula paralela en Almacén.
+- Una receta tiene un solo destino: un producto final para Producción o un ítem `INTERMEDIATE` para Almacén.
+- Una versión contiene rendimiento manual: cuántos pares, unidades o kilos produce una ejecución completa.
 - Sus ingredientes contienen material y cantidad estándar.
 - Crear o activar una receta no descuenta stock.
-- Activar congela la versión que podrá usar Producción.
+- Activar congela la versión que podrá enviarse a Producción o Almacén.
+- Enviar a Producción abre la creación de una orden con la receta preseleccionada; el consumo ocurre al iniciar la orden y el producto final ingresa al terminarla.
+- Enviar a Almacén descuenta inmediatamente los ingredientes, registra kardex y aumenta el stock del insumo resultante con costo promedio calculado desde el valor consumido.
+- Las recetas de insumos se validan contra dependencias circulares: un resultado no puede depender directa ni indirectamente de sí mismo.
 - La receta no contiene merma teórica ni porcentaje de merma.
-- Una merma física recuperable puede ser ingrediente si existe como ítem `WASTE` en Almacén.
+- La merma real se declara al ejecutar el destino. Una merma física recuperable puede ser ingrediente si existe como ítem `WASTE` en Almacén.
 
 ## 8. Producción
 

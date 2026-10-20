@@ -43,8 +43,9 @@ Actualizado: 19/10/2026.
 - Cada variante de producto crea y enlaza transaccionalmente su ítem terminado de Almacén; el catálogo muestra stock consolidado y cantidad de recetas vinculadas.
 - Gestión operativa de imágenes de producto integrada con Cloudinary: carga JPEG/PNG/WebP de hasta 5 MB, validación de firma real, límite de 8 imágenes, portada automática y eliminación auditada.
 - Las imágenes conservan en PostgreSQL el identificador público, URL segura, archivo, MIME, tamaño, autor, orden y fecha; carga y eliminación requieren `products.image_manage` y aislamiento por empresa.
-- Módulo operativo de Recetas con borradores, versiones, rendimiento y cantidades estándar de materias primas; la merma real se registra al cerrar Producción.
+- Módulo operativo de Recetas como fuente única de formulaciones, con borradores, versiones, rendimiento, ingredientes y destino Producción o Almacén.
 - Activación transaccional de la última versión con auditoría y outbox; crear o activar una receta no genera movimientos de inventario.
+- Las recetas con destino Producción abren una orden preseleccionada. Las recetas con destino Almacén descuentan ingredientes, registran kardex e ingresan el insumo elaborado con costo promedio y merma real.
 - Flujo operativo de Producción: crear orden, reservar materiales, iniciar consumiendo inventario y completar ingresando producto terminado.
 - Vista Kanban de Producción con tarjetas arrastrables, filtros por texto y máquina, columnas de estado y transiciones reales que respetan permisos, reservas, consumos y cierre con cantidad producida.
 - Consumo de materias primas con costo promedio congelado y asignación FIFO automática de lotes; el costo real consumido se transfiere al producto terminado.
@@ -81,6 +82,7 @@ Actualizado: 19/10/2026.
 - `Resumen` fue reemplazado por `Analítica`, con KPIs, estados por módulo, inventario valorizado, alertas de stock, pedidos vencidos/próximos y productos más solicitados.
 - Analítica incorpora gráficos interactivos con Recharts: actividad diaria, estados por módulo, inventario valorizado por tipo y almacén, productos más pedidos y materiales más consumidos en producción, adaptados a modo claro/oscuro y móvil.
 - Etiquetas de formularios acortadas con tooltips explicativos para mantener alineados los controles en los modales.
+- Las tablas de los módulos muestran 8 registros por página por defecto, con selector de tamaño; el kardex conserva 30. En escritorio las cabeceras permanecen fijas bajo la barra superior al desplazarse.
 - Las materias primas admiten una imagen de referencia en Cloudinary, administrable desde el modal de Almacén con el permiso `inventory.image_manage`.
 - El ítem registra su sector/almacén de referencia: obligatorio para materia prima, visible en la tabla y en Excel, y preseleccionado al registrar el saldo inicial.
 - Las compras registradas permiten enviar la solicitud al proveedor por WhatsApp con materiales, códigos, presentaciones, cantidades y la imagen del material cuando existe.

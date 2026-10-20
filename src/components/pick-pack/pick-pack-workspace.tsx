@@ -57,7 +57,7 @@ export function PickPackWorkspace({ permissions }: { permissions: string[] }) {
     <div className="page-heading"><ModuleHeadingIntro title="Pick & Pack" eyebrow="Preparación y despacho" description="Controla la recolección, empaque, incidencias y salida final. Picking y packing no descuentan stock; el kardex se actualiza al despachar lo realmente empacado." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => records.refetch()}>Actualizar</Button></Space></div>
     <Card className="section-card" title="Órdenes de preparación" extra={permissions.includes("pick_pack.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { createForm.resetFields(); createForm.setFieldsValue({ priority: "NORMAL" }); setCreateOpen(true); }}>Generar Pick & Pack</Button> : null}>
       {records.error ? <Alert type="error" showIcon message={records.error.message} style={{ marginBottom: 16 }} /> : null}
-      <Table rowKey="id" loading={records.isLoading} columns={columns} dataSource={records.data?.items ?? []} scroll={{ x: 1240 }} pagination={{ pageSize: 15 }} locale={{ emptyText: <Empty description="Aún no hay órdenes de preparación" /> }} />
+      <Table rowKey="id" loading={records.isLoading} columns={columns} dataSource={records.data?.items ?? []} scroll={{ x: 1240 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay órdenes de preparación" /> }} />
     </Card>
 
     <Modal title="Generar orden de Pick & Pack" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} okText="Generar" confirmLoading={create.isPending} destroyOnHidden>

@@ -24,16 +24,20 @@ async function reportData(module: keyof typeof workbookSpecs, companyId: string,
       "Almacén": items.flatMap((item) => {
         const balances = item.balances.filter((balance) => balance.lotId === null && Number(balance.onHandQuantity) !== 0);
         const rows = balances.length ? balances : [null];
-        const type = item.type === "RAW_MATERIAL" ? "MATERIA_PRIMA" : item.type === "WASTE" ? "MERMA" : "PRODUCTO_TERMINADO";
+        const type = item.type === "RAW_MATERIAL" ? "MATERIA_PRIMA" : item.type === "INTERMEDIATE" ? "INSUMO_ELABORADO" : item.type === "WASTE" ? "MERMA" : "PRODUCTO_TERMINADO";
         const referenceTotalCost = item.referenceNetPrice ? Number(calculateReferenceTotalCost({ netPrice: item.referenceNetPrice.toString(), taxRate: item.referenceTaxRate?.toString() ?? null })) : null;
         return rows.map((balance) => [item.code, item.abbreviation, item.name, type, item.supplier?.name ?? null, item.supplierProductCode, item.currency?.code ?? null, item.referenceNetPrice ? Number(item.referenceNetPrice) : null, item.referenceTaxRate ? Number(item.referenceTaxRate) : null, referenceTotalCost, item.unit.code, item.lotTrackingMode, Number(item.minimumStock), item.active ? "SI" : "NO", item.defaultWarehouse?.code ?? balance?.warehouse.code ?? null, balance ? Number(balance.onHandQuantity) : null, balance ? Number(balance.averageUnitCost) : null, null, balance ? date(balance.updatedAt) : null, balance ? "Saldo actual exportado" : null]);
       }),
     };
   }
+  if (module === "inventory-formulas") {
+    const formulas = await prisma.inventoryFormula.findMany({ where: { companyId, createdAt: dateRange }, orderBy: { code: "asc" }, include: { outputItem: true, versions: { where: { isActive: true }, include: { ingredients: { include: { item: true }, orderBy: { item: { code: "asc" } } } } } } });
+    return { FórmulasInsumos: formulas.flatMap((formula) => formula.versions.flatMap((version) => version.ingredients.map((ingredient) => [formula.code, formula.name, formula.outputItem.code, Number(version.yieldQuantity), version.notes, ingredient.item.code, Number(ingredient.quantity), formula.active ? "SI" : "NO"]))) };
+  }
   if (module === "recipes") {
-    const items = await prisma.recipe.findMany({ where: { companyId, createdAt: dateRange }, orderBy: { code: "asc" }, include: { product: true, versions: { orderBy: { version: "asc" }, include: { ingredients: { include: { item: { include: { unit: true } } } } } } } });
+    const items = await prisma.recipe.findMany({ where: { companyId, createdAt: dateRange }, orderBy: { code: "asc" }, include: { product: true, outputItem: { include: { unit: true } }, versions: { orderBy: { version: "asc" }, include: { ingredients: { include: { item: { include: { unit: true } } } } } } } });
     return {
-      Recetas: items.flatMap((recipe) => recipe.versions.flatMap((version) => version.ingredients.map((ingredient) => [recipe.code, recipe.code, recipe.product.code, null, version.version, Number(version.yieldQuantity), "UN", version.isActive ? "ACTIVE" : recipe.status, ingredient.item.code, Number(ingredient.quantity), ingredient.item.unit.code]))),
+      Recetas: items.flatMap((recipe) => recipe.versions.flatMap((version) => version.ingredients.map((ingredient) => [recipe.code, recipe.code, recipe.product ? "PRODUCCION" : "ALMACEN", recipe.product?.code ?? recipe.outputItem?.code ?? null, recipe.product?.code ?? null, null, version.version, Number(version.yieldQuantity), recipe.outputItem?.unit.code ?? "PAR", version.isActive ? "ACTIVE" : recipe.status, ingredient.item.code, Number(ingredient.quantity), ingredient.item.unit.code]))),
     };
   }
   if (module === "products") {

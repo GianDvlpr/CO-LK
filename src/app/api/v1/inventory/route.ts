@@ -11,10 +11,10 @@ import { normalizeReferenceCost, type ReferenceCostValues } from "@/modules/inve
 const createSchema = z.object({
   name: z.string().trim().min(1).max(150),
   abbreviation: z.string().trim().max(30).optional().or(z.literal("")),
-  type: z.enum(["RAW_MATERIAL", "WASTE", "FINISHED_PRODUCT"]),
+  type: z.enum(["RAW_MATERIAL", "INTERMEDIATE", "WASTE", "FINISHED_PRODUCT"]),
   unitId: z.uuid(),
-  supplierId: z.uuid(),
-  currencyId: z.uuid(),
+  supplierId: z.uuid().nullable().optional(),
+  currencyId: z.uuid().nullable().optional(),
   minimumStock: z.union([z.string(), z.number()]),
   lotTrackingMode: z.enum(["NONE", "OPTIONAL", "REQUIRED"]),
   supplierProductCode: z.string().trim().max(100).nullable().optional(),
@@ -53,19 +53,21 @@ export async function POST(request: Request) {
     catch { return apiError("INVENTORY_INVALID_REFERENCE_COST", "El precio neto o el IGV del ítem no son válidos.", 422); }
     const [unit, supplier, currency, warehouse] = await Promise.all([
       prisma.unitOfMeasure.findFirst({ where: { id: parsed.data.unitId, companyId: user.companyId } }),
-      prisma.supplier.findFirst({ where: { id: parsed.data.supplierId, companyId: user.companyId, active: true } }),
-      prisma.currency.findFirst({ where: { id: parsed.data.currencyId, companyId: user.companyId } }),
+      parsed.data.supplierId ? prisma.supplier.findFirst({ where: { id: parsed.data.supplierId, companyId: user.companyId, active: true } }) : null,
+      parsed.data.currencyId ? prisma.currency.findFirst({ where: { id: parsed.data.currencyId, companyId: user.companyId } }) : null,
       parsed.data.defaultWarehouseId ? prisma.warehouse.findFirst({ where: { id: parsed.data.defaultWarehouseId, companyId: user.companyId } }) : null,
     ]);
     if (!unit) return apiError("INVENTORY_INVALID_UNIT", "La unidad de medida no es válida.", 422);
-    if (!supplier) return apiError("INVENTORY_INVALID_SUPPLIER", "El proveedor no existe o está inactivo.", 422);
-    if (!currency) return apiError("INVENTORY_INVALID_CURRENCY", "La moneda no está registrada.", 422);
     if (parsed.data.defaultWarehouseId && !warehouse) return apiError("INVENTORY_INVALID_WAREHOUSE", "El sector no existe.", 422);
     if (parsed.data.type === "RAW_MATERIAL" && !parsed.data.defaultWarehouseId) return apiError("INVENTORY_SECTOR_REQUIRED", "Selecciona el sector para la materia prima.", 422);
+    if (parsed.data.type !== "INTERMEDIATE" && !supplier) return apiError("INVENTORY_INVALID_SUPPLIER", "Selecciona un proveedor activo.", 422);
+    if (parsed.data.type !== "INTERMEDIATE" && !currency) return apiError("INVENTORY_INVALID_CURRENCY", "Selecciona una moneda registrada.", 422);
+    if (parsed.data.supplierId && !supplier) return apiError("INVENTORY_INVALID_SUPPLIER", "El proveedor no existe o está inactivo.", 422);
+    if (parsed.data.currencyId && !currency) return apiError("INVENTORY_INVALID_CURRENCY", "La moneda no está registrada.", 422);
     const item = await prisma.$transaction(async (tx) => {
-      const codeKind = parsed.data.type === "RAW_MATERIAL" ? "INVENTORY_RAW" : parsed.data.type === "WASTE" ? "INVENTORY_WASTE" : "INVENTORY_FINISHED";
+      const codeKind = parsed.data.type === "RAW_MATERIAL" ? "INVENTORY_RAW" : parsed.data.type === "INTERMEDIATE" ? "INVENTORY_INTERMEDIATE" : parsed.data.type === "WASTE" ? "INVENTORY_WASTE" : "INVENTORY_FINISHED";
       const code = await nextBusinessCode(tx, user.companyId, codeKind);
-      const values = { ...parsed.data, abbreviation: parsed.data.abbreviation || null, supplierProductCode: parsed.data.supplierProductCode || null, defaultWarehouseId: parsed.data.defaultWarehouseId || null, ...reference };
+      const values = { ...parsed.data, supplierId: supplier?.id ?? null, currencyId: currency?.id ?? null, abbreviation: parsed.data.abbreviation || null, supplierProductCode: parsed.data.supplierProductCode || null, defaultWarehouseId: parsed.data.defaultWarehouseId || null, ...reference };
       const created = await tx.inventoryItem.create({ data: { ...values, code, minimumStock: parsed.data.minimumStock, companyId: user.companyId } });
       await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "InventoryItem", entityId: created.id, action: "CREATE", afterData: { code: created.code, name: created.name, supplierId: created.supplierId, currencyId: created.currencyId, supplierProductCode: created.supplierProductCode, referenceNetPrice: created.referenceNetPrice?.toString() ?? null, referenceTaxRate: created.referenceTaxRate?.toString() ?? null, defaultWarehouseId: created.defaultWarehouseId } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "inventory.item-created.v1", aggregateId: created.id, payload: { itemId: created.id, code: created.code } } });

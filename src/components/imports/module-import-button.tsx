@@ -7,7 +7,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { useState } from "react";
 import { toast } from "sonner";
 
-type ModuleKey = "purchases" | "inventory" | "recipes" | "products" | "orders";
+type ModuleKey = "purchases" | "inventory" | "inventory-formulas" | "recipes" | "products" | "orders";
 type Issue = { rowNumber: number; field?: string; code: string; message: string };
 type Preview = { jobId: string; status: string; totalRows: number; importMode: "ONLY_NEW" | "CREATE_UPDATE"; errors: Issue[]; warnings: Issue[]; preview: { sheet: string; rows: number }[] };
 

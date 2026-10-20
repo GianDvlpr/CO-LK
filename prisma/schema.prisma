@@ -30,6 +30,7 @@ enum SessionEndReason {
 
 enum InventoryItemType {
   RAW_MATERIAL
+  INTERMEDIATE
   WASTE
   FINISHED_PRODUCT
 }
@@ -47,7 +48,16 @@ enum StockMovementType {
   SALES_DISPATCH
   ADJUSTMENT_IN
   ADJUSTMENT_OUT
+  TRANSFORMATION_CONSUMPTION
+  TRANSFORMATION_OUTPUT
   REVERSAL
+}
+
+enum InventoryTransformationStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
 enum DocumentStatus {
@@ -156,64 +166,66 @@ enum OutboxStatus {
 }
 
 model Company {
-  id                   String                @id @default(uuid()) @db.Uuid
-  name                 String
-  taxId                String?               @map("tax_id")
-  igvRate              Decimal               @default(18) @map("igv_rate") @db.Decimal(7, 4)
-  createdAt            DateTime              @default(now()) @map("created_at")
-  updatedAt            DateTime              @updatedAt @map("updated_at")
-  users                User[]
-  roles                Role[]
-  permissions          Permission[]
-  auditLogs            AuditLog[]
-  units                UnitOfMeasure[]
-  currencies           Currency[]
-  warehouses           Warehouse[]
-  inventoryItems       InventoryItem[]
-  suppliers            Supplier[]
-  purchases            Purchase[]
-  products             Product[]
-  sizes                Size[]
-  colors               Color[]
-  recipes              Recipe[]
-  productionOrders     ProductionOrder[]
-  customers            Customer[]
-  salesOrders          SalesOrder[]
-  importJobs           ImportJob[]
-  notifications        Notification[]
-  outboxEvents         OutboxEvent[]
-  correlativeCounters  CorrelativeCounter[]
-  inventoryAdjustments InventoryAdjustment[]
-  machines             Machine[]
-  pickPackOrders       PickPackOrder[]
-  calendarEvents       CalendarEvent[]
+  id                       String                    @id @default(uuid()) @db.Uuid
+  name                     String
+  taxId                    String?                   @map("tax_id")
+  igvRate                  Decimal                   @default(18) @map("igv_rate") @db.Decimal(7, 4)
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  updatedAt                DateTime                  @updatedAt @map("updated_at")
+  users                    User[]
+  roles                    Role[]
+  permissions              Permission[]
+  auditLogs                AuditLog[]
+  units                    UnitOfMeasure[]
+  currencies               Currency[]
+  warehouses               Warehouse[]
+  inventoryItems           InventoryItem[]
+  suppliers                Supplier[]
+  purchases                Purchase[]
+  products                 Product[]
+  sizes                    Size[]
+  colors                   Color[]
+  recipes                  Recipe[]
+  productionOrders         ProductionOrder[]
+  customers                Customer[]
+  salesOrders              SalesOrder[]
+  importJobs               ImportJob[]
+  notifications            Notification[]
+  outboxEvents             OutboxEvent[]
+  correlativeCounters      CorrelativeCounter[]
+  inventoryAdjustments     InventoryAdjustment[]
+  inventoryFormulas        InventoryFormula[]
+  inventoryTransformations InventoryTransformation[]
+  machines                 Machine[]
+  pickPackOrders           PickPackOrder[]
+  calendarEvents           CalendarEvent[]
 
   @@unique([taxId])
   @@map("companies")
 }
 
 model User {
-  id                 String             @id @default(uuid()) @db.Uuid
-  companyId          String             @map("company_id") @db.Uuid
-  username           String             @unique
-  email              String
-  passwordHash       String             @map("password_hash")
-  mustChangePassword Boolean            @default(true) @map("must_change_password")
-  name               String
-  status             UserStatus         @default(ACTIVE)
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
-  company            Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  sessions           Session[]
-  endedSessions      Session[]          @relation("SessionEndedBy")
-  userRoles          UserRole[]
-  auditLogs          AuditLog[]
-  notifications      Notification[]
-  imports            ImportJob[]
-  approvals          PurchaseApproval[]
-  productImages      ProductImage[]
+  id                  String               @id @default(uuid()) @db.Uuid
+  companyId           String               @map("company_id") @db.Uuid
+  username            String               @unique
+  email               String
+  passwordHash        String               @map("password_hash")
+  mustChangePassword  Boolean              @default(true) @map("must_change_password")
+  name                String
+  status              UserStatus           @default(ACTIVE)
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sessions            Session[]
+  endedSessions       Session[]            @relation("SessionEndedBy")
+  userRoles           UserRole[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+  imports             ImportJob[]
+  approvals           PurchaseApproval[]
+  productImages       ProductImage[]
   inventoryItemImages InventoryItemImage[]
-  calendarEvents     CalendarEvent[]
+  calendarEvents      CalendarEvent[]
 
   @@unique([companyId, email])
   @@index([companyId, status])
@@ -291,22 +303,22 @@ model RolePermission {
 }
 
 model AuditLog {
-  id         String   @id @default(uuid()) @db.Uuid
-  companyId  String   @map("company_id") @db.Uuid
-  userId     String?  @map("user_id") @db.Uuid
-  module     String?
-  entity     String
-  entityId   String   @map("entity_id")
-  action     String
-  result     String   @default("SUCCESS")
-  beforeData Json?    @map("before_data")
-  afterData  Json?    @map("after_data")
-  ipAddress  String?  @map("ip_address")
-  userAgent  String?  @map("user_agent")
-  requestPath String? @map("request_path")
-  createdAt  DateTime @default(now()) @map("created_at")
-  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  module      String?
+  entity      String
+  entityId    String   @map("entity_id")
+  action      String
+  result      String   @default("SUCCESS")
+  beforeData  Json?    @map("before_data")
+  afterData   Json?    @map("after_data")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  requestPath String?  @map("request_path")
+  createdAt   DateTime @default(now()) @map("created_at")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([companyId, entity, entityId])
   @@index([companyId, createdAt])
@@ -344,15 +356,15 @@ model UnitConversion {
 }
 
 model Currency {
-  id            String         @id @default(uuid()) @db.Uuid
-  companyId     String         @map("company_id") @db.Uuid
-  code          String
-  name          String
-  symbol        String
-  isBase        Boolean        @default(false) @map("is_base")
-  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  exchangeRates ExchangeRate[]
-  purchases     Purchase[]
+  id             String          @id @default(uuid()) @db.Uuid
+  companyId      String          @map("company_id") @db.Uuid
+  code           String
+  name           String
+  symbol         String
+  isBase         Boolean         @default(false) @map("is_base")
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  exchangeRates  ExchangeRate[]
+  purchases      Purchase[]
   inventoryItems InventoryItem[] @relation("InventoryItemCurrency")
 
   @@unique([companyId, code])
@@ -373,50 +385,51 @@ model ExchangeRate {
 }
 
 model Warehouse {
-  id               String                @id @default(uuid()) @db.Uuid
-  companyId        String                @map("company_id") @db.Uuid
-  code             String
-  name             String
-  active           Boolean               @default(true)
-  company          Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  lots             InventoryLot[]
-  balances         StockBalance[]
-  movements        StockMovement[]
-  reservations     StockReservation[]
-  adjustments      InventoryAdjustment[]
-  purchases        Purchase[]
-  productionOrders ProductionOrder[]
-  pickPackOrders   PickPackOrder[]
-  defaultInventoryItems InventoryItem[] @relation("InventoryItemDefaultWarehouse")
+  id                       String                    @id @default(uuid()) @db.Uuid
+  companyId                String                    @map("company_id") @db.Uuid
+  code                     String
+  name                     String
+  active                   Boolean                   @default(true)
+  company                  Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lots                     InventoryLot[]
+  balances                 StockBalance[]
+  movements                StockMovement[]
+  reservations             StockReservation[]
+  adjustments              InventoryAdjustment[]
+  purchases                Purchase[]
+  productionOrders         ProductionOrder[]
+  pickPackOrders           PickPackOrder[]
+  inventoryTransformations InventoryTransformation[]
+  defaultInventoryItems    InventoryItem[]           @relation("InventoryItemDefaultWarehouse")
 
   @@unique([companyId, code])
   @@map("warehouses")
 }
 
 model InventoryItem {
-  id                       String                    @id @default(uuid()) @db.Uuid
-  companyId                String                    @map("company_id") @db.Uuid
+  id                       String                            @id @default(uuid()) @db.Uuid
+  companyId                String                            @map("company_id") @db.Uuid
   code                     String
   abbreviation             String?
   name                     String
   type                     InventoryItemType
-  unitId                   String                    @map("unit_id") @db.Uuid
-  supplierId               String?                   @map("supplier_id") @db.Uuid
-  currencyId               String?                   @map("currency_id") @db.Uuid
-  supplierProductCode      String?                   @map("supplier_product_code")
-  referenceNetPrice        Decimal?                  @map("reference_net_price") @db.Decimal(18, 6)
-  referenceTaxRate         Decimal?                  @map("reference_tax_rate") @db.Decimal(7, 4)
-  defaultWarehouseId       String?                   @map("default_warehouse_id") @db.Uuid
-  minimumStock             Decimal                   @default(0) @map("minimum_stock") @db.Decimal(18, 6)
-  lotTrackingMode          LotTrackingMode           @default(NONE) @map("lot_tracking_mode")
-  active                   Boolean                   @default(true)
-  createdAt                DateTime                  @default(now()) @map("created_at")
-  updatedAt                DateTime                  @updatedAt @map("updated_at")
-  company                  Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  unit                     UnitOfMeasure             @relation(fields: [unitId], references: [id])
-  supplier                 Supplier?                 @relation("InventoryItemSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
-  currency                 Currency?                 @relation("InventoryItemCurrency", fields: [currencyId], references: [id], onDelete: SetNull)
-  defaultWarehouse         Warehouse?                @relation("InventoryItemDefaultWarehouse", fields: [defaultWarehouseId], references: [id], onDelete: SetNull)
+  unitId                   String                            @map("unit_id") @db.Uuid
+  supplierId               String?                           @map("supplier_id") @db.Uuid
+  currencyId               String?                           @map("currency_id") @db.Uuid
+  supplierProductCode      String?                           @map("supplier_product_code")
+  referenceNetPrice        Decimal?                          @map("reference_net_price") @db.Decimal(18, 6)
+  referenceTaxRate         Decimal?                          @map("reference_tax_rate") @db.Decimal(7, 4)
+  defaultWarehouseId       String?                           @map("default_warehouse_id") @db.Uuid
+  minimumStock             Decimal                           @default(0) @map("minimum_stock") @db.Decimal(18, 6)
+  lotTrackingMode          LotTrackingMode                   @default(NONE) @map("lot_tracking_mode")
+  active                   Boolean                           @default(true)
+  createdAt                DateTime                          @default(now()) @map("created_at")
+  updatedAt                DateTime                          @updatedAt @map("updated_at")
+  company                  Company                           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  unit                     UnitOfMeasure                     @relation(fields: [unitId], references: [id])
+  supplier                 Supplier?                         @relation("InventoryItemSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
+  currency                 Currency?                         @relation("InventoryItemCurrency", fields: [currencyId], references: [id], onDelete: SetNull)
+  defaultWarehouse         Warehouse?                        @relation("InventoryItemDefaultWarehouse", fields: [defaultWarehouseId], references: [id], onDelete: SetNull)
   images                   InventoryItemImage[]
   lots                     InventoryLot[]
   balances                 StockBalance[]
@@ -426,9 +439,13 @@ model InventoryItem {
   purchaseLines            PurchaseLine[]
   productVariants          ProductVariant[]
   recipeIngredients        RecipeIngredient[]
+  recipeOutputs            Recipe[]                          @relation("RecipeInventoryOutput")
   productionMaterials      ProductionMaterial[]
-  productionOrderMaterials ProductionOrder[]         @relation("ProductionOrderMaterialItem")
+  productionOrderMaterials ProductionOrder[]                 @relation("ProductionOrderMaterialItem")
   productionComponents     ProductionComponent[]
+  formulaOutputs           InventoryFormula[]                @relation("InventoryFormulaOutput")
+  formulaIngredients       InventoryFormulaIngredient[]      @relation("InventoryFormulaIngredientItem")
+  transformationMaterials  InventoryTransformationMaterial[] @relation("InventoryTransformationMaterialItem")
 
   @@unique([companyId, code])
   @@index([companyId, type, active])
@@ -568,6 +585,96 @@ model InventoryAdjustmentLine {
   item         InventoryItem       @relation(fields: [itemId], references: [id])
 
   @@map("inventory_adjustment_lines")
+}
+
+model InventoryFormula {
+  id           String                    @id @default(uuid()) @db.Uuid
+  companyId    String                    @map("company_id") @db.Uuid
+  code         String
+  name         String
+  outputItemId String                    @map("output_item_id") @db.Uuid
+  active       Boolean                   @default(true)
+  createdAt    DateTime                  @default(now()) @map("created_at")
+  updatedAt    DateTime                  @updatedAt @map("updated_at")
+  company      Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  outputItem   InventoryItem             @relation("InventoryFormulaOutput", fields: [outputItemId], references: [id])
+  versions     InventoryFormulaVersion[]
+
+  @@unique([companyId, code])
+  @@index([companyId, active])
+  @@map("inventory_formulas")
+}
+
+model InventoryFormulaVersion {
+  id              String                       @id @default(uuid()) @db.Uuid
+  formulaId       String                       @map("formula_id") @db.Uuid
+  version         Int
+  yieldQuantity   Decimal                      @map("yield_quantity") @db.Decimal(18, 6)
+  notes           String?
+  isActive        Boolean                      @default(true) @map("is_active")
+  createdAt       DateTime                     @default(now()) @map("created_at")
+  formula         InventoryFormula             @relation(fields: [formulaId], references: [id], onDelete: Cascade)
+  ingredients     InventoryFormulaIngredient[]
+  transformations InventoryTransformation[]
+
+  @@unique([formulaId, version])
+  @@map("inventory_formula_versions")
+}
+
+model InventoryFormulaIngredient {
+  id        String                  @id @default(uuid()) @db.Uuid
+  versionId String                  @map("version_id") @db.Uuid
+  itemId    String                  @map("item_id") @db.Uuid
+  quantity  Decimal                 @db.Decimal(18, 6)
+  version   InventoryFormulaVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  item      InventoryItem           @relation("InventoryFormulaIngredientItem", fields: [itemId], references: [id])
+
+  @@unique([versionId, itemId])
+  @@map("inventory_formula_ingredients")
+}
+
+model InventoryTransformation {
+  id                    String                            @id @default(uuid()) @db.Uuid
+  companyId             String                            @map("company_id") @db.Uuid
+  warehouseId           String                            @map("warehouse_id") @db.Uuid
+  formulaVersionId      String?                           @map("formula_version_id") @db.Uuid
+  recipeVersionId       String?                           @map("recipe_version_id") @db.Uuid
+  number                String
+  status                InventoryTransformationStatus     @default(DRAFT)
+  plannedOutputQuantity Decimal                           @map("planned_output_quantity") @db.Decimal(18, 6)
+  actualOutputQuantity  Decimal                           @default(0) @map("actual_output_quantity") @db.Decimal(18, 6)
+  actualWasteQuantity   Decimal                           @default(0) @map("actual_waste_quantity") @db.Decimal(18, 6)
+  outputLotCode         String?                           @map("output_lot_code")
+  notes                 String?
+  startedAt             DateTime?                         @map("started_at")
+  completedAt           DateTime?                         @map("completed_at")
+  createdById           String?                           @map("created_by_id") @db.Uuid
+  createdAt             DateTime                          @default(now()) @map("created_at")
+  updatedAt             DateTime                          @updatedAt @map("updated_at")
+  company               Company                           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse             Warehouse                         @relation(fields: [warehouseId], references: [id])
+  formulaVersion        InventoryFormulaVersion?          @relation(fields: [formulaVersionId], references: [id])
+  recipeVersion         RecipeVersion?                    @relation(fields: [recipeVersionId], references: [id])
+  materials             InventoryTransformationMaterial[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status, createdAt])
+  @@index([recipeVersionId])
+  @@map("inventory_transformations")
+}
+
+model InventoryTransformationMaterial {
+  id               String                  @id @default(uuid()) @db.Uuid
+  transformationId String                  @map("transformation_id") @db.Uuid
+  itemId           String                  @map("item_id") @db.Uuid
+  plannedQuantity  Decimal                 @map("planned_quantity") @db.Decimal(18, 6)
+  consumedQuantity Decimal                 @default(0) @map("consumed_quantity") @db.Decimal(18, 6)
+  unitCost         Decimal                 @default(0) @map("unit_cost") @db.Decimal(18, 6)
+  transformation   InventoryTransformation @relation(fields: [transformationId], references: [id], onDelete: Cascade)
+  item             InventoryItem           @relation("InventoryTransformationMaterialItem", fields: [itemId], references: [id])
+
+  @@unique([transformationId, itemId])
+  @@map("inventory_transformation_materials")
 }
 
 model Supplier {
@@ -783,35 +890,39 @@ model ProductImage {
 }
 
 model Recipe {
-  id        String          @id @default(uuid()) @db.Uuid
-  companyId String          @map("company_id") @db.Uuid
-  productId String          @map("product_id") @db.Uuid
-  code      String
-  name      String
-  status    RecipeStatus    @default(DRAFT)
-  createdAt DateTime        @default(now()) @map("created_at")
-  updatedAt DateTime        @updatedAt @map("updated_at")
-  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  product   Product         @relation(fields: [productId], references: [id])
-  versions  RecipeVersion[]
+  id           String          @id @default(uuid()) @db.Uuid
+  companyId    String          @map("company_id") @db.Uuid
+  productId    String?         @map("product_id") @db.Uuid
+  outputItemId String?         @map("output_item_id") @db.Uuid
+  code         String
+  name         String
+  status       RecipeStatus    @default(DRAFT)
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product      Product?        @relation(fields: [productId], references: [id])
+  outputItem   InventoryItem?  @relation("RecipeInventoryOutput", fields: [outputItemId], references: [id])
+  versions     RecipeVersion[]
 
   @@unique([companyId, code])
   @@index([productId, status])
+  @@index([outputItemId, status])
   @@map("recipes")
 }
 
 model RecipeVersion {
-  id                        String             @id @default(uuid()) @db.Uuid
-  recipeId                  String             @map("recipe_id") @db.Uuid
+  id                        String                    @id @default(uuid()) @db.Uuid
+  recipeId                  String                    @map("recipe_id") @db.Uuid
   version                   Int
-  yieldQuantity             Decimal            @map("yield_quantity") @db.Decimal(18, 6)
-  isActive                  Boolean            @default(false) @map("is_active")
+  yieldQuantity             Decimal                   @map("yield_quantity") @db.Decimal(18, 6)
+  isActive                  Boolean                   @default(false) @map("is_active")
   notes                     String?
-  createdAt                 DateTime           @default(now()) @map("created_at")
-  recipe                    Recipe             @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  createdAt                 DateTime                  @default(now()) @map("created_at")
+  recipe                    Recipe                    @relation(fields: [recipeId], references: [id], onDelete: Cascade)
   ingredients               RecipeIngredient[]
-  primaryProductionOrders   ProductionOrder[]  @relation("PrimaryProductionRecipe")
-  secondaryProductionOrders ProductionOrder[]  @relation("SecondaryProductionRecipe")
+  primaryProductionOrders   ProductionOrder[]         @relation("PrimaryProductionRecipe")
+  secondaryProductionOrders ProductionOrder[]         @relation("SecondaryProductionRecipe")
+  inventoryTransformations  InventoryTransformation[]
 
   @@unique([recipeId, version])
   @@index([recipeId, isActive])
@@ -831,48 +942,48 @@ model RecipeIngredient {
 }
 
 model ProductionOrder {
-  id                       String                @id @default(uuid()) @db.Uuid
-  companyId                String                @map("company_id") @db.Uuid
-  warehouseId              String                @map("warehouse_id") @db.Uuid
-  productVariantId         String                @map("product_variant_id") @db.Uuid
-  recipeVersionId          String                @map("recipe_version_id") @db.Uuid
-  secondaryRecipeVersionId String?               @map("secondary_recipe_version_id") @db.Uuid
-  materialItemId           String?               @map("material_item_id") @db.Uuid
-  machineId                String?               @map("machine_id") @db.Uuid
+  id                       String                      @id @default(uuid()) @db.Uuid
+  companyId                String                      @map("company_id") @db.Uuid
+  warehouseId              String                      @map("warehouse_id") @db.Uuid
+  productVariantId         String                      @map("product_variant_id") @db.Uuid
+  recipeVersionId          String                      @map("recipe_version_id") @db.Uuid
+  secondaryRecipeVersionId String?                     @map("secondary_recipe_version_id") @db.Uuid
+  materialItemId           String?                     @map("material_item_id") @db.Uuid
+  machineId                String?                     @map("machine_id") @db.Uuid
   number                   String
-  recipeRuns               Decimal               @map("recipe_runs") @db.Decimal(18, 6)
-  secondaryRecipeRuns      Decimal?              @map("secondary_recipe_runs") @db.Decimal(18, 6)
-  plannedQuantity          Decimal               @map("planned_quantity") @db.Decimal(18, 6)
-  producedQuantity         Decimal               @default(0) @map("produced_quantity") @db.Decimal(18, 6)
-  status                   ProductionOrderStatus @default(DRAFT)
-  priority                 Int                   @default(2)
-  plannedAt                DateTime?             @map("planned_at")
-  machineEquipment         String?               @map("machine_equipment")
-  operatorName             String?               @map("operator_name")
-  modelLogo                String?               @map("model_logo")
-  materialLoad             String?               @map("material_load")
-  seriesLot                String?               @map("series_lot")
-  processType              String?               @map("process_type")
+  recipeRuns               Decimal                     @map("recipe_runs") @db.Decimal(18, 6)
+  secondaryRecipeRuns      Decimal?                    @map("secondary_recipe_runs") @db.Decimal(18, 6)
+  plannedQuantity          Decimal                     @map("planned_quantity") @db.Decimal(18, 6)
+  producedQuantity         Decimal                     @default(0) @map("produced_quantity") @db.Decimal(18, 6)
+  status                   ProductionOrderStatus       @default(DRAFT)
+  priority                 Int                         @default(2)
+  plannedAt                DateTime?                   @map("planned_at")
+  machineEquipment         String?                     @map("machine_equipment")
+  operatorName             String?                     @map("operator_name")
+  modelLogo                String?                     @map("model_logo")
+  materialLoad             String?                     @map("material_load")
+  seriesLot                String?                     @map("series_lot")
+  processType              String?                     @map("process_type")
   mold                     String?
-  brandColor               String?               @map("brand_color")
-  pressNumber              String?               @map("press_number")
-  pressLoad                String?               @map("press_load")
-  injectorNumber           String?               @map("injector_number")
+  brandColor               String?                     @map("brand_color")
+  pressNumber              String?                     @map("press_number")
+  pressLoad                String?                     @map("press_load")
+  injectorNumber           String?                     @map("injector_number")
   curve                    String?
-  sizeProgram              Json?                 @map("size_program")
-  dailyProduction          Json?                 @map("daily_production")
-  productionTurns          Json?                 @map("production_turns")
-  startedAt                DateTime?             @map("started_at")
-  completedAt              DateTime?             @map("completed_at")
-  createdAt                DateTime              @default(now()) @map("created_at")
-  company                  Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  warehouse                Warehouse             @relation(fields: [warehouseId], references: [id])
-  productVariant           ProductVariant        @relation(fields: [productVariantId], references: [id])
-  recipeVersion            RecipeVersion         @relation("PrimaryProductionRecipe", fields: [recipeVersionId], references: [id])
-  secondaryRecipeVersion   RecipeVersion?        @relation("SecondaryProductionRecipe", fields: [secondaryRecipeVersionId], references: [id])
+  sizeProgram              Json?                       @map("size_program")
+  dailyProduction          Json?                       @map("daily_production")
+  productionTurns          Json?                       @map("production_turns")
+  startedAt                DateTime?                   @map("started_at")
+  completedAt              DateTime?                   @map("completed_at")
+  createdAt                DateTime                    @default(now()) @map("created_at")
+  company                  Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse                Warehouse                   @relation(fields: [warehouseId], references: [id])
+  productVariant           ProductVariant              @relation(fields: [productVariantId], references: [id])
+  recipeVersion            RecipeVersion               @relation("PrimaryProductionRecipe", fields: [recipeVersionId], references: [id])
+  secondaryRecipeVersion   RecipeVersion?              @relation("SecondaryProductionRecipe", fields: [secondaryRecipeVersionId], references: [id])
   salesOrders              ProductionOrderSalesOrder[]
-  materialItem             InventoryItem?        @relation("ProductionOrderMaterialItem", fields: [materialItemId], references: [id])
-  machine                  Machine?              @relation(fields: [machineId], references: [id])
+  materialItem             InventoryItem?              @relation("ProductionOrderMaterialItem", fields: [materialItemId], references: [id])
+  machine                  Machine?                    @relation(fields: [machineId], references: [id])
   materials                ProductionMaterial[]
   components               ProductionComponent[]
   salesOrderLines          SalesOrderLine[]
@@ -926,14 +1037,14 @@ model MachineMaintenanceRecord {
 }
 
 model ProductionMaterial {
-  id                String          @id @default(uuid()) @db.Uuid
-  productionOrderId String          @map("production_order_id") @db.Uuid
-  itemId            String          @map("item_id") @db.Uuid
-  plannedQuantity   Decimal         @map("planned_quantity") @db.Decimal(18, 6)
-  consumedQuantity  Decimal         @default(0) @map("consumed_quantity") @db.Decimal(18, 6)
-  actualWasteQuantity Decimal       @default(0) @map("actual_waste_quantity") @db.Decimal(18, 6)
-  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
-  item              InventoryItem   @relation(fields: [itemId], references: [id])
+  id                  String          @id @default(uuid()) @db.Uuid
+  productionOrderId   String          @map("production_order_id") @db.Uuid
+  itemId              String          @map("item_id") @db.Uuid
+  plannedQuantity     Decimal         @map("planned_quantity") @db.Decimal(18, 6)
+  consumedQuantity    Decimal         @default(0) @map("consumed_quantity") @db.Decimal(18, 6)
+  actualWasteQuantity Decimal         @default(0) @map("actual_waste_quantity") @db.Decimal(18, 6)
+  productionOrder     ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  item                InventoryItem   @relation(fields: [itemId], references: [id])
 
   @@unique([productionOrderId, itemId])
   @@map("production_materials")
@@ -982,18 +1093,18 @@ model Customer {
 }
 
 model SalesOrder {
-  id               String            @id @default(uuid()) @db.Uuid
-  companyId        String            @map("company_id") @db.Uuid
-  customerId       String            @map("customer_id") @db.Uuid
+  id               String                      @id @default(uuid()) @db.Uuid
+  companyId        String                      @map("company_id") @db.Uuid
+  customerId       String                      @map("customer_id") @db.Uuid
   number           String
-  status           SalesOrderStatus  @default(DRAFT)
-  requestedAt      DateTime          @map("requested_at") @db.Date
-  promisedAt       DateTime?         @map("promised_at") @db.Date
+  status           SalesOrderStatus            @default(DRAFT)
+  requestedAt      DateTime                    @map("requested_at") @db.Date
+  promisedAt       DateTime?                   @map("promised_at") @db.Date
   notes            String?
-  createdAt        DateTime          @default(now()) @map("created_at")
-  updatedAt        DateTime          @updatedAt @map("updated_at")
-  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer         Customer          @relation(fields: [customerId], references: [id])
+  createdAt        DateTime                    @default(now()) @map("created_at")
+  updatedAt        DateTime                    @updatedAt @map("updated_at")
+  company          Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer         Customer                    @relation(fields: [customerId], references: [id])
   lines            SalesOrderLine[]
   pickPackOrder    PickPackOrder?
   productionOrders ProductionOrderSalesOrder[]

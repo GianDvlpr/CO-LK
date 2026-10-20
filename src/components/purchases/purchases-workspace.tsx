@@ -161,7 +161,7 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
     </div>
     <Card className="section-card" title="Recepciones registradas" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Nueva recepción</Button> : null}>
       {purchases.error ? <Alert type="error" showIcon message={purchases.error.message} action={<Button onClick={() => router.refresh()}>Reintentar</Button>} /> : null}
-      <Table rowKey="id" loading={purchases.isLoading} columns={columns} dataSource={purchases.data?.items ?? []} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" columns={lineColumns} dataSource={row.lines} pagination={false} scroll={{ x: 1180 }} /> }} scroll={{ x: 1230 }} pagination={{ pageSize: 20 }} locale={{ emptyText: <Empty description="Aún no hay recepciones registradas" /> }} />
+      <Table rowKey="id" loading={purchases.isLoading} columns={columns} dataSource={purchases.data?.items ?? []} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" columns={lineColumns} dataSource={row.lines} pagination={false} scroll={{ x: 1180 }} /> }} scroll={{ x: 1230 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay recepciones registradas" /> }} />
     </Card>
 
     <Modal title="Nueva recepción de compra" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Registrar pendiente" cancelText="Cancelar" confirmLoading={create.isPending} width={980} destroyOnHidden>
@@ -204,7 +204,8 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
         rowKey="id"
         size="small"
         dataSource={pickerItems}
-        pagination={{ pageSize: 8 }}
+        pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }}
+        sticky={false}
         scroll={{ x: 920 }}
         locale={{ emptyText: <Empty description="No hay materias primas que coincidan" /> }}
         onRow={(record) => ({ onClick: () => { if (pickerLine !== null) selectMaterial(pickerLine, record); }, style: { cursor: "pointer" } })}

@@ -11,6 +11,7 @@ import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import Decimal from "decimal.js";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
@@ -184,8 +185,10 @@ function orderToSheet(order: Order, variants: Variant[]): SheetValues {
 }
 
 export function ProductionWorkspace({ permissions }: { permissions: string[] }) {
+  const searchParams = useSearchParams();
+  const requestedRecipeVersionId = searchParams.get("recipeVersionId") ?? undefined;
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(requestedRecipeVersionId));
   const [editOrder, setEditOrder] = useState<Order>();
   const [completeOrder, setCompleteOrder] = useState<Order>();
   const [viewMode, setViewMode] = useState<"list" | "board">("list");
@@ -280,11 +283,11 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
     <div className="page-heading"><ModuleHeadingIntro title="Producción" eyebrow="Manufactura" description="Órdenes de fabricación por producto, formulación, talla y turno." /><Space wrap className="module-actions"><Segmented value={viewMode} onChange={(value) => setViewMode(value as "list" | "board")} options={[{ value: "list", label: "Lista", icon: <UnorderedListOutlined /> }, { value: "board", label: "Tablero", icon: <AppstoreOutlined /> }]} /><Button icon={<ReloadOutlined />} onClick={() => orders.refetch()}>Actualizar</Button></Space></div>
     <Card className="section-card production-board-card" title={viewMode === "list" ? "Órdenes de producción" : "Tablero de producción"} extra={permissions.includes("production.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Nueva orden</Button> : null}>
       {orders.error ? <Alert type="error" showIcon message={orders.error.message} style={{ marginBottom: 16 }} /> : null}
-      {viewMode === "list" ? <Table rowKey="id" loading={orders.isLoading} columns={columns} dataSource={orders.data?.items ?? []} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" pagination={false} columns={materialColumns} dataSource={row.materials} /> }} scroll={{ x: 1510 }} pagination={{ pageSize: 15 }} locale={{ emptyText: <Empty description="Aún no hay órdenes de producción" /> }} /> : <ProductionKanban orders={orders.data?.items ?? []} onMove={moveOrder} onOpen={(order) => { if (!permissions.includes("production.create")) return; setEditOrder(order); editForm.setFieldsValue(orderToSheet(order, options.data?.variants ?? [])); }} />}
+      {viewMode === "list" ? <Table rowKey="id" loading={orders.isLoading} columns={columns} dataSource={orders.data?.items ?? []} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" pagination={false} columns={materialColumns} dataSource={row.materials} /> }} scroll={{ x: 1510 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay órdenes de producción" /> }} /> : <ProductionKanban orders={orders.data?.items ?? []} onMove={moveOrder} onOpen={(order) => { if (!permissions.includes("production.create")) return; setEditOrder(order); editForm.setFieldsValue(orderToSheet(order, options.data?.variants ?? [])); }} />}
     </Card>
 
     <Modal title="Nueva orden de producción" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Crear orden pendiente" confirmLoading={create.isPending} width={1180} destroyOnHidden>
-      <Form form={form} layout="vertical" onFinish={(values) => create.mutate(values)} initialValues={{ priority: 2, plannedAt: dayjs(), sizeProgram: [], productionTurns: [], components: [], dailyProduction: [] }}>
+      <Form form={form} layout="vertical" onFinish={(values) => create.mutate(values)} initialValues={{ recipeVersionId: requestedRecipeVersionId, priority: 2, plannedAt: dayjs(), sizeProgram: [], productionTurns: [], components: [], dailyProduction: [] }}>
         <Divider titlePlacement="left">Orden y formulaciones</Divider>
         <div className="purchase-form-grid">
           <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select options={options.data?.warehouses.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>

@@ -31,8 +31,8 @@ export async function createProductionOrder(database: PrismaClient, command: {
     const salesOrderIds = Array.from(new Set(command.salesOrderIds ?? []));
     const [warehouse, version, secondaryVersion, machine, salesOrders, materialItem, componentItems] = await Promise.all([
       tx.warehouse.findFirst({ where: { id: command.warehouseId, companyId: command.companyId, active: true } }),
-      tx.recipeVersion.findFirst({ where: { id: command.recipeVersionId, isActive: true, recipe: { companyId: command.companyId, status: "ACTIVE" } }, include: { recipe: true, ingredients: true } }),
-      command.secondaryRecipeVersionId ? tx.recipeVersion.findFirst({ where: { id: command.secondaryRecipeVersionId, isActive: true, recipe: { companyId: command.companyId, status: "ACTIVE" } }, include: { recipe: true, ingredients: true } }) : null,
+      tx.recipeVersion.findFirst({ where: { id: command.recipeVersionId, isActive: true, recipe: { companyId: command.companyId, status: "ACTIVE", productId: { not: null } } }, include: { recipe: true, ingredients: true } }),
+      command.secondaryRecipeVersionId ? tx.recipeVersion.findFirst({ where: { id: command.secondaryRecipeVersionId, isActive: true, recipe: { companyId: command.companyId, status: "ACTIVE", productId: { not: null } } }, include: { recipe: true, ingredients: true } }) : null,
       command.machineId ? tx.machine.findFirst({ where: { id: command.machineId, companyId: command.companyId, status: { not: "OUT_OF_SERVICE" } } }) : null,
       salesOrderIds.length ? tx.salesOrder.findMany({ where: { id: { in: salesOrderIds }, companyId: command.companyId, status: { not: "CANCELLED" } }, include: { lines: { where: { productionOrderId: null } } } }) : [],
       command.materialItemId ? tx.inventoryItem.findFirst({ where: { id: command.materialItemId, companyId: command.companyId, active: true } }) : null,

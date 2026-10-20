@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { isBlankNumericCell, isNumericCell } from "../domain/numeric-cell";
 
-export const importModules = ["purchases", "inventory", "recipes", "products", "orders"] as const;
+export const importModules = ["purchases", "inventory", "inventory-formulas", "recipes", "products", "orders"] as const;
 export type ImportModule = (typeof importModules)[number];
 export type WorkbookData = Record<string, (string | number | Date | null | undefined)[][]>;
 export type ParsedWorkbookRow = { rowNumber: number; values: Record<string, string> };
@@ -27,13 +27,19 @@ export const workbookSpecs: Record<ImportModule, ModuleSpec> = {
   inventory: {
     label: "Almacén", permission: "inventory.read", file: "almacen",
     sheets: [
-      { name: "Almacén", columns: ["codigo", "sigla", "nombre", "tipo_item", "proveedor_nombre", "codigo_producto_proveedor", "moneda", "precio_neto", "tasa_igv", "costo_total", "unidad_base", "modo_lote", "stock_minimo", "activo", "almacen_codigo", "stock_inicial", "costo_unitario_pen", "lote", "fecha_inicial", "observaciones"], required: ["nombre", "tipo_item", "proveedor_nombre", "moneda", "unidad_base"], uniqueBy: [["codigo"], ["nombre", "unidad_base", "almacen_codigo", "lote"]], optionalHeaders: ["codigo_producto_proveedor", "precio_neto", "tasa_igv", "costo_total"], numeric: ["precio_neto", "tasa_igv", "stock_minimo", "stock_inicial", "costo_unitario_pen"] },
+      { name: "Almacén", columns: ["codigo", "sigla", "nombre", "tipo_item", "proveedor_nombre", "codigo_producto_proveedor", "moneda", "precio_neto", "tasa_igv", "costo_total", "unidad_base", "modo_lote", "stock_minimo", "activo", "almacen_codigo", "stock_inicial", "costo_unitario_pen", "lote", "fecha_inicial", "observaciones"], required: ["nombre", "tipo_item", "unidad_base"], uniqueBy: [["codigo"], ["nombre", "unidad_base", "almacen_codigo", "lote"]], optionalHeaders: ["codigo_producto_proveedor", "precio_neto", "tasa_igv", "costo_total"], numeric: ["precio_neto", "tasa_igv", "stock_minimo", "stock_inicial", "costo_unitario_pen"] },
+    ],
+  },
+  "inventory-formulas": {
+    label: "Fórmulas de insumos", permission: "inventory.read", file: "formulas-insumos",
+    sheets: [
+      { name: "FórmulasInsumos", columns: ["formula_codigo", "nombre_formula", "insumo_resultante_codigo", "rendimiento", "notas", "componente_codigo", "cantidad_componente", "activo"], required: ["nombre_formula", "insumo_resultante_codigo", "rendimiento", "componente_codigo", "cantidad_componente"], uniqueBy: [["formula_codigo", "componente_codigo"], ["nombre_formula", "insumo_resultante_codigo", "componente_codigo"]], numeric: ["rendimiento", "cantidad_componente"] },
     ],
   },
   recipes: {
     label: "Recetas", permission: "recipes.read", file: "recetas",
     sheets: [
-      { name: "Recetas", columns: ["referencia_carga", "receta_codigo", "producto_codigo", "variante_sku", "version", "rendimiento", "unidad_salida", "estado", "material_codigo", "cantidad", "unidad"], required: ["referencia_carga", "producto_codigo", "version", "rendimiento", "material_codigo", "cantidad"], uniqueBy: [["referencia_carga", "version", "material_codigo"], ["receta_codigo", "version", "material_codigo"]], numeric: ["version", "rendimiento", "cantidad"] },
+      { name: "Recetas", columns: ["referencia_carga", "receta_codigo", "tipo_resultado", "resultado_codigo", "producto_codigo", "variante_sku", "version", "rendimiento", "unidad_salida", "estado", "material_codigo", "cantidad", "unidad"], required: ["referencia_carga", "tipo_resultado", "resultado_codigo", "version", "rendimiento", "material_codigo", "cantidad"], uniqueBy: [["referencia_carga", "version", "material_codigo"], ["receta_codigo", "version", "material_codigo"]], numeric: ["version", "rendimiento", "cantidad"] },
     ],
   },
   products: {
@@ -67,12 +73,13 @@ function exampleValue(column: string): string | number {
     subtotal_neto: 2250, igv: 405, total_linea: 2655, codigo: "(se genera)", sigla: "PVC", nombre: "PVC", proveedor_nombre: "Polímeros Andinos SAC",
     tipo_item: "MATERIA_PRIMA", unidad_base: "KG", modo_lote: "OPTIONAL", almacen_codigo: "PRINCIPAL",
     stock_minimo: 10, activo: "SI", producto_activo: "SI", variante_activa: "SI", stock_inicial: 100, fecha_inicial: "2026-10-13", item_codigo: "MP-000001", lote: "LOTE-2026-01", fecha: "2026-10-13",
-    cantidad: 100, costo_unitario_pen: 4.5, receta_codigo: "(se genera)", producto_codigo: "(se genera)",
+    cantidad: 100, costo_unitario_pen: 4.5, receta_codigo: "(se genera)", tipo_resultado: "ALMACEN", resultado_codigo: "IE-000001", producto_codigo: "(se genera)",
     codigo_producto_proveedor: "PVC-450S", precio_neto: 4.5, costo_total: 5.31,
     variante_sku: "ZAP-001-40-NEG", version: 1, rendimiento: 1, unidad_salida: "PAR",
     unidad: "KG", categoria: "Calzado", descripcion: "Suela urbana", codigo_matriz: "I0034", sku: "(se genera)",
     talla: "39", color: "NEG", color_secundario: "ROJ", precio_venta: 120, numero_pedido: "(se genera)", cliente_codigo: "CLI-000001",
     fecha_requerida: "2026-10-20", precio_neto_unitario: 100,
+    formula_codigo: "(se genera)", nombre_formula: "Compuesto PVC negro", insumo_resultante_codigo: "IE-000001", componente_codigo: "MP-000001", cantidad_componente: 80,
   };
   return examples[column] ?? (column.includes("fecha") ? "2026-10-13" : column.includes("codigo") ? "COD-001" : "Ejemplo");
 }
@@ -117,7 +124,12 @@ const columnDescriptions: Record<string, string> = {
   codigo: "Código oficial del ítem de Almacén. Déjalo vacío para crear uno nuevo; si informas un código existente, el sistema actualiza ese ítem.",
   sigla: "Abreviatura usada para identificar rápidamente el material, por ejemplo PVC, TR, RB o EVA.",
   nombre: "Nombre descriptivo del ítem o producto.",
-  tipo_item: "Clasificación del ítem: MATERIA_PRIMA para insumos comprados, MERMA para sobrantes o material recuperado y PRODUCTO_TERMINADO para variantes generadas desde Productos.",
+  tipo_item: "Clasificación: MATERIA_PRIMA para insumos comprados, INSUMO_ELABORADO para mezclas creadas con otros insumos, MERMA para sobrantes recuperados y PRODUCTO_TERMINADO para variantes de Productos.",
+  formula_codigo: "Código oficial de la fórmula. Déjalo vacío para crearla; conserva el código del reporte para registrar una nueva versión.",
+  nombre_formula: "Nombre reconocible de la mezcla o insumo elaborado.",
+  insumo_resultante_codigo: "Código del ítem de tipo INSUMO_ELABORADO que se obtendrá al ejecutar la transformación.",
+  componente_codigo: "Código de una materia prima, merma o insumo elaborado que forma parte de la mezcla.",
+  cantidad_componente: "Cantidad del componente necesaria para obtener el rendimiento indicado. Usa una fila por componente.",
   proveedor_nombre: "Nombre del proveedor activo registrado. Debe coincidir con el nombre del catálogo; se ignoran mayúsculas, tildes y espacios repetidos.",
   unidad_base: "Unidad en la que se controla el stock del ítem, por ejemplo KG, L, UND o PAR.",
   modo_lote: "Define el control por lote: REQUIRED, OPTIONAL o NONE.",
@@ -137,6 +149,8 @@ const columnDescriptions: Record<string, string> = {
   precio_neto: "Precio de referencia sin IGV por cada unidad base, expresado en la moneda del ítem. Es opcional.",
   costo_total: "Costo total por unidad base incluido IGV. Es informativo y el sistema lo recalcula: precio_neto × (1 + IGV/100).",
   receta_codigo: "Código oficial de la receta. Déjalo vacío para crear una nueva; si informas un código existente, el sistema crea la actualización correspondiente.",
+  tipo_resultado: "Destino de la receta: PRODUCCION para fabricar un producto final o ALMACEN para obtener un insumo elaborado y aumentar su stock.",
+  resultado_codigo: "Código del producto final cuando el destino es PRODUCCION, o código del insumo elaborado cuando el destino es ALMACEN.",
   producto_codigo: "Código oficial del producto. En Productos puede dejarse vacío al crear; en Recetas identifica el producto ya registrado.",
   codigo_matriz: "Código interno de la matriz conocido por la fábrica. Se usa para generar el SKU: MATRIZ-C1-C2-TALLA.",
   variante_sku: "SKU de la variante específica que producirá la receta. Déjalo vacío si la receta aplica al producto en general.",
@@ -155,6 +169,7 @@ const columnDescriptions: Record<string, string> = {
   cliente_codigo: "Código del cliente registrado en el sistema.",
   fecha_requerida: "Fecha en la que el cliente necesita recibir el pedido.",
   precio_neto_unitario: "Precio de venta por unidad sin IGV.",
+  notas: "Observación opcional de la fórmula o registro.",
 };
 
 function describeColumn(sheet: string, column: string) {
@@ -206,6 +221,12 @@ const friendlyLabels: Record<string, string> = {
   sigla: "Sigla",
   nombre: "Nombre",
   tipo_item: "Tipo de ítem",
+  formula_codigo: "Código de fórmula",
+  nombre_formula: "Nombre de fórmula",
+  insumo_resultante_codigo: "Código del insumo resultante",
+  componente_codigo: "Código del componente",
+  cantidad_componente: "Cantidad del componente",
+  notas: "Notas",
   proveedor_nombre: "Proveedor",
   unidad_base: "Unidad de medida",
   modo_lote: "Control de lote",
@@ -225,6 +246,8 @@ const friendlyLabels: Record<string, string> = {
   stock_inicial: "Stock inicial",
   fecha_inicial: "Fecha del stock inicial",
   receta_codigo: "Código de receta",
+  tipo_resultado: "Destino del resultado",
+  resultado_codigo: "Código del resultado",
   producto_codigo: "Código de producto",
   codigo_matriz: "Código de matriz",
   variante_sku: "SKU de variante",
@@ -288,6 +311,7 @@ export async function createWorkbook(module: ImportModule, data: WorkbookData = 
     ...(module === "inventory" ? [
       ["Listas registradas", "En Almacén, selecciona el proveedor por nombre, la moneda por código y el almacén por código. La importación valida estos valores contra los catálogos activos/registrados."],
       ["Coincidencia de proveedor", "El proveedor se busca por nombre ignorando mayúsculas, tildes y espacios repetidos. Si no existe o el nombre coincide con más de un proveedor, la fila se rechaza."],
+      ["Insumos elaborados", "Usa tipo INSUMO_ELABORADO para resultados fabricados internamente. En ese caso proveedor y moneda son opcionales; luego define A + B → C en la plantilla Fórmulas de insumos."],
       ["Costo de referencia", "El código de producto del proveedor, el precio neto y el IGV son datos de referencia del ítem. El IGV es un porcentaje y el costo total se recalcula como precio neto × (1 + IGV/100)."],
     ] : []),
   ]);
@@ -394,6 +418,16 @@ export async function createWorkbook(module: ImportModule, data: WorkbookData = 
           };
         }
       }
+      if (column === "tipo_resultado" && sheetSpec.name === "Recetas") {
+        const lastRow = Math.max(1001, sheet.rowCount + 100);
+        for (let rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
+          sheet.getCell(rowNumber, index + 1).dataValidation = {
+            type: "list", allowBlank: false, formulae: ['"PRODUCCION,ALMACEN"'], showInputMessage: true,
+            promptTitle: "Destino de la receta", prompt: "PRODUCCION crea una orden; ALMACEN obtiene un insumo elaborado.",
+            showErrorMessage: true, errorStyle: "stop", errorTitle: "Destino no válido", error: "Selecciona PRODUCCION o ALMACEN.",
+          };
+        }
+      }
     });
     sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: sheetSpec.columns.length } };
     sheet.eachRow((row, rowNumber) => {
@@ -476,6 +510,12 @@ export async function validateWorkbook(module: ImportModule, bytes: ArrayBuffer)
       }
       if (sheetSpec.name === "Almacén" && Number(record.stock_inicial || 0) > 0) {
         for (const field of ["costo_unitario_pen", "fecha_inicial"]) if (!record[field]) errors.push({ rowNumber, field, code: "REQUIRED_FIELD", message: `${sheetSpec.name}: “${friendlyLabel(sheetSpec.name, field)}” es obligatorio cuando existe stock inicial.`, rawData: record });
+      }
+      if (sheetSpec.name === "Almacén" && record.tipo_item.trim().toUpperCase() !== "INSUMO_ELABORADO") {
+        for (const field of ["proveedor_nombre", "moneda"]) {
+          const legacyReportReference = fileKind === "REPORT" && Boolean(record.codigo);
+          if (!record[field] && !legacyReportReference) errors.push({ rowNumber, field, code: "REQUIRED_FIELD", message: `${sheetSpec.name}: “${friendlyLabel(sheetSpec.name, field)}” es obligatorio salvo para Insumos elaborados.`, rawData: record });
+        }
       }
       for (const field of sheetSpec.numeric ?? []) {
         if (!isBlankNumericCell(record[field]) && !isNumericCell(record[field])) {

@@ -263,7 +263,7 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
       dataSource={data}
       columns={[...columns, ...actionColumns]}
       scroll={{ x: type === "SUPPLIER" || type === "CUSTOMER" ? 900 : 720 }}
-      pagination={{ pageSize: 15 }}
+      pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }}
       locale={{ emptyText: <Empty description={`No hay ${labels[type].plural.toLowerCase()}`} /> }}
     />;
   };

@@ -13,13 +13,31 @@ describe("import workbooks", () => {
   });
 
   it("genera una sola hoja de datos por módulo", async () => {
-    for (const importModule of ["purchases", "inventory", "recipes", "products", "orders"] as const) {
+    for (const importModule of ["purchases", "inventory", "inventory-formulas", "recipes", "products", "orders"] as const) {
       const bytes = await createWorkbook(importModule);
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(Buffer.from(bytes as ArrayBuffer) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
       const dataSheets = workbook.worksheets.filter((sheet) => !["Instrucciones", "_Listas"].includes(sheet.name));
       expect(dataSheets).toHaveLength(1);
     }
+  });
+
+  it("genera fórmulas de insumos amigables con una fila por componente", async () => {
+    const bytes = await createWorkbook("inventory-formulas", {
+      FórmulasInsumos: [
+        [null, "Compuesto PVC negro", "IE-000001", 100, null, "MP-000001", 80, "SI"],
+        [null, "Compuesto PVC negro", "IE-000001", 100, null, "MP-000002", 20, "SI"],
+      ],
+    }, { fileKind: "TEMPLATE" });
+    const result = await validateWorkbook("inventory-formulas", bytes as ArrayBuffer);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(Buffer.from(bytes as ArrayBuffer) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    const headers = workbook.getWorksheet("FórmulasInsumos")?.getRow(1).values;
+
+    expect(result.errors).toEqual([]);
+    expect(result.totalRows).toBe(2);
+    expect(headers).toContain("Código del insumo resultante");
+    expect(headers).toContain("Cantidad del componente");
   });
 
   it("mantiene la merma fuera de la plantilla de recetas", async () => {
@@ -30,6 +48,9 @@ describe("import workbooks", () => {
     const headers = Array.isArray(rowValues) ? rowValues.map(String) : [];
     expect(headers).not.toContain("Merma (%)");
     expect(headers).not.toContain("merma_porcentaje");
+    expect(headers).toContain("Destino del resultado");
+    expect(headers).toContain("Código del resultado");
+    expect(workbook.getWorksheet("Recetas")?.getCell("C2").dataValidation.formulae).toEqual(['"PRODUCCION,ALMACEN"']);
   });
 
   it("exige costo y fecha cuando se informa stock inicial", async () => {
@@ -148,6 +169,14 @@ describe("import workbooks", () => {
       expect.objectContaining({ field: "proveedor_nombre", code: "REQUIRED_FIELD" }),
       expect.objectContaining({ field: "moneda", code: "REQUIRED_FIELD" }),
     ]));
+  });
+
+  it("permite registrar un insumo elaborado sin proveedor ni moneda", async () => {
+    const bytes = await createWorkbook("inventory", {
+      "Almacén": [[null, "CMP", "Compuesto interno", "INSUMO_ELABORADO", null, null, null, null, null, null, "KG", "OPTIONAL", 10, "SI"]],
+    }, { fileKind: "TEMPLATE" });
+    const result = await validateWorkbook("inventory", bytes as ArrayBuffer);
+    expect(result.errors).toEqual([]);
   });
 
   it("acepta un reporte que conserva el mismo formato de la plantilla", async () => {

@@ -10,7 +10,7 @@ const querySchema = z.object({
   status: z.enum(["all", "active", "closed"]).default("all"),
   search: z.string().trim().max(100).default(""),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(10).max(100).default(25),
+    pageSize: z.coerce.number().int().min(1).max(100).default(8),
 });
 
 export async function GET(request: Request) {

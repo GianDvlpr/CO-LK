@@ -60,18 +60,19 @@ export function AuditWorkspace() {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search.trim());
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
   const [selected, setSelected] = useState<AuditItem | null>(null);
   const [downloading, setDownloading] = useState(false);
 
   const params = useMemo(() => {
-    const value = new URLSearchParams({ page: String(page), pageSize: "25", search: deferredSearch });
+    const value = new URLSearchParams({ page: String(page), pageSize: String(pageSize), search: deferredSearch });
     if (dates?.[0]) value.set("from", dates[0].format("YYYY-MM-DD"));
     if (dates?.[1]) value.set("to", dates[1].format("YYYY-MM-DD"));
     if (module) value.set("module", module);
     if (action) value.set("action", action);
     if (userId) value.set("userId", userId);
     return value;
-  }, [action, dates, deferredSearch, module, page, userId]);
+  }, [action, dates, deferredSearch, module, page, pageSize, userId]);
 
   const audit = useQuery({ queryKey: ["audit", params.toString()], queryFn: () => api<AuditResponse>(`/api/v1/audit?${params}`) });
   const resetPage = () => setPage(1);
@@ -122,7 +123,7 @@ export function AuditWorkspace() {
         <Input allowClear prefix={<SearchOutlined />} value={search} onChange={(event) => { setSearch(event.target.value); resetPage(); }} placeholder="Buscar registro, ruta, IP o usuario" />
       </div>
       {audit.error ? <Alert type="error" showIcon message={audit.error.message} style={{ marginBottom: 16 }} /> : null}
-      <Table rowKey="id" loading={audit.isLoading} columns={columns} dataSource={audit.data?.items ?? []} scroll={{ x: 1240 }} pagination={{ current: page, pageSize: 25, total: audit.data?.pagination.total ?? 0, showSizeChanger: false, onChange: setPage, showTotal: (total) => `${total} eventos` }} locale={{ emptyText: <Empty description="No hay actividad para estos filtros" /> }} />
+      <Table rowKey="id" loading={audit.isLoading} columns={columns} dataSource={audit.data?.items ?? []} scroll={{ x: 1240 }} pagination={{ current: page, pageSize, total: audit.data?.pagination.total ?? 0, pageSizeOptions: [8, 16, 32], onChange: (nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }, showTotal: (total) => `${total} eventos` }} locale={{ emptyText: <Empty description="No hay actividad para estos filtros" /> }} />
     </Card>
     <Drawer title="Detalle de la actividad" width={620} open={Boolean(selected)} onClose={() => setSelected(null)}>
       {selected ? <Space direction="vertical" size={18} style={{ width: "100%" }}>

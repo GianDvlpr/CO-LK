@@ -8,7 +8,7 @@ export type DailyActivityInput = {
   production: Date[];
 };
 
-export type InventoryType = "RAW_MATERIAL" | "WASTE" | "FINISHED_PRODUCT";
+export type InventoryType = "RAW_MATERIAL" | "INTERMEDIATE" | "WASTE" | "FINISHED_PRODUCT";
 export type InventoryTypeTotals = Record<InventoryType, number>;
 export type WarehouseValue = { code: string; name: string; value: number };
 export type ConsumedMaterial = { code: string; name: string; unit: string; quantity: number };
@@ -40,7 +40,7 @@ export function buildDailyActivity(input: DailyActivityInput): ActivityPoint[] {
 }
 
 export function sumInventoryByType(items: { type: InventoryType; value: number }[]): InventoryTypeTotals {
-  const totals: InventoryTypeTotals = { RAW_MATERIAL: 0, WASTE: 0, FINISHED_PRODUCT: 0 };
+  const totals: InventoryTypeTotals = { RAW_MATERIAL: 0, INTERMEDIATE: 0, WASTE: 0, FINISHED_PRODUCT: 0 };
   for (const item of items) totals[item.type] = (totals[item.type] ?? 0) + item.value;
   return totals;
 }

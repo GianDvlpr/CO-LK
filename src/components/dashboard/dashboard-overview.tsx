@@ -15,7 +15,7 @@ type Analytics = {
   purchases: { total: number; value: number; statuses: Record<string, number> };
   orders: { total: number; statuses: Record<string, number>; dueAlerts: { id: string; number: string; customer: string; promisedAt: string; severity: string }[]; topProducts: { code: string; name: string; quantity: number }[] };
   production: { total: number; statuses: Record<string, number>; consumedMaterials: { code: string; name: string; unit: string; quantity: number }[] };
-  inventory: { totalItems: number; totalValue: number; lowStockCount: number; outOfStock: number; lowStock: { id: string; code: string; name: string; unit: string; onHand: number; minimumStock: number }[]; byType: { RAW_MATERIAL: number; WASTE: number; FINISHED_PRODUCT: number }; byWarehouse: { code: string; name: string; value: number }[] };
+  inventory: { totalItems: number; totalValue: number; lowStockCount: number; outOfStock: number; lowStock: { id: string; code: string; name: string; unit: string; onHand: number; minimumStock: number }[]; byType: { RAW_MATERIAL: number; INTERMEDIATE: number; WASTE: number; FINISHED_PRODUCT: number }; byWarehouse: { code: string; name: string; value: number }[] };
 };
 
 async function api<T>(url: string): Promise<T> { const response = await fetch(url); const payload = await response.json(); if (!response.ok) throw new Error(payload.error?.message ?? "No se pudo cargar la analítica."); return payload.data; }
@@ -28,6 +28,7 @@ export function DashboardOverview() {
   const pendingPurchases = (data?.purchases.statuses.PENDING ?? 0) + (data?.purchases.statuses.DRAFT ?? 0);
   const inventoryTypeSlices: ChartSlice[] = [
     { name: "Materia prima", value: data?.inventory.byType.RAW_MATERIAL ?? 0, color: "#1d6f55" },
+    { name: "Insumo elaborado", value: data?.inventory.byType.INTERMEDIATE ?? 0, color: "#0891b2" },
     { name: "Merma", value: data?.inventory.byType.WASTE ?? 0, color: "#d97706" },
     { name: "Producto terminado", value: data?.inventory.byType.FINISHED_PRODUCT ?? 0, color: "#7c3aed" },
   ];

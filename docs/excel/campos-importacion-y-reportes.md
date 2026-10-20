@@ -1,6 +1,6 @@
 # Campos de importación y reportes Excel
 
-Actualizado: 19/10/2026.
+Actualizado: 20/10/2026.
 
 ## Regla general
 
@@ -16,11 +16,11 @@ La misma hoja también incluye un ejemplo concreto por cada campo (códigos, fec
 | --- | --- | --- |
 | Compras | Compras | `fecha_recepcion`, `proveedor_codigo`, `numero_documento`, `moneda`, `estado`, `linea_numero`, `material_codigo`, `cantidad_presentaciones`, `tipo_presentacion`, `contenido_por_presentacion`, `unidad_contenido`, `precio_neto_unidad_base` |
 | Almacén | Almacén | `nombre`, `tipo_item`, `proveedor_nombre`, `moneda`, `unidad_base` |
-| Recetas | Recetas | `referencia_carga`, `producto_codigo`, `version`, `rendimiento`, `material_codigo`, `cantidad` |
+| Recetas | Recetas | `referencia_carga`, `tipo_resultado`, `resultado_codigo`, `version`, `rendimiento`, `material_codigo`, `cantidad` |
 | Productos | Productos | `referencia_carga`, `nombre` |
 | Pedidos | Pedidos | `referencia_carga`, `cliente_codigo`, `fecha`, `linea_numero`, `sku`, `cantidad`, `precio_neto_unitario` |
 
-Los demás campos pueden quedar vacíos. Algunos reciben valores predeterminados: IGV configurable por empresa (18 % por defecto), tipo de cambio 1, stock mínimo 0, activo `SI`, modo de lote `NONE` y secuencias automáticas cuando corresponde. La merma real no se importa en Recetas: se registra al finalizar cada orden de Producción.
+Los demás campos pueden quedar vacíos. Algunos reciben valores predeterminados: IGV configurable por empresa (18 % por defecto), tipo de cambio 1, stock mínimo 0, activo `SI`, modo de lote `NONE` y secuencias automáticas cuando corresponde. En Recetas, `tipo_resultado` admite `PRODUCCION` o `ALMACEN`; `resultado_codigo` contiene el código del producto final o del insumo elaborado. Se usa una fila por ingrediente. La merma real se registra al ejecutar la receta, no al definirla en Excel.
 
 En Compras ya no se solicita la tasa de IGV por línea: la importación usa el IGV configurado en Catálogos → Configuración general. Los archivos anteriores que todavía traen la columna `IGV (%)` siguen siendo válidos; esa columna se ignora.
 
@@ -55,7 +55,7 @@ Estas columnas se conservan para que el reporte tenga el mismo formato, pero no 
 
 - Compras: `tipo_documento`, `fecha_tipo_cambio`, `fuente_tipo_cambio`, `estado`, `observaciones`, `tipo_presentacion`, `unidad_contenido`, `precio_unitario_con_igv`, `subtotal_neto`, `igv` y `total_linea`.
 - Almacén: `almacen_codigo` define el sector del ítem (obligatorio para materia prima en la aplicación; si se deja vacío al importar se usa `PRINCIPAL`) y, cuando hay stock inicial, también el almacén del movimiento. `stock_inicial`, `costo_unitario_pen`, `lote` y `fecha_inicial` están en la misma hoja y pueden quedar vacíos si no hay stock inicial. `codigo_producto_proveedor`, `precio_neto` y `tasa_igv` son datos de referencia del ítem; `costo_total` se recalcula y no determina la importación.
-- Recetas: `variante_sku`, `unidad_salida` y `estado`. La importación crea la receta o versión como borrador.
+- Recetas: `producto_codigo` se conserva por compatibilidad con archivos antiguos; `variante_sku`, `unidad_salida` y `estado` son informativos. La importación crea la receta o versión como borrador.
 - Productos: `categoria` y `precio_venta`.
 - Pedidos: `moneda`, `tipo_cambio_pen`, `estado`, `tasa_igv`, `subtotal_neto`, `igv` y `total_linea`. El pedido importado queda en borrador.
 

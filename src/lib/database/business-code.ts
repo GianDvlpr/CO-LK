@@ -5,6 +5,9 @@ export type BusinessCodeKind =
   | "INVENTORY_RAW"
   | "INVENTORY_WASTE"
   | "INVENTORY_FINISHED"
+  | "INVENTORY_INTERMEDIATE"
+  | "INVENTORY_FORMULA"
+  | "INVENTORY_TRANSFORMATION"
   | "RECIPE"
   | "PRODUCTION"
   | "MACHINE"
@@ -19,6 +22,9 @@ const definitions: Record<BusinessCodeKind, { scope: string; prefix: string; ann
   INVENTORY_RAW: { scope: "INVENTORY_RAW", prefix: "MP", annual: false },
   INVENTORY_WASTE: { scope: "INVENTORY_WASTE", prefix: "MER", annual: false },
   INVENTORY_FINISHED: { scope: "INVENTORY_FINISHED", prefix: "PT", annual: false },
+  INVENTORY_INTERMEDIATE: { scope: "INVENTORY_INTERMEDIATE", prefix: "IE", annual: false },
+  INVENTORY_FORMULA: { scope: "INVENTORY_FORMULA", prefix: "FIS", annual: false },
+  INVENTORY_TRANSFORMATION: { scope: "INVENTORY_TRANSFORMATION", prefix: "TRF", annual: true },
   RECIPE: { scope: "RECIPE", prefix: "REC", annual: false },
   PRODUCTION: { scope: "PRODUCTION", prefix: "OP", annual: true },
   MACHINE: { scope: "MACHINE", prefix: "MAQ", annual: false },
@@ -41,7 +47,9 @@ export function formatBusinessCode(kind: BusinessCodeKind, sequence: number, dat
 
 async function codeExists(tx: Prisma.TransactionClient, companyId: string, kind: BusinessCodeKind, code: string) {
   if (kind === "PURCHASE") return Boolean(await tx.purchase.findUnique({ where: { companyId_code: { companyId, code } }, select: { id: true } }));
-  if (kind === "INVENTORY_RAW" || kind === "INVENTORY_WASTE" || kind === "INVENTORY_FINISHED") return Boolean(await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code } }, select: { id: true } }));
+  if (kind === "INVENTORY_RAW" || kind === "INVENTORY_WASTE" || kind === "INVENTORY_FINISHED" || kind === "INVENTORY_INTERMEDIATE") return Boolean(await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code } }, select: { id: true } }));
+  if (kind === "INVENTORY_FORMULA") return Boolean(await tx.inventoryFormula.findUnique({ where: { companyId_code: { companyId, code } }, select: { id: true } }));
+  if (kind === "INVENTORY_TRANSFORMATION") return Boolean(await tx.inventoryTransformation.findUnique({ where: { companyId_number: { companyId, number: code } }, select: { id: true } }));
   if (kind === "RECIPE") return Boolean(await tx.recipe.findUnique({ where: { companyId_code: { companyId, code } }, select: { id: true } }));
   if (kind === "PRODUCTION") return Boolean(await tx.productionOrder.findUnique({ where: { companyId_number: { companyId, number: code } }, select: { id: true } }));
   if (kind === "MACHINE") return Boolean(await tx.machine.findUnique({ where: { companyId_code: { companyId, code } }, select: { id: true } }));

@@ -9,7 +9,7 @@ export async function GET() {
     const [units, warehouses, items, suppliers, currencies, company] = await prisma.$transaction([
       prisma.unitOfMeasure.findMany({ where: { companyId: user.companyId }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true, symbol: true } }),
       prisma.warehouse.findMany({ where: { companyId: user.companyId, active: true }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true } }),
-      prisma.inventoryItem.findMany({ where: { companyId: user.companyId, active: true }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true, lotTrackingMode: true, defaultWarehouseId: true, unit: { select: { symbol: true } } } }),
+      prisma.inventoryItem.findMany({ where: { companyId: user.companyId, active: true }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true, type: true, lotTrackingMode: true, defaultWarehouseId: true, unit: { select: { symbol: true } } } }),
       prisma.supplier.findMany({ where: { companyId: user.companyId, active: true }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true } }),
       prisma.currency.findMany({ where: { companyId: user.companyId }, orderBy: [{ isBase: "desc" }, { code: "asc" }], select: { id: true, code: true, name: true, symbol: true, isBase: true } }),
       prisma.company.findUniqueOrThrow({ where: { id: user.companyId }, select: { igvRate: true } }),

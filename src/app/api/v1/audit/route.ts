@@ -16,7 +16,7 @@ const querySchema = z.object({
   userId: z.string().uuid().optional(),
   search: z.string().trim().max(100).default(""),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(10).max(100).default(25),
+    pageSize: z.coerce.number().int().min(1).max(100).default(8),
   format: z.enum(["json", "xlsx"]).default("json"),
 });
 

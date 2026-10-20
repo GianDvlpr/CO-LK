@@ -37,7 +37,7 @@ describe("inventario por tipo y almacén", () => {
       { type: "RAW_MATERIAL", value: 100 },
       { type: "RAW_MATERIAL", value: 50 },
       { type: "FINISHED_PRODUCT", value: 20 },
-    ])).toEqual({ RAW_MATERIAL: 150, WASTE: 0, FINISHED_PRODUCT: 20 });
+    ])).toEqual({ RAW_MATERIAL: 150, INTERMEDIATE: 0, WASTE: 0, FINISHED_PRODUCT: 20 });
   });
 
   it("agrupa por almacén y ordena por valor descendente", () => {

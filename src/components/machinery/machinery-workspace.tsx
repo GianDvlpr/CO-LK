@@ -212,12 +212,12 @@ export function MachineryWorkspace({ permissions }: { permissions: string[] }) {
           </Card>;
         })}</div> : <div className="machinery-empty"><Empty description="No hay equipos que coincidan con los filtros" /></div>}
         {filtered.length > pageSize ? <Pagination className="machinery-pagination" current={page} pageSize={pageSize} total={filtered.length} showSizeChanger={false} onChange={setPage} /> : null}
-      </> : <Table rowKey="id" loading={machines.isLoading} columns={columns} dataSource={filtered} scroll={{ x: 1320 }} pagination={{ pageSize: 15 }} locale={{ emptyText: <Empty description="No hay equipos que coincidan con los filtros" /> }} />}
+      </> : <Table rowKey="id" loading={machines.isLoading} columns={columns} dataSource={filtered} scroll={{ x: 1320 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="No hay equipos que coincidan con los filtros" /> }} />}
     </Card>
 
     <Drawer title={selectedHistoryMachine ? `${selectedHistoryMachine.code} · ${selectedHistoryMachine.name}` : "Historial de mantenimiento"} open={Boolean(historyMachine)} onClose={() => setHistoryMachine(undefined)} width="min(880px, 100vw)" extra={selectedHistoryMachine && permissions.includes("machinery.maintenance") ? <Button type="primary" icon={<ToolOutlined />} onClick={() => openMaintenance(selectedHistoryMachine)}>Registrar mantenimiento</Button> : null}>
       {selectedHistoryMachine ? <div className="machine-history-summary"><Tag color={(statuses[selectedHistoryMachine.status] ?? ["", "default"])[1]}>{(statuses[selectedHistoryMachine.status] ?? [selectedHistoryMachine.status])[0]}</Tag><Typography.Text>{machineTypes[selectedHistoryMachine.type] ?? selectedHistoryMachine.type}</Typography.Text><Typography.Text type="secondary">{selectedHistoryMachine.location || "Sin ubicación"}</Typography.Text></div> : null}
-      <Table rowKey="id" size="small" pagination={{ pageSize: 8 }} columns={historyColumns} dataSource={selectedHistoryMachine?.maintenanceRecords ?? []} scroll={{ x: 950 }} locale={{ emptyText: <Empty description="Sin mantenimientos registrados" /> }} />
+      <Table rowKey="id" size="small" pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} sticky={false} columns={historyColumns} dataSource={selectedHistoryMachine?.maintenanceRecords ?? []} scroll={{ x: 950 }} locale={{ emptyText: <Empty description="Sin mantenimientos registrados" /> }} />
     </Drawer>
 
     <Modal title={editingMachine ? `Editar ${editingMachine.code}` : "Nueva máquina"} open={machineOpen} onCancel={() => { setMachineOpen(false); setEditingMachine(undefined); }} onOk={() => machineForm.submit()} okText={editingMachine ? "Guardar cambios" : "Registrar"} confirmLoading={saveMachine.isPending} width={760} destroyOnHidden>
