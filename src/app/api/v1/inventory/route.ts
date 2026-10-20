@@ -20,6 +20,7 @@ const createSchema = z.object({
   supplierProductCode: z.string().trim().max(100).nullable().optional(),
   referenceNetPrice: z.union([z.string(), z.number()]).nullable().optional(),
   referenceTaxRate: z.union([z.string(), z.number()]).nullable().optional(),
+  defaultWarehouseId: z.uuid().nullable().optional(),
 });
 
 function knownError(error: unknown) {
@@ -34,7 +35,7 @@ export async function GET() {
     const items = await prisma.inventoryItem.findMany({
       where: { companyId: user.companyId },
       orderBy: { name: "asc" },
-      include: { unit: { select: { code: true, symbol: true } }, supplier: { select: { id: true, code: true, name: true } }, currency: { select: { id: true, code: true, name: true, symbol: true } }, balances: { where: { lotId: null }, select: { warehouseId: true, onHandQuantity: true, reservedQuantity: true, averageUnitCost: true, inventoryValue: true } } },
+      include: { unit: { select: { code: true, symbol: true } }, supplier: { select: { id: true, code: true, name: true } }, currency: { select: { id: true, code: true, name: true, symbol: true } }, defaultWarehouse: { select: { code: true, name: true } }, images: { orderBy: { sortOrder: "asc" }, select: { id: true, secureUrl: true, fileName: true, sortOrder: true } }, balances: { where: { lotId: null }, select: { warehouseId: true, onHandQuantity: true, reservedQuantity: true, averageUnitCost: true, inventoryValue: true } } },
     });
     return apiSuccess({ items });
   } catch (error) { const response = knownError(error); if (response) return response; throw error; }
@@ -50,20 +51,23 @@ export async function POST(request: Request) {
     let reference: ReferenceCostValues;
     try { reference = normalizeReferenceCost(parsed.data.referenceNetPrice, parsed.data.referenceTaxRate, company.igvRate.toString()); }
     catch { return apiError("INVENTORY_INVALID_REFERENCE_COST", "El precio neto o el IGV del ítem no son válidos.", 422); }
-    const [unit, supplier, currency] = await Promise.all([
+    const [unit, supplier, currency, warehouse] = await Promise.all([
       prisma.unitOfMeasure.findFirst({ where: { id: parsed.data.unitId, companyId: user.companyId } }),
       prisma.supplier.findFirst({ where: { id: parsed.data.supplierId, companyId: user.companyId, active: true } }),
       prisma.currency.findFirst({ where: { id: parsed.data.currencyId, companyId: user.companyId } }),
+      parsed.data.defaultWarehouseId ? prisma.warehouse.findFirst({ where: { id: parsed.data.defaultWarehouseId, companyId: user.companyId } }) : null,
     ]);
     if (!unit) return apiError("INVENTORY_INVALID_UNIT", "La unidad de medida no es válida.", 422);
     if (!supplier) return apiError("INVENTORY_INVALID_SUPPLIER", "El proveedor no existe o está inactivo.", 422);
     if (!currency) return apiError("INVENTORY_INVALID_CURRENCY", "La moneda no está registrada.", 422);
+    if (parsed.data.defaultWarehouseId && !warehouse) return apiError("INVENTORY_INVALID_WAREHOUSE", "El sector no existe.", 422);
+    if (parsed.data.type === "RAW_MATERIAL" && !parsed.data.defaultWarehouseId) return apiError("INVENTORY_SECTOR_REQUIRED", "Selecciona el sector para la materia prima.", 422);
     const item = await prisma.$transaction(async (tx) => {
       const codeKind = parsed.data.type === "RAW_MATERIAL" ? "INVENTORY_RAW" : parsed.data.type === "WASTE" ? "INVENTORY_WASTE" : "INVENTORY_FINISHED";
       const code = await nextBusinessCode(tx, user.companyId, codeKind);
-      const values = { ...parsed.data, abbreviation: parsed.data.abbreviation || null, supplierProductCode: parsed.data.supplierProductCode || null, ...reference };
+      const values = { ...parsed.data, abbreviation: parsed.data.abbreviation || null, supplierProductCode: parsed.data.supplierProductCode || null, defaultWarehouseId: parsed.data.defaultWarehouseId || null, ...reference };
       const created = await tx.inventoryItem.create({ data: { ...values, code, minimumStock: parsed.data.minimumStock, companyId: user.companyId } });
-      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "InventoryItem", entityId: created.id, action: "CREATE", afterData: { code: created.code, name: created.name, supplierId: created.supplierId, currencyId: created.currencyId, supplierProductCode: created.supplierProductCode, referenceNetPrice: created.referenceNetPrice?.toString() ?? null, referenceTaxRate: created.referenceTaxRate?.toString() ?? null } } });
+      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "InventoryItem", entityId: created.id, action: "CREATE", afterData: { code: created.code, name: created.name, supplierId: created.supplierId, currencyId: created.currencyId, supplierProductCode: created.supplierProductCode, referenceNetPrice: created.referenceNetPrice?.toString() ?? null, referenceTaxRate: created.referenceTaxRate?.toString() ?? null, defaultWarehouseId: created.defaultWarehouseId } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "inventory.item-created.v1", aggregateId: created.id, payload: { itemId: created.id, code: created.code } } });
       return created;
     });

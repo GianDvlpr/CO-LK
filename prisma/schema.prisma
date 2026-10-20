@@ -212,6 +212,7 @@ model User {
   imports            ImportJob[]
   approvals          PurchaseApproval[]
   productImages      ProductImage[]
+  inventoryItemImages InventoryItemImage[]
   calendarEvents     CalendarEvent[]
 
   @@unique([companyId, email])
@@ -386,6 +387,7 @@ model Warehouse {
   purchases        Purchase[]
   productionOrders ProductionOrder[]
   pickPackOrders   PickPackOrder[]
+  defaultInventoryItems InventoryItem[] @relation("InventoryItemDefaultWarehouse")
 
   @@unique([companyId, code])
   @@map("warehouses")
@@ -404,6 +406,7 @@ model InventoryItem {
   supplierProductCode      String?                   @map("supplier_product_code")
   referenceNetPrice        Decimal?                  @map("reference_net_price") @db.Decimal(18, 6)
   referenceTaxRate         Decimal?                  @map("reference_tax_rate") @db.Decimal(7, 4)
+  defaultWarehouseId       String?                   @map("default_warehouse_id") @db.Uuid
   minimumStock             Decimal                   @default(0) @map("minimum_stock") @db.Decimal(18, 6)
   lotTrackingMode          LotTrackingMode           @default(NONE) @map("lot_tracking_mode")
   active                   Boolean                   @default(true)
@@ -413,6 +416,8 @@ model InventoryItem {
   unit                     UnitOfMeasure             @relation(fields: [unitId], references: [id])
   supplier                 Supplier?                 @relation("InventoryItemSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
   currency                 Currency?                 @relation("InventoryItemCurrency", fields: [currencyId], references: [id], onDelete: SetNull)
+  defaultWarehouse         Warehouse?                @relation("InventoryItemDefaultWarehouse", fields: [defaultWarehouseId], references: [id], onDelete: SetNull)
+  images                   InventoryItemImage[]
   lots                     InventoryLot[]
   balances                 StockBalance[]
   movements                StockMovement[]
@@ -429,7 +434,26 @@ model InventoryItem {
   @@index([companyId, type, active])
   @@index([supplierId])
   @@index([currencyId])
+  @@index([defaultWarehouseId])
   @@map("inventory_items")
+}
+
+model InventoryItemImage {
+  id          String        @id @default(uuid()) @db.Uuid
+  itemId      String        @map("item_id") @db.Uuid
+  publicId    String        @unique @map("public_id")
+  secureUrl   String        @map("secure_url")
+  fileName    String        @map("file_name")
+  mimeType    String        @map("mime_type")
+  sizeBytes   Int           @map("size_bytes")
+  sortOrder   Int           @default(0) @map("sort_order")
+  createdById String        @map("created_by_id") @db.Uuid
+  createdAt   DateTime      @default(now()) @map("created_at")
+  item        InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  createdBy   User          @relation(fields: [createdById], references: [id])
+
+  @@index([itemId, sortOrder])
+  @@map("inventory_item_images")
 }
 
 model InventoryLot {

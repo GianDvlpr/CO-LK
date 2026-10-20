@@ -19,14 +19,14 @@ async function reportData(module: keyof typeof workbookSpecs, companyId: string,
     };
   }
   if (module === "inventory") {
-    const items = await prisma.inventoryItem.findMany({ where: { companyId, createdAt: dateRange }, orderBy: { code: "asc" }, include: { unit: true, supplier: true, currency: true, balances: { include: { warehouse: true, lot: true } } } });
+    const items = await prisma.inventoryItem.findMany({ where: { companyId, createdAt: dateRange }, orderBy: { code: "asc" }, include: { unit: true, supplier: true, currency: true, defaultWarehouse: { select: { code: true } }, balances: { include: { warehouse: true, lot: true } } } });
     return {
       "Almacén": items.flatMap((item) => {
         const balances = item.balances.filter((balance) => balance.lotId === null && Number(balance.onHandQuantity) !== 0);
         const rows = balances.length ? balances : [null];
         const type = item.type === "RAW_MATERIAL" ? "MATERIA_PRIMA" : item.type === "WASTE" ? "MERMA" : "PRODUCTO_TERMINADO";
         const referenceTotalCost = item.referenceNetPrice ? Number(calculateReferenceTotalCost({ netPrice: item.referenceNetPrice.toString(), taxRate: item.referenceTaxRate?.toString() ?? null })) : null;
-        return rows.map((balance) => [item.code, item.abbreviation, item.name, type, item.supplier?.name ?? null, item.supplierProductCode, item.currency?.code ?? null, item.referenceNetPrice ? Number(item.referenceNetPrice) : null, item.referenceTaxRate ? Number(item.referenceTaxRate) : null, referenceTotalCost, item.unit.code, item.lotTrackingMode, Number(item.minimumStock), item.active ? "SI" : "NO", balance?.warehouse.code ?? null, balance ? Number(balance.onHandQuantity) : null, balance ? Number(balance.averageUnitCost) : null, null, balance ? date(balance.updatedAt) : null, balance ? "Saldo actual exportado" : null]);
+        return rows.map((balance) => [item.code, item.abbreviation, item.name, type, item.supplier?.name ?? null, item.supplierProductCode, item.currency?.code ?? null, item.referenceNetPrice ? Number(item.referenceNetPrice) : null, item.referenceTaxRate ? Number(item.referenceTaxRate) : null, referenceTotalCost, item.unit.code, item.lotTrackingMode, Number(item.minimumStock), item.active ? "SI" : "NO", item.defaultWarehouse?.code ?? balance?.warehouse.code ?? null, balance ? Number(balance.onHandQuantity) : null, balance ? Number(balance.averageUnitCost) : null, null, balance ? date(balance.updatedAt) : null, balance ? "Saldo actual exportado" : null]);
       }),
     };
   }

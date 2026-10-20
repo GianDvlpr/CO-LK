@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     const [items, total] = await prisma.$transaction([
       prisma.purchase.findMany({
         where, skip: (page - 1) * pageSize, take: pageSize, orderBy: { createdAt: "desc" },
-        include: { supplier: { select: { code: true, name: true } }, currency: { select: { code: true } }, lines: { orderBy: { lineNumber: "asc" }, include: { item: { select: { code: true, name: true, unit: { select: { symbol: true } } } }, lots: { include: { lot: { select: { supplierLot: true } } } } } }, _count: { select: { lines: true } } },
+        include: { supplier: { select: { code: true, name: true, phone: true } }, currency: { select: { code: true } }, lines: { orderBy: { lineNumber: "asc" }, include: { item: { select: { code: true, name: true, supplierProductCode: true, unit: { select: { symbol: true } }, images: { orderBy: { sortOrder: "asc" }, take: 1, select: { secureUrl: true } } } }, lots: { include: { lot: { select: { supplierLot: true } } } } } }, _count: { select: { lines: true } } },
       }),
       prisma.purchase.count({ where }),
     ]);

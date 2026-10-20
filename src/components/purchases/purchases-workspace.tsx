@@ -1,8 +1,8 @@
 "use client";
 
-import { CheckOutlined, CloseCircleOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseCircleOutlined, PlusOutlined, ReloadOutlined, WhatsAppOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, DatePicker, Divider, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag, Typography } from "antd";
+import { Alert, Button, Card, DatePicker, Divider, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import Decimal from "decimal.js";
@@ -12,11 +12,12 @@ import { toast } from "sonner";
 import { ModuleImportButton } from "@/components/imports/module-import-button";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
+import { buildPurchaseRequestMessage, normalizeWhatsAppPhone } from "@/modules/purchases/domain/whatsapp-request";
 
-type PurchaseLine = { id: string; lineNumber: number; presentationType: string; presentationQty: string; contentPerUnit: string; receivedQuantity: string; pricePerBaseUnit: string; taxRate: string; total: string; item: { code: string; name: string; unit: { symbol: string } }; lots: { lot: { supplierLot: string | null } }[] };
+type PurchaseLine = { id: string; lineNumber: number; presentationType: string; presentationQty: string; contentPerUnit: string; receivedQuantity: string; pricePerBaseUnit: string; taxRate: string; total: string; item: { code: string; name: string; supplierProductCode?: string | null; unit: { symbol: string }; images: { secureUrl: string }[] }; lots: { lot: { supplierLot: string | null } }[] };
 type Purchase = {
   id: string; code: string; receptionDate: string; documentNumber: string; status: string;
-  total: string; supplier: { code: string; name: string }; currency: { code: string }; lines: PurchaseLine[]; _count: { lines: number };
+  total: string; supplier: { code: string; name: string; phone?: string | null }; currency: { code: string }; lines: PurchaseLine[]; _count: { lines: number };
 };
 type Option = { id: string; code: string; name: string };
 type ItemOption = Option & { lotTrackingMode: "NONE" | "OPTIONAL" | "REQUIRED"; supplierProductCode?: string | null; referenceNetPrice?: string | null; referenceTaxRate?: string | null; unit: { symbol: string }; supplier?: { name: string } | null };
@@ -103,6 +104,25 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
     setPickerLine(null);
   };
 
+  const contactSupplier = (purchase: Purchase) => {
+    const phone = normalizeWhatsAppPhone(purchase.supplier.phone);
+    if (!phone) { toast.error("El proveedor no tiene un teléfono válido para WhatsApp."); return; }
+    const message = buildPurchaseRequestMessage({
+      supplierName: purchase.supplier.name,
+      lines: purchase.lines.map((line) => ({
+        itemName: line.item.name,
+        supplierProductCode: line.item.supplierProductCode,
+        presentationType: line.presentationType,
+        presentationQuantity: line.presentationQty,
+        contentPerUnit: line.contentPerUnit,
+        receivedQuantity: line.receivedQuantity,
+        unitSymbol: line.item.unit.symbol,
+        imageUrl: line.item.images[0]?.secureUrl ?? null,
+      })),
+    });
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+  };
+
   const columns: ColumnsType<Purchase> = [
     { title: "Código", dataIndex: "code", fixed: "left", width: 130, render: (value) => <strong>{value}</strong> },
     { title: "Recepción", dataIndex: "receptionDate", width: 120, render: (value) => dayjs(value).format("DD/MM/YYYY") },
@@ -111,7 +131,16 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
     { title: "Líneas", width: 90, align: "center", render: (_, row) => row._count.lines },
     { title: "Total", width: 140, align: "right", render: (_, row) => `${row.currency.code} ${new Decimal(row.total).toFixed(2)}` },
     { title: "Estado", dataIndex: "status", width: 120, render: (value) => <Tag color={statusColor[value]}>{statusLabel[value] ?? value}</Tag> },
-    { title: "Acciones", fixed: "right", width: 210, render: (_, row) => row.status === "PENDING" ? <Space>{canApprove ? <Button size="small" icon={<CheckOutlined />} loading={approve.isPending} onClick={() => Modal.confirm({ title: `¿Aprobar ${row.code}?`, content: "La aprobación ingresará existencias al kardex y no puede editarse después.", okText: "Aprobar", cancelText: "Cancelar", onOk: () => approve.mutateAsync(row.id) })}>Aprobar</Button> : null}{canReject ? <Button size="small" danger icon={<CloseCircleOutlined />} loading={reject.isPending} onClick={() => Modal.confirm({ title: `¿Rechazar ${row.code}?`, content: "La compra quedará rechazada y no ingresará existencias al almacén.", okText: "Rechazar", okButtonProps: { danger: true }, cancelText: "Cancelar", onOk: () => reject.mutateAsync(row.id) })}>Rechazar</Button> : null}</Space> : null },
+    { title: "Acciones", fixed: "right", width: 300, render: (_, row) => {
+      const phone = normalizeWhatsAppPhone(row.supplier.phone);
+      return <Space wrap>
+        <Tooltip title={phone ? "Enviar la solicitud de compra por WhatsApp" : "El proveedor no tiene un teléfono registrado"}>
+          <Button size="small" icon={<WhatsAppOutlined />} disabled={!phone} onClick={() => contactSupplier(row)}>WhatsApp</Button>
+        </Tooltip>
+        {row.status === "PENDING" && canApprove ? <Button size="small" icon={<CheckOutlined />} loading={approve.isPending} onClick={() => Modal.confirm({ title: `¿Aprobar ${row.code}?`, content: "La aprobación ingresará existencias al kardex y no puede editarse después.", okText: "Aprobar", cancelText: "Cancelar", onOk: () => approve.mutateAsync(row.id) })}>Aprobar</Button> : null}
+        {row.status === "PENDING" && canReject ? <Button size="small" danger icon={<CloseCircleOutlined />} loading={reject.isPending} onClick={() => Modal.confirm({ title: `¿Rechazar ${row.code}?`, content: "La compra quedará rechazada y no ingresará existencias al almacén.", okText: "Rechazar", okButtonProps: { danger: true }, cancelText: "Cancelar", onOk: () => reject.mutateAsync(row.id) })}>Rechazar</Button> : null}
+      </Space>;
+    } },
   ];
 
   const lineColumns: ColumnsType<PurchaseLine> = [

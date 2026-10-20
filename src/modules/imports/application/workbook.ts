@@ -121,7 +121,7 @@ const columnDescriptions: Record<string, string> = {
   proveedor_nombre: "Nombre del proveedor activo registrado. Debe coincidir con el nombre del catálogo; se ignoran mayúsculas, tildes y espacios repetidos.",
   unidad_base: "Unidad en la que se controla el stock del ítem, por ejemplo KG, L, UND o PAR.",
   modo_lote: "Define el control por lote: REQUIRED, OPTIONAL o NONE.",
-  almacen_codigo: "Código del almacén. Selecciónalo de la lista; si lo dejas vacío en MovimientosIniciales, el sistema usa PRINCIPAL.",
+  almacen_codigo: "Sector o almacén del ítem. En materia prima se usa PRINCIPAL si se deja vacío; con stock inicial también determina el almacén del movimiento.",
   stock_minimo: "Cantidad mínima deseada antes de generar una alerta de reposición.",
   activo: "Indica si el registro está habilitado. Usa SI o NO.",
   producto_activo: "Indica si el producto está habilitado. Usa SI o NO.",

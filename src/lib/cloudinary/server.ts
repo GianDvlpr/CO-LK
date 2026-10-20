@@ -45,6 +45,28 @@ export async function uploadProductImage(input: {
   return result as UploadApiResponse;
 }
 
+export async function uploadInventoryImage(input: {
+  bytes: Uint8Array;
+  mimeType: string;
+  companyId: string;
+  publicId: string;
+}) {
+  const dataUri = `data:${input.mimeType};base64,${Buffer.from(input.bytes).toString("base64")}`;
+  const result = await getClient().uploader.upload(dataUri, {
+    folder: `lk-innovacion/${input.companyId}/inventory`,
+    public_id: input.publicId,
+    resource_type: "image",
+    allowed_formats: ["jpg", "jpeg", "png", "webp"],
+    overwrite: false,
+    unique_filename: false,
+  });
+  return result as UploadApiResponse;
+}
+
 export async function destroyProductImage(publicId: string) {
   return getClient().uploader.destroy(publicId, { resource_type: "image", invalidate: true });
+}
+
+export async function destroyInventoryImage(publicId: string) {
+  return destroyProductImage(publicId);
 }

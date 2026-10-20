@@ -69,6 +69,7 @@ Reglas:
 - Rechazar no mueve inventario.
 - El documento no debe duplicarse para el mismo proveedor y secuencia de recepción.
 - La tasa de IGV es configurable por empresa en Catálogos → Configuración general (18 % por defecto). El Excel de Compras no solicita tasa por línea y usa la configurada; los archivos anteriores con `IGV (%)` se aceptan ignorando esa columna.
+- Una compra registrada puede compartirse con el proveedor por WhatsApp. El mensaje incluye materiales, código del proveedor, presentaciones y cantidades (sin precios ni totales) y la URL de la imagen del material cuando existe.
 - No usar `number` para cálculos de cantidad, precio, IGV o totales.
 
 ## 5. Almacén y kardex
@@ -86,6 +87,12 @@ Referencias de abastecimiento:
 - En Excel, `moneda` acepta el código o el nombre de una moneda registrada, aunque la lista desplegable propone sus códigos (`PEN`, `USD`, etc.).
 - Los productos terminados generados internamente desde Productos no requieren proveedor ni moneda de compra.
 - Los registros históricos sin estas referencias permanecen como `Sin asignar`; no se deben completar con datos inventados.
+
+Sector e imágenes del ítem:
+
+- Cada ítem puede tener un sector o almacén de referencia (`defaultWarehouseId`). Es obligatorio para materia prima; opcional para insumo elaborado, merma y producto terminado.
+- La materia prima admite una única imagen de referencia en Cloudinary (JPEG, PNG o WebP, hasta 5 MB). Se usa al compartir solicitudes de compra con el proveedor.
+- En Excel, `almacen_codigo` registra el sector del ítem aunque no haya stock inicial; si una materia prima no lo informa, se usa `PRINCIPAL`. Con stock inicial también determina el almacén del movimiento.
 
 Datos de referencia para compras:
 

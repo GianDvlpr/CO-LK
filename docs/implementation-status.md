@@ -81,6 +81,9 @@ Actualizado: 19/10/2026.
 - `Resumen` fue reemplazado por `Analítica`, con KPIs, estados por módulo, inventario valorizado, alertas de stock, pedidos vencidos/próximos y productos más solicitados.
 - Analítica incorpora gráficos interactivos con Recharts: actividad diaria, estados por módulo, inventario valorizado por tipo y almacén, productos más pedidos y materiales más consumidos en producción, adaptados a modo claro/oscuro y móvil.
 - Etiquetas de formularios acortadas con tooltips explicativos para mantener alineados los controles en los modales.
+- Las materias primas admiten una imagen de referencia en Cloudinary, administrable desde el modal de Almacén con el permiso `inventory.image_manage`.
+- El ítem registra su sector/almacén de referencia: obligatorio para materia prima, visible en la tabla y en Excel, y preseleccionado al registrar el saldo inicial.
+- Las compras registradas permiten enviar la solicitud al proveedor por WhatsApp con materiales, códigos, presentaciones, cantidades y la imagen del material cuando existe.
 - Acciones de cabecera reorganizadas y comportamiento móvil mejorado para botones, filtros, tablas y modales Excel.
 - Modo oscuro global y persistente disponible desde el login, el cambio de contraseña y el dashboard.
 - Procesador de outbox para Pusher con reclamo concurrente, hasta 5 intentos, backoff exponencial, registro del último error y payload deduplicable mediante `eventId`.

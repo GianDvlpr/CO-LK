@@ -126,7 +126,23 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
     if (netPrice?.isNegative()) throw new ImportApplicationError("INVALID_NUMBER", "El precio neto no puede ser negativo.", row.rowNumber, "precio_neto");
     const taxRate = netPrice ? (text(row, "tasa_igv") ? number(row, "tasa_igv") : new Decimal(existing?.referenceTaxRate?.toString() ?? companyIgvRate)) : null;
     if (taxRate && (taxRate.isNegative() || taxRate.greaterThan(100))) throw new ImportApplicationError("INVALID_NUMBER", "El IGV debe estar entre 0 y 100.", row.rowNumber, "tasa_igv");
-    const values = { name: text(row, "nombre"), abbreviation: text(row, "sigla") || null, type: type as "RAW_MATERIAL" | "WASTE" | "FINISHED_PRODUCT", supplierId: supplierMatches[0].id, currencyId: currencyMatches[0].id, unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo"), supplierProductCode: supplierProductCode || existing?.supplierProductCode || null, referenceNetPrice: netPrice ? netPrice.toString() : existing?.referenceNetPrice?.toString() ?? null, referenceTaxRate: taxRate ? taxRate.toString() : existing?.referenceTaxRate?.toString() ?? null };
+    const sectorCode = text(row, "almacen_codigo");
+    let defaultWarehouseId: string | null;
+    if (sectorCode) {
+      const sector = await (sectorCode.toUpperCase() === "PRINCIPAL"
+        ? tx.warehouse.upsert({ where: { companyId_code: { companyId, code: "PRINCIPAL" } }, update: { active: true }, create: { companyId, code: "PRINCIPAL", name: "Almacén principal" } })
+        : tx.warehouse.findUnique({ where: { companyId_code: { companyId, code: sectorCode.toUpperCase() } } }));
+      if (!sector) throw new ImportApplicationError("INVALID_REFERENCE", "El almacén no existe.", row.rowNumber, "almacen_codigo");
+      defaultWarehouseId = sector.id;
+    } else if (existing) {
+      defaultWarehouseId = existing.defaultWarehouseId ?? null;
+    } else if (type === "RAW_MATERIAL") {
+      const sector = await tx.warehouse.upsert({ where: { companyId_code: { companyId, code: "PRINCIPAL" } }, update: { active: true }, create: { companyId, code: "PRINCIPAL", name: "Almacén principal" } });
+      defaultWarehouseId = sector.id;
+    } else {
+      defaultWarehouseId = null;
+    }
+    const values = { name: text(row, "nombre"), abbreviation: text(row, "sigla") || null, type: type as "RAW_MATERIAL" | "WASTE" | "FINISHED_PRODUCT", supplierId: supplierMatches[0].id, currencyId: currencyMatches[0].id, unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo"), supplierProductCode: supplierProductCode || existing?.supplierProductCode || null, referenceNetPrice: netPrice ? netPrice.toString() : existing?.referenceNetPrice?.toString() ?? null, referenceTaxRate: taxRate ? taxRate.toString() : existing?.referenceTaxRate?.toString() ?? null, defaultWarehouseId };
     const item = existing
       ? await tx.inventoryItem.update({ where: { id: existing.id }, data: values })
       : await tx.inventoryItem.create({ data: { companyId, code, ...values } });
