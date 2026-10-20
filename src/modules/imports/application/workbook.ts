@@ -155,7 +155,7 @@ const columnDescriptions: Record<string, string> = {
   codigo_matriz: "Código interno de la matriz conocido por la fábrica. Se usa para generar el SKU: MATRIZ-C1-C2-TALLA.",
   variante_sku: "SKU de la variante específica que producirá la receta. Déjalo vacío si la receta aplica al producto en general.",
   version: "Número de versión de la receta. Permite conservar cambios históricos sin reemplazar versiones anteriores.",
-  rendimiento: "Cantidad de producto terminado obtenida al ejecutar una receta completa.",
+  rendimiento: "En PRODUCCION, cantidad entera de pares que se obtiene con los materiales indicados. En ALMACEN, cantidad de insumo resultante por ejecución.",
   unidad_salida: "Unidad del rendimiento de la receta, por ejemplo PAR o UND.",
   unidad: "Unidad de medida de la cantidad del ingrediente o de la variante, según la hoja.",
   categoria: "Categoría comercial del producto.",
@@ -175,6 +175,7 @@ const columnDescriptions: Record<string, string> = {
 function describeColumn(sheet: string, column: string) {
   const contextual: Record<string, string> = {
     "Recetas.estado": "Estado de la receta, por ejemplo BORRADOR, ACTIVA o INACTIVA.",
+    "Recetas.cantidad": "Cantidad del material necesaria para obtener el rendimiento indicado. Se interpreta en la unidad registrada para ese material (kg, L, und., etc.).",
     "Pedidos.estado": "Estado del pedido, por ejemplo BORRADOR, CONFIRMADO, EN_PROCESO, ATENDIDO o CANCELADO.",
   };
   return contextual[`${sheet}.${column}`] ?? columnDescriptions[column] ?? "Dato utilizado por el módulo para registrar o relacionar este campo.";

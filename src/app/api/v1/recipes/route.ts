@@ -36,6 +36,7 @@ export async function POST(request: Request) {
   const yieldQuantity = new Decimal(parsed.data.yieldQuantity);
   const itemIds = parsed.data.ingredients.map((ingredient) => ingredient.itemId);
   if (!yieldQuantity.greaterThan(0) || new Set(itemIds).size !== itemIds.length) return apiError("RECIPE_INVALID", "El rendimiento debe ser positivo y las materias primas no pueden repetirse.", 422);
+  if (parsed.data.productId && !yieldQuantity.isInteger()) return apiError("RECIPE_INVALID_YIELD", "El rendimiento de una receta de producción debe ser un número entero de pares.", 422);
   for (const ingredient of parsed.data.ingredients) {
     const quantity = new Decimal(ingredient.quantity);
     if (!quantity.greaterThan(0)) return apiError("RECIPE_INVALID", "Las cantidades de la receta deben ser positivas.", 422);

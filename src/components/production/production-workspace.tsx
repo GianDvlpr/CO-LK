@@ -54,7 +54,7 @@ export type Order = {
 type Options = {
   warehouses: { id: string; code: string; name: string }[];
   variants: Variant[];
-  recipes: { id: string; productId: string; code: string; name: string; product: { id: string; code: string; name: string }; versions: { id: string; version: number; yieldQuantity: string }[] }[];
+  recipes: { id: string; productId: string; code: string; name: string; product: { id: string; code: string; name: string }; versions: { id: string; version: number; yieldQuantity: string; ingredients: { quantity: string; item: { id: string; code: string; name: string; unit: { symbol: string } } }[] }[] }[];
   machines: { id: string; code: string; name: string; type: string; status: string }[];
   materials: { id: string; code: string; name: string; type: string; unit: { symbol: string } }[];
   salesOrders: { id: string; number: string; customer: { name: string }; promisedAt?: string; lines: { id: string; productVariantId: string; quantity: string }[] }[];
@@ -85,6 +85,27 @@ function colorLabel(variant: Variant) {
 
 function colorPair(variant: Variant) {
   return `${variant.color.id}:${variant.secondaryColor?.id ?? ""}`;
+}
+
+function calculatePlannedRecipeConsumption(plannedPairs: number, recipes: (Options["recipes"][number] | undefined)[]) {
+  if (plannedPairs <= 0) return [];
+  const totals = new Map<string, { code: string; name: string; unit: string; quantity: Decimal }>();
+  for (const recipe of recipes) {
+    const version = recipe?.versions[0];
+    if (!version) continue;
+    const executions = new Decimal(plannedPairs).div(version.yieldQuantity);
+    for (const ingredient of version.ingredients) {
+      const current = totals.get(ingredient.item.id);
+      const quantity = new Decimal(ingredient.quantity).mul(executions);
+      totals.set(ingredient.item.id, {
+        code: ingredient.item.code,
+        name: ingredient.item.name,
+        unit: ingredient.item.unit.symbol,
+        quantity: (current?.quantity ?? new Decimal(0)).add(quantity).toDecimalPlaces(6),
+      });
+    }
+  }
+  return Array.from(totals.values()).sort((left, right) => left.name.localeCompare(right.name));
 }
 
 function setVariantSnapshot(form: FormInstance, path: "sizeProgram" | "productionTurns", fieldName: number, variant: Variant, turnIndex?: number) {
@@ -210,6 +231,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   const firstProgramVariant = allowedVariants.find((variant) => variant.id === program.find((item) => item?.productVariantId)?.productVariantId);
   const editVariants = editOrder ? options.data?.variants.filter((variant) => variant.product.id === editOrder.productVariant.product.id) ?? [] : [];
   const plannedPairs = program.reduce((sum, item) => sum + Number(item?.requestedPairs ?? 0), 0);
+  const plannedRecipeConsumption = calculatePlannedRecipeConsumption(plannedPairs, [selectedRecipe, secondaryRecipe]);
   const refresh = async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ["production"] }), queryClient.invalidateQueries({ queryKey: ["inventory"] }), queryClient.invalidateQueries({ queryKey: ["kardex"] }), queryClient.invalidateQueries({ queryKey: ["calendar"] }), queryClient.invalidateQueries({ queryKey: ["orders"] })]); };
 
   const create = useMutation({ mutationFn: (values: FormValues) => api("/api/v1/production", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...sheetPayload(values), warehouseId: values.warehouseId, recipeVersionId: values.recipeVersionId, secondaryRecipeVersionId: values.secondaryRecipeVersionId, salesOrderIds: values.salesOrderIds ?? [], materialItemId: values.materialItemId, machineId: values.machineId, priority: values.priority, plannedAt: values.plannedAt?.format("YYYY-MM-DD") }) }), onSuccess: async () => { toast.success("Orden creada en estado pendiente."); setOpen(false); form.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
@@ -302,7 +324,15 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
           <Form.Item name="salesOrderIds" label="Pedidos" tooltip="Pedidos de cliente vinculados a la orden; puedes seleccionar varios."><Select mode="multiple" maxTagCount="responsive" allowClear showSearch optionFilterProp="label" placeholder="Selecciona uno o varios pedidos" onChange={loadSalesOrders} options={options.data?.salesOrders.filter((order) => order.lines.some((line) => allowedVariants.some((variant) => variant.id === line.productVariantId))).map((order) => ({ value: order.id, label: `${order.number} · ${order.customer.name}${order.promisedAt ? ` · ${dayjs(order.promisedAt).format("DD/MM/YYYY")}` : ""}` }))} /></Form.Item>
           <Form.Item name="materialItemId" label="Material"><Select allowClear showSearch optionFilterProp="label" options={options.data?.materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
         </div>
-        {selectedRecipe ? <Alert type={firstProgramVariant?.secondaryColor && !secondaryRecipe ? "warning" : "info"} showIcon message={`${plannedPairs} pares programados · C1 rinde ${selectedRecipe.versions[0].yieldQuantity} pares por formulación${secondaryRecipe ? ` · C2 rinde ${secondaryRecipe.versions[0].yieldQuantity} pares` : ""}`} description={firstProgramVariant?.secondaryColor && !secondaryRecipe ? "La variante bicolor requiere seleccionar la formulación C2." : "El sistema calculará automáticamente cuántas ejecuciones necesita de cada formulación."} style={{ marginBottom: 12 }} /> : null}
+        {selectedRecipe ? <Alert
+          type={firstProgramVariant?.secondaryColor && !secondaryRecipe ? "warning" : "info"}
+          showIcon
+          message={`${plannedPairs} pares programados · C1 rinde ${new Decimal(selectedRecipe.versions[0].yieldQuantity).toFixed(0)} pares${secondaryRecipe ? ` · C2 rinde ${new Decimal(secondaryRecipe.versions[0].yieldQuantity).toFixed(0)} pares` : ""}`}
+          description={firstProgramVariant?.secondaryColor && !secondaryRecipe
+            ? "La variante bicolor requiere seleccionar la formulación C2."
+            : <Space size={[4, 4]} wrap><Typography.Text>Consumo al iniciar:</Typography.Text>{plannedRecipeConsumption.length ? plannedRecipeConsumption.map((item) => <Tag key={item.code}>{item.code}: {item.quantity.toFixed(3)} {item.unit}</Tag>) : <Typography.Text type="secondary">agrega las tallas y pares para calcularlo</Typography.Text>}</Space>}
+          style={{ marginBottom: 12 }}
+        /> : null}
         <ProductionDetailsFields form={form} variants={allowedVariants} materials={options.data?.materials ?? []} />
       </Form>
     </Modal>
