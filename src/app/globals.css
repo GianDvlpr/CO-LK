@@ -471,6 +471,38 @@ a {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.modal-form-grid {
+  display: grid;
+  gap: 0 16px;
+}
+
+.modal-form-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.modal-form-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.modal-form-grid > * {
+  min-width: 0;
+}
+
+.form-span-2 {
+  grid-column: span 2;
+}
+
+.form-span-all {
+  grid-column: 1 / -1;
+}
+
+.compact-form-modal .ant-modal-body {
+  max-height: min(72vh, 760px);
+  padding-inline-end: 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .purchase-line-grid {
   grid-template-columns: minmax(220px, 1.7fr) repeat(4, minmax(120px, 1fr));
 }
@@ -813,6 +845,7 @@ a {
   }
 
   .purchase-form-grid,
+  .modal-form-grid-3,
   .purchase-line-grid,
   .pick-pack-line-grid,
   .pick-pack-package-grid {
@@ -1002,10 +1035,17 @@ a {
   }
 
   .purchase-form-grid,
+  .modal-form-grid-2,
+  .modal-form-grid-3,
   .purchase-line-grid,
   .pick-pack-line-grid,
   .pick-pack-package-grid {
     grid-template-columns: 1fr;
+  }
+
+  .form-span-2,
+  .form-span-all {
+    grid-column: auto;
   }
 
   .purchase-line-grid > :first-child,
@@ -2162,7 +2202,7 @@ a {
 /* Datos fiscales en los catálogos de proveedores y clientes. */
 .catalog-location-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 

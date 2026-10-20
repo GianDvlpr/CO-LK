@@ -294,6 +294,7 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
       </Form>
     </Card> : null}
     <Modal
+      className="compact-form-modal"
       title={`${editing ? "Editar" : "Nuevo"} ${labels[active].singular}`}
       width={760}
       open={open}
@@ -362,14 +363,14 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
             <Form.Item name="email" label="Correo"><Input type="email" /></Form.Item>
             <Form.Item name="phone" label="Teléfono"><Input /></Form.Item>
           </div>
-        </> : <>
+        </> : <div className="modal-form-grid modal-form-grid-2">
           <Form.Item name="code" label={active === "CURRENCY" ? "Código ISO" : "Código"} rules={[{ required: true }, ...(active === "CURRENCY" ? [{ len: 3, message: "Usa el código ISO de 3 letras" }] : [])]}>
             <Input disabled={Boolean(editing)} placeholder={active === "CURRENCY" ? "PEN" : undefined} />
           </Form.Item>
           <Form.Item name="name" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
-        </>}
-        {active === "UNIT" ? <><Form.Item name="symbol" label="Símbolo" rules={[{ required: true }]}><Input placeholder="kg" /></Form.Item><Form.Item name="decimalPlaces" label="Cantidad de decimales" rules={[{ required: true }]}><InputNumber min={0} max={6} style={{ width: "100%" }} /></Form.Item></> : null}
-        {active === "CURRENCY" ? <><Form.Item name="symbol" label="Símbolo" rules={[{ required: true }]}><Input placeholder="S/" /></Form.Item><Form.Item name="isBase" valuePropName="checked"><Checkbox>Usar como moneda base</Checkbox></Form.Item></> : null}
+          {active === "UNIT" ? <><Form.Item name="symbol" label="Símbolo" rules={[{ required: true }]}><Input placeholder="kg" /></Form.Item><Form.Item name="decimalPlaces" label="Cantidad de decimales" rules={[{ required: true }]}><InputNumber min={0} max={6} style={{ width: "100%" }} /></Form.Item></> : null}
+          {active === "CURRENCY" ? <><Form.Item name="symbol" label="Símbolo" rules={[{ required: true }]}><Input placeholder="S/" /></Form.Item><Form.Item name="isBase" valuePropName="checked"><Checkbox>Usar como moneda base</Checkbox></Form.Item></> : null}
+        </div>}
       </Form>
     </Modal>
   </>;

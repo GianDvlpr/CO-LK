@@ -164,7 +164,7 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
       <Table rowKey="id" loading={purchases.isLoading} columns={columns} dataSource={purchases.data?.items ?? []} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" columns={lineColumns} dataSource={row.lines} pagination={false} scroll={{ x: 1180 }} /> }} scroll={{ x: 1230 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay recepciones registradas" /> }} />
     </Card>
 
-    <Modal title="Nueva recepción de compra" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Registrar pendiente" cancelText="Cancelar" confirmLoading={create.isPending} width={980} destroyOnHidden>
+    <Modal className="compact-form-modal" title="Nueva recepción de compra" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Registrar pendiente" cancelText="Cancelar" confirmLoading={create.isPending} width={980} destroyOnHidden>
       {options.error ? <Alert type="error" showIcon message={options.error.message} style={{ marginBottom: 16 }} /> : null}
       <Form form={form} layout="vertical" onFinish={(values) => create.mutate(values)} initialValues={{ receptionDate: dayjs(), exchangeRate: 1, lines: [{ taxRate: 18 }] }}>
         <div className="purchase-form-grid">

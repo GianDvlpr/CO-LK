@@ -286,7 +286,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
       {viewMode === "list" ? <Table rowKey="id" loading={orders.isLoading} columns={columns} dataSource={orders.data?.items ?? []} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" pagination={false} columns={materialColumns} dataSource={row.materials} /> }} scroll={{ x: 1510 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay órdenes de producción" /> }} /> : <ProductionKanban orders={orders.data?.items ?? []} onMove={moveOrder} onOpen={(order) => { if (!permissions.includes("production.create")) return; setEditOrder(order); editForm.setFieldsValue(orderToSheet(order, options.data?.variants ?? [])); }} />}
     </Card>
 
-    <Modal title="Nueva orden de producción" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Crear orden pendiente" confirmLoading={create.isPending} width={1180} destroyOnHidden>
+    <Modal className="compact-form-modal" title="Nueva orden de producción" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Crear orden pendiente" confirmLoading={create.isPending} width={1180} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={(values) => create.mutate(values)} initialValues={{ recipeVersionId: requestedRecipeVersionId, priority: 2, plannedAt: dayjs(), sizeProgram: [], productionTurns: [], components: [], dailyProduction: [] }}>
         <Divider titlePlacement="left">Orden y formulaciones</Divider>
         <div className="purchase-form-grid">
@@ -304,14 +304,14 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
       </Form>
     </Modal>
 
-    <Modal title={`Editar ${editOrder?.number ?? "orden"}`} open={Boolean(editOrder)} onCancel={() => setEditOrder(undefined)} onOk={() => editForm.submit()} okText="Guardar cambios" confirmLoading={update.isPending} width={1180} destroyOnHidden>
+    <Modal className="compact-form-modal" title={`Editar ${editOrder?.number ?? "orden"}`} open={Boolean(editOrder)} onCancel={() => setEditOrder(undefined)} onOk={() => editForm.submit()} okText="Guardar cambios" confirmLoading={update.isPending} width={1180} destroyOnHidden>
       <Form form={editForm} layout="vertical" onFinish={(values) => editOrder && update.mutate({ id: editOrder.id, values })}>
         {editOrder ? <Alert type="info" showIcon message={`${editOrder.recipeVersion.recipe.name}${editOrder.secondaryRecipeVersion ? ` + ${editOrder.secondaryRecipeVersion.recipe.name}` : ""} · ${editOrder.productVariant.product.matrixCode} · ${colorLabel(editOrder.productVariant)}`} style={{ marginBottom: 12 }} /> : null}
         <ProductionDetailsFields form={editForm} variants={editVariants} materials={options.data?.materials ?? []} structureLocked={editOrder?.status !== "DRAFT"} />
       </Form>
     </Modal>
 
-    <Modal title={`Finalizar ${completeOrder?.number ?? "orden"}`} open={Boolean(completeOrder)} onCancel={() => setCompleteOrder(undefined)} onOk={() => completeForm.submit()} okText="Ingresar productos terminados" confirmLoading={transition.isPending} width={820} destroyOnHidden>
+    <Modal className="compact-form-modal" title={`Finalizar ${completeOrder?.number ?? "orden"}`} open={Boolean(completeOrder)} onCancel={() => setCompleteOrder(undefined)} onOk={() => completeForm.submit()} okText="Ingresar productos terminados" confirmLoading={transition.isPending} width={820} destroyOnHidden>
       <Alert type="warning" showIcon message="Confirma la producción buena y la merma real del proceso." description={`Total a ingresar: ${completeOutputs.reduce((sum, item) => sum + Number(item?.quantity ?? 0), 0).toFixed(0)} pares. La merma se informa ahora porque puede variar en cada orden.`} style={{ marginBottom: 16 }} />
       <Form form={completeForm} layout="vertical" onFinish={(values) => completeOrder && transition.mutate({ id: completeOrder.id, action: "complete", body: values })}>
         <Form.List name="outputs">{(fields) => <Space direction="vertical" style={{ width: "100%" }}>{fields.map((field) => { const variantId = completeOutputs[field.name]?.productVariantId; const schedule = completeOrder?.sizeProgram?.find((item) => item.productVariantId === variantId); return <div key={field.key} className="purchase-form-grid"><Form.Item {...field} name={[field.name, "productVariantId"]} hidden><Input /></Form.Item><Form.Item label="SKU / talla"><Input disabled value={schedule ? `${schedule.sku} · Talla ${schedule.size}` : completeOrder?.productVariant.sku} /></Form.Item><Form.Item {...field} name={[field.name, "quantity"]} label="Cantidad buena" rules={[{ required: true }]}><InputNumber min={0} max={schedule?.requestedPairs ? Number(schedule.requestedPairs) : undefined} precision={0} style={{ width: "100%" }} /></Form.Item></div>; })}</Space>}</Form.List>

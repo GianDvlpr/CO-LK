@@ -60,16 +60,16 @@ export function PickPackWorkspace({ permissions }: { permissions: string[] }) {
       <Table rowKey="id" loading={records.isLoading} columns={columns} dataSource={records.data?.items ?? []} scroll={{ x: 1240 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay órdenes de preparación" /> }} />
     </Card>
 
-    <Modal title="Generar orden de Pick & Pack" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} okText="Generar" confirmLoading={create.isPending} destroyOnHidden>
+    <Modal title="Generar orden de Pick & Pack" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} okText="Generar" confirmLoading={create.isPending} width={720} destroyOnHidden>
       {!options.data?.orders.length ? <Alert type="warning" showIcon message="No hay pedidos confirmados pendientes de preparación." style={{ marginBottom: 16 }} /> : null}
       <Form form={createForm} layout="vertical" onFinish={(values) => create.mutate(values)} initialValues={{ priority: "NORMAL" }}>
-        <Form.Item name="salesOrderId" label="Pedido confirmado" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.orders.map((order) => ({ value: order.id, label: `${order.number} · ${order.customer.name} · ${order.lines.length} líneas` }))} /></Form.Item>
-        <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}><Select options={[{ value: "NORMAL", label: "Normal" }, { value: "URGENT", label: "Urgente" }]} /></Form.Item>
-        <Form.Item name="notes" label="Observaciones"><Input.TextArea rows={3} /></Form.Item>
+        <div className="modal-form-grid modal-form-grid-2"><Form.Item className="form-span-all" name="salesOrderId" label="Pedido confirmado" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.orders.map((order) => ({ value: order.id, label: `${order.number} · ${order.customer.name} · ${order.lines.length} líneas` }))} /></Form.Item>
+          <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}><Select options={[{ value: "NORMAL", label: "Normal" }, { value: "URGENT", label: "Urgente" }]} /></Form.Item>
+          <Form.Item className="form-span-all" name="notes" label="Observaciones"><Input.TextArea rows={2} /></Form.Item></div>
       </Form>
     </Modal>
 
-    <Modal className="pick-pack-modal" title={`${editing?.number ?? "Pick & Pack"} · ${editing ? statuses[editing.status]?.[0] : ""}`} open={Boolean(editing)} onCancel={() => setEditing(undefined)} width={1060} destroyOnHidden footer={editing ? [<Button key="cancel" onClick={() => setEditing(undefined)}>Cerrar</Button>, <Button key="save" loading={save.isPending} onClick={() => editForm.validateFields().then((values) => save.mutate({ values }))}>Guardar</Button>, next && (next[0] !== "READY" || permissions.includes("pick_pack.ready")) ? <Button key="next" type="primary" loading={save.isPending} onClick={() => editForm.validateFields().then((values) => save.mutate({ values, nextStatus: next[0] }))}>{next[1]}</Button> : null] : null}>
+    <Modal className="pick-pack-modal compact-form-modal" title={`${editing?.number ?? "Pick & Pack"} · ${editing ? statuses[editing.status]?.[0] : ""}`} open={Boolean(editing)} onCancel={() => setEditing(undefined)} width={1060} destroyOnHidden footer={editing ? [<Button key="cancel" onClick={() => setEditing(undefined)}>Cerrar</Button>, <Button key="save" loading={save.isPending} onClick={() => editForm.validateFields().then((values) => save.mutate({ values }))}>Guardar</Button>, next && (next[0] !== "READY" || permissions.includes("pick_pack.ready")) ? <Button key="next" type="primary" loading={save.isPending} onClick={() => editForm.validateFields().then((values) => save.mutate({ values, nextStatus: next[0] }))}>{next[1]}</Button> : null] : null}>
       <Form form={editForm} layout="vertical">
         <div className="purchase-form-grid">
           <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}><Select options={[{ value: "NORMAL", label: "Normal" }, { value: "URGENT", label: "Urgente" }]} /></Form.Item>
