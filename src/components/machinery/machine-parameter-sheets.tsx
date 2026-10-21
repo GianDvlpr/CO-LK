@@ -1,6 +1,6 @@
 "use client";
 
-import { DeleteOutlined, FileTextOutlined, PlusOutlined, PrinterOutlined } from "@ant-design/icons";
+import { DeleteOutlined, DownloadOutlined, FileTextOutlined, PlusOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Card, Drawer, Empty, Form, Input, Modal, Select, Space, Tag, Typography } from "antd";
 import dayjs from "dayjs";
@@ -77,7 +77,7 @@ export function MachineParameterSheetsDrawer({ machine, permissions, onClose }: 
     <Drawer title={machine ? `Parámetros · ${machine.code} · ${machine.name}` : "Fichas de parámetros"} open={Boolean(machine)} onClose={onClose} width="min(920px, 100vw)" extra={permissions.includes("machinery.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={startCreate}>Nueva ficha</Button> : null}>
       <Typography.Paragraph type="secondary">Cada ficha es una revisión histórica imprimible. Crea otra ficha cuando cambie el material, molde, estación o configuración; no reemplaces una hoja ya entregada.</Typography.Paragraph>
       {sheets.data?.items.length ? <div className="machine-sheet-list">{sheets.data.items.map((sheet) => <Card size="small" key={sheet.id}>
-        <div className="machine-sheet-card-head"><div><Space wrap><Typography.Text strong>{sheet.name}</Typography.Text><Tag color="blue">Rev. {String(sheet.revision).padStart(2, "0")}</Tag></Space><div><Typography.Text type="secondary">{configurationLabels[sheet.configurationType] ?? sheet.configurationType}</Typography.Text></div></div><Space wrap>{permissions.includes("machinery.create") ? <Button onClick={() => startRevision(sheet)}>Nueva revisión</Button> : null}<Button href={`/dashboard/machinery/parameters/${sheet.id}/print`} target="_blank" icon={<PrinterOutlined />}>Imprimir</Button></Space></div>
+        <div className="machine-sheet-card-head"><div><Space wrap><Typography.Text strong>{sheet.name}</Typography.Text><Tag color="blue">Rev. {String(sheet.revision).padStart(2, "0")}</Tag></Space><div><Typography.Text type="secondary">{configurationLabels[sheet.configurationType] ?? sheet.configurationType}</Typography.Text></div></div><Space wrap>{permissions.includes("machinery.create") ? <Button onClick={() => startRevision(sheet)}>Nueva revisión</Button> : null}<Button href={`/api/v1/machinery/${machine?.id}/parameter-sheets/${sheet.id}/print`} icon={<DownloadOutlined />}>Descargar PDF</Button></Space></div>
         <div className="machine-sheet-meta"><span>{sheet._count.parameters} parámetros</span><span>{sheet.material || "Material no indicado"}</span><span>{sheet.application || "Aplicación no indicada"}</span><span>{dayjs(sheet.createdAt).format("DD/MM/YYYY HH:mm")} · {sheet.createdBy.name || sheet.createdBy.username}</span></div>
       </Card>)}</div> : <Empty image={<FileTextOutlined style={{ fontSize: 46 }} />} description={sheets.isLoading ? "Cargando fichas…" : "Esta máquina todavía no tiene fichas de parámetros"} />}
     </Drawer>

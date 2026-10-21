@@ -55,10 +55,10 @@ Actualizado: 19/10/2026.
 - Confirmación transaccional de pedidos con reserva de producto terminado.
 - Módulo Pick & Pack con correlativo, prioridad, picking, packing, ubicaciones, lotes, incidencias, paquetes, transportista y documento de salida.
 - Flujo obligatorio `CONFIRMED → PICKING → PACKING → READY → DISPATCHED`; el despacho directo queda bloqueado.
-- Formato A5 apaisado imprimible o guardable como PDF, sin firmas, con cabecera, detalle de productos, verificación, incidencias, paquetes y observaciones.
+- Formato descargable en PDF A5 apaisado generado por el servidor, sin firmas, con cabecera, detalle de productos, verificación, incidencias, paquetes y observaciones.
 - Despacho valorizado de las cantidades realmente empacadas, liberación de diferencias reservadas, actualización del kardex, auditoría y notificaciones Pusher.
 - Calendario operativo integrado con pedidos, producción, Pick & Pack, mantenimientos y eventos manuales; incluye agenda móvil, tablero arrastrable de tareas, filtros, vencimientos y recordatorios Pusher.
-- Maquinaria rediseñada con indicadores compactos, búsqueda, filtros por tipo/estado, vista de tarjetas o tabla, paginación, edición, historial de mantenimiento y fichas versionadas e imprimibles de parámetros por estación, canal y zona térmica.
+- Maquinaria rediseñada con indicadores compactos, búsqueda, filtros por tipo/estado, vista de tarjetas o tabla, paginación, edición, historial de mantenimiento y fichas versionadas de parámetros por estación, canal y zona térmica, descargables en PDF A4.
 - Módulo operativo de Usuarios con alta, asignación de múltiples roles, contraseña temporal mínima de 6 caracteres y cambio obligatorio en el primer ingreso.
 - Activación y desactivación segura de usuarios; al desactivar una cuenta se revocan de inmediato todas sus sesiones y se registra la operación en auditoría.
 - Módulo operativo de Roles y Permisos con creación de roles personalizados y selección de permisos atómicos agrupados por módulo.

@@ -1,6 +1,6 @@
 "use client";
 
-import { CarOutlined, EditOutlined, PlusOutlined, PrinterOutlined, ReloadOutlined } from "@ant-design/icons";
+import { CarOutlined, DownloadOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -53,7 +53,7 @@ export function PickPackWorkspace({ permissions }: { permissions: string[] }) {
     { title: "Avance", width: 150, render: (_, row) => { const requested = row.lines.reduce((sum, line) => sum.add(line.requestedQuantity), new Decimal(0)); const packed = row.lines.reduce((sum, line) => sum.add(line.packedQuantity), new Decimal(0)); return `${packed.toFixed(0)} / ${requested.toFixed(0)} und.`; } },
     { title: "Prioridad", width: 100, render: (_, row) => <Tag color={row.priority === "URGENT" ? "red" : "default"}>{row.priority === "URGENT" ? "Urgente" : "Normal"}</Tag> },
     { title: "Estado", width: 150, render: (_, row) => { const [label, color] = statuses[row.status] ?? [row.status, "default"]; return <Tag color={color}>{label}</Tag>; } },
-    { title: "Acciones", fixed: "right", width: 280, render: (_, row) => <Space wrap>{canEdit && !["READY", "DISPATCHED", "CANCELLED"].includes(row.status) ? <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)}>Preparar</Button> : null}{permissions.includes("pick_pack.print") ? <Button size="small" icon={<PrinterOutlined />} href={`/dashboard/pick-pack/${row.id}/print`} target="_blank">Formato</Button> : null}{row.status === "READY" && permissions.includes("orders.dispatch") ? <Button size="small" type="primary" icon={<CarOutlined />} onClick={() => Modal.confirm({ title: `¿Despachar ${row.salesOrder.number}?`, content: "Se descontarán del kardex únicamente las cantidades empacadas y se liberará cualquier diferencia reservada.", okText: "Despachar", onOk: () => dispatch.mutateAsync(row.salesOrder.id) })}>Despachar</Button> : null}</Space> },
+    { title: "Acciones", fixed: "right", width: 280, render: (_, row) => <Space wrap>{canEdit && !["READY", "DISPATCHED", "CANCELLED"].includes(row.status) ? <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)}>Preparar</Button> : null}{permissions.includes("pick_pack.print") ? <Button size="small" icon={<DownloadOutlined />} href={`/api/v1/pick-pack/${row.id}/print`}>PDF</Button> : null}{row.status === "READY" && permissions.includes("orders.dispatch") ? <Button size="small" type="primary" icon={<CarOutlined />} onClick={() => Modal.confirm({ title: `¿Despachar ${row.salesOrder.number}?`, content: "Se descontarán del kardex únicamente las cantidades empacadas y se liberará cualquier diferencia reservada.", okText: "Despachar", onOk: () => dispatch.mutateAsync(row.salesOrder.id) })}>Despachar</Button> : null}</Space> },
   ];
 
   return <>

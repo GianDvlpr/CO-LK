@@ -184,6 +184,7 @@ Reglas:
 - Una máquina puede tener fichas de parámetros versionadas e imprimibles. Cada ficha conserva los valores registrados para ámbitos generales, estaciones, inyectores/canales y zonas térmicas.
 - Las fichas históricas no se sobrescriben: cuando cambia el material, molde, estación o configuración se crea una revisión nueva.
 - Las estructuras de inyectora estática y rotativa solo proponen nombres de campos; el sistema nunca debe inventar consignas, unidades o límites operativos.
+- La ficha de parámetros se descarga como PDF A4 vertical generado por el servidor, sin depender de la impresión del navegador.
 - La hoja impresa reproduce valores aprobados internamente y no sustituye manuales, bloqueo de seguridad ni capacitación del fabricante.
 
 ## 10. Pedidos, Pick & Pack y despacho
@@ -207,7 +208,7 @@ PENDING → PICKING → PACKING → READY → DISPATCHED
 
 - Registra cantidades solicitadas, recogidas y empacadas, ubicación, lote, incidencias y paquetes.
 - No incluye responsables de pick/pack ni firmas en el formato.
-- El formato imprimible es A5 apaisado.
+- El formato se descarga como PDF A5 apaisado generado por el servidor; no usa la página de impresión del navegador.
 - Despachar descuenta lo realmente empacado y libera reservas no utilizadas.
 - Un reintento no debe duplicar la salida del kardex.
 
