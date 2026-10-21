@@ -50,7 +50,7 @@ export async function GET() {
     const user = await requirePermission("catalogs.read");
     const [suppliers, customers, warehouses, units, currencies] = await prisma.$transaction([
       prisma.supplier.findMany({ where: { companyId: user.companyId }, orderBy: { name: "asc" } }),
-      prisma.customer.findMany({ where: { companyId: user.companyId }, orderBy: { name: "asc" } }),
+      prisma.customer.findMany({ where: { companyId: user.companyId }, include: { brands: { orderBy: { name: "asc" } } }, orderBy: { name: "asc" } }),
       prisma.warehouse.findMany({ where: { companyId: user.companyId }, orderBy: { name: "asc" } }),
       prisma.unitOfMeasure.findMany({ where: { companyId: user.companyId }, orderBy: { name: "asc" } }),
       prisma.currency.findMany({ where: { companyId: user.companyId }, orderBy: [{ isBase: "desc" }, { code: "asc" }] }),

@@ -171,6 +171,9 @@ Reglas:
 - El formato muestra solo la sección de prensa, inyectora, ambas o ninguna según el tipo de proceso seleccionado.
 - Una orden de producción puede consolidar varias órdenes de pedido. Las cantidades programadas por talla no pueden superar la suma disponible de las líneas seleccionadas.
 - El A5 muestra la fecha de emisión en la cabecera, omite estado, prioridad y serie/modelo, y separa `TOTAL` de `TOTAL ESPERADO` en el control por talla.
+- El A5 de producción usa letra mayor en las celdas de contenido (no en cabeceras) y el recuadro de observaciones ocupa una sola línea; el Excel conserva el mismo criterio.
+- Cada cliente puede registrar una lista de logos/marcas (solo nombre). Al crear la orden se selecciona uno de los logos del cliente de los pedidos vinculados; el campo Logo / marca se autocompleta y sigue siendo editable.
+- Los pedidos vinculados a una orden con logo/marca registrado deben pertenecer al mismo cliente.
 
 ## 9. Maquinaria
 

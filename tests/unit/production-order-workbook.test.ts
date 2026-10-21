@@ -48,6 +48,20 @@ describe("orden de producción A5", () => {
     expect(values).not.toContain("Serie / modelo");
   });
 
+  it("usa letra mayor solo en el contenido y deja las observaciones en una línea", async () => {
+    const workbook = await buildProductionOrderWorkbook(documentData);
+    const sheet = workbook.getWorksheet("Orden de producción");
+    expect(sheet?.getCell(1, 1).font.size).toBe(10);
+    expect(sheet?.getCell(9, 1).font.size).toBe(9);
+    expect(sheet?.getCell(2, 1).font.size).toBe(8);
+    expect(sheet?.getCell(2, 3).font.size).toBe(9);
+    expect(sheet?.getRow(2).height).toBe(19);
+    expect(sheet?.getRow(11).height).toBe(19);
+    expect(sheet?.getCell(11, 3).font.size).toBe(9);
+    expect(sheet?.getRow(24).height).toBe(15);
+    expect(sheet?.getCell(24, 1).font.size).toBe(8);
+  });
+
   it("genera un PDF A5 descargable", async () => {
     const pdf = await buildProductionOrderPdf(documentData);
     expect(new TextDecoder().decode(pdf.slice(0, 4))).toBe("%PDF");

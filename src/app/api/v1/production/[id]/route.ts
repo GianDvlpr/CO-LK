@@ -6,6 +6,7 @@ import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { productionSheetSchema, serializeProductionSheet, validateProductionSheetTotals } from "@/modules/production/domain/production-sheet";
+import { customerBrandName, validateCustomerBrand } from "@/modules/production/domain/production-brand";
 import { productVariantColorLabel } from "@/modules/products/domain/product-sku";
 
 function componentKey(component: { itemId: string; componentType: string; quantity: Decimal.Value; colorDetail?: string | null }) {
@@ -69,9 +70,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
 
     const oldComponents = existing.components.map(componentKey).sort();
-    const newComponents = normalized.components.map(componentKey).sort();
-    if (existing.status !== "DRAFT" && oldComponents.join(";") !== newComponents.join(";")) return apiError("PRODUCTION_COMPONENTS_LOCKED", "Los componentes solo pueden cambiar mientras la orden está pendiente.", 422);
+    const newComponents = normalized.components.map(componentKey).sort();    if (existing.status !== "DRAFT" && oldComponents.join(";") !== newComponents.join(";")) return apiError("PRODUCTION_COMPONENTS_LOCKED", "Los componentes solo pueden cambiar mientras la orden está pendiente.", 422);
     if (existing.status !== "DRAFT" && programKeys(existing.sizeProgram).join(";") !== programKeys(normalized.sizeProgram).join(";")) return apiError("PRODUCTION_PROGRAM_LOCKED", "Las tallas y cantidades solo pueden cambiar mientras la orden está pendiente.", 422);
+
+    const customerBrand = parsed.data.customerBrandId
+      ? await prisma.customerBrand.findFirst({ where: { id: parsed.data.customerBrandId, active: true, customer: { companyId: user.companyId, active: true } } })
+      : null;
+    if (parsed.data.customerBrandId && !customerBrand) return apiError("PRODUCTION_INVALID_BRAND", "El logo/marca no está disponible para esta empresa.", 422);
+    const brandIssue = validateCustomerBrand(customerBrand, existing.salesOrders.map((link) => link.salesOrder.customerId));
+    if (brandIssue) return apiError(brandIssue.code, brandIssue.message, 422);
 
     const values = serializeProductionSheet(normalized);
     const result = await prisma.$transaction(async (tx) => {
@@ -96,8 +103,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         where: { id },
         data: {
           operatorName: values.operatorName || null,
-          modelLogo: values.modelLogo || null,
+          modelLogo: values.modelLogo || customerBrandName(customerBrand) || null,
           brandColor: values.brandColor || null,
+          customerBrandId: values.customerBrandId ?? null,
           productVariantId: values.sizeProgram[0].productVariantId,
           ...(existing.status === "DRAFT" ? { plannedQuantity, recipeRuns: plannedQuantity.div(existing.recipeVersion.yieldQuantity.toString()).toDecimalPlaces(6), secondaryRecipeRuns: existing.secondaryRecipeVersion ? plannedQuantity.div(existing.secondaryRecipeVersion.yieldQuantity.toString()).toDecimalPlaces(6) : null } : {}),
           sizeProgram: values.sizeProgram as Prisma.InputJsonValue,

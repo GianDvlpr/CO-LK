@@ -2,6 +2,7 @@ import Decimal from "decimal.js";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { calculateMovingAverage } from "@/modules/inventory/domain/calculate-moving-average";
 import { validateProductionSheetTotals } from "@/modules/production/domain/production-sheet";
+import { customerBrandName, validateCustomerBrand } from "@/modules/production/domain/production-brand";
 import { nextBusinessCode } from "@/lib/database/business-code";
 import { productVariantColorLabel } from "@/modules/products/domain/product-sku";
 
@@ -20,6 +21,7 @@ type ProductionWaste = { productionMaterialId: string; quantity: Decimal.Value }
 export async function createProductionOrder(database: PrismaClient, command: {
   companyId: string; userId: string; number?: string; warehouseId: string; productVariantId?: string;
   recipeVersionId: string; secondaryRecipeVersionId?: string; salesOrderIds?: string[]; materialItemId?: string;
+  customerBrandId?: string | null;
   machineId?: string; recipeRuns?: Decimal.Value; priority?: number; plannedAt?: Date; operatorName?: string;
   sizeProgram?: ProductionProgramEntry[]; productionTurns?: ProductionTurn[]; components?: ProductionComponentInput[];
   machineEquipment?: string; modelLogo?: string; materialLoad?: string; seriesLot?: string;
@@ -29,7 +31,7 @@ export async function createProductionOrder(database: PrismaClient, command: {
   return database.$transaction(async (tx) => {
     const componentIds = Array.from(new Set((command.components ?? []).map((item) => item.itemId)));
     const salesOrderIds = Array.from(new Set(command.salesOrderIds ?? []));
-    const [warehouse, version, secondaryVersion, machine, salesOrders, materialItem, componentItems] = await Promise.all([
+    const [warehouse, version, secondaryVersion, machine, salesOrders, materialItem, componentItems, customerBrand] = await Promise.all([
       tx.warehouse.findFirst({ where: { id: command.warehouseId, companyId: command.companyId, active: true } }),
       tx.recipeVersion.findFirst({ where: { id: command.recipeVersionId, isActive: true, recipe: { companyId: command.companyId, status: "ACTIVE", productId: { not: null } } }, include: { recipe: true, ingredients: true } }),
       command.secondaryRecipeVersionId ? tx.recipeVersion.findFirst({ where: { id: command.secondaryRecipeVersionId, isActive: true, recipe: { companyId: command.companyId, status: "ACTIVE", productId: { not: null } } }, include: { recipe: true, ingredients: true } }) : null,
@@ -37,8 +39,12 @@ export async function createProductionOrder(database: PrismaClient, command: {
       salesOrderIds.length ? tx.salesOrder.findMany({ where: { id: { in: salesOrderIds }, companyId: command.companyId, status: { not: "CANCELLED" } }, include: { lines: { where: { productionOrderId: null } } } }) : [],
       command.materialItemId ? tx.inventoryItem.findFirst({ where: { id: command.materialItemId, companyId: command.companyId, active: true } }) : null,
       tx.inventoryItem.findMany({ where: { id: { in: componentIds }, companyId: command.companyId, active: true } }),
+      command.customerBrandId ? tx.customerBrand.findFirst({ where: { id: command.customerBrandId, active: true, customer: { companyId: command.companyId, active: true } } }) : null,
     ]);
     if (!warehouse || !version || (command.secondaryRecipeVersionId && !secondaryVersion) || (command.machineId && !machine) || salesOrders.length !== salesOrderIds.length || (command.materialItemId && !materialItem) || componentItems.length !== componentIds.length) throw new ProductionError("PRODUCTION_INVALID_REFERENCE", "El almacén, formulación, pedido, material, componente o máquina no es válido para esta orden.");
+    if (command.customerBrandId && !customerBrand) throw new ProductionError("PRODUCTION_INVALID_BRAND", "El logo/marca no está disponible para esta empresa.");
+    const brandIssue = validateCustomerBrand(customerBrand, salesOrders.map((salesOrder) => salesOrder.customerId));
+    if (brandIssue) throw new ProductionError(brandIssue.code, brandIssue.message);
     if (secondaryVersion && secondaryVersion.recipe.productId !== version.recipe.productId) throw new ProductionError("PRODUCTION_INVALID_RECIPE_PAIR", "Las formulaciones C1 y C2 deben pertenecer al mismo producto.");
     const variantIds = Array.from(new Set([command.productVariantId, ...(command.sizeProgram ?? []).map((item) => item.productVariantId), ...(command.productionTurns ?? []).flatMap((turn) => turn.quantities.map((item) => item.productVariantId)), ...(command.dailyProduction ?? []).map((item) => item.productVariantId)].filter((value): value is string => Boolean(value))));
     const variants = await tx.productVariant.findMany({
@@ -95,10 +101,11 @@ export async function createProductionOrder(database: PrismaClient, command: {
     const order = await tx.productionOrder.create({ data: {
       companyId: command.companyId, warehouseId: command.warehouseId, productVariantId: variant.id,
       recipeVersionId: command.recipeVersionId, secondaryRecipeVersionId: command.secondaryRecipeVersionId || null,
+      customerBrandId: command.customerBrandId || null,
       materialItemId: command.materialItemId || null, machineId: command.machineId || null,
       number, recipeRuns: runs, secondaryRecipeRuns: secondaryRuns, plannedQuantity, priority: command.priority ?? 2, plannedAt: command.plannedAt,
       machineEquipment: machine ? `${machine.code} · ${machine.name}` : command.machineEquipment || null,
-      operatorName: command.operatorName || null, modelLogo: command.modelLogo || null,
+      operatorName: command.operatorName || null, modelLogo: command.modelLogo || customerBrandName(customerBrand) || null,
       materialLoad: materialItem ? `${materialItem.code} · ${materialItem.name}` : command.materialLoad || null,
       seriesLot: normalizedProgram.map((item) => item.size).join(", "), processType, mold: variant.product.matrixCode,
       brandColor: command.brandColor || null, pressNumber: command.pressNumber || null, pressLoad: command.pressLoad || null,

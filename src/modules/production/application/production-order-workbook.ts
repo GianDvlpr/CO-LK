@@ -38,7 +38,7 @@ export async function buildProductionOrderWorkbook(order: ProductionOrderDocumen
     for (let column = from; column <= to; column += 1) {
       const cell = sheet.getCell(row, column);
       cell.border = border;
-      cell.font = { name: "Arial", size: 8, color: { argb: NAVY }, ...cell.font };
+      cell.font = { name: "Arial", size: 9, color: { argb: NAVY }, ...cell.font };
       cell.alignment = { vertical: "middle", wrapText: true, ...cell.alignment };
     }
   };
@@ -83,7 +83,7 @@ export async function buildProductionOrderWorkbook(order: ProductionOrderDocumen
     if (index === 0 || index === 1) { fill(sheet.getCell(row, leftValueStart), INPUT); fill(sheet.getCell(row, rightValueStart), INPUT); }
     if (leftValue instanceof Date) sheet.getCell(row, leftValueStart).numFmt = "dd/mm/yyyy";
     if (rightValue instanceof Date) sheet.getCell(row, rightValueStart).numFmt = "dd/mm/yyyy";
-    rangeStyle(row); sheet.getRow(row).height = 16;
+    rangeStyle(row); sheet.getRow(row).height = 19;
   });
 
   section(9, "COMPONENTES INTEGRADOS EN LA MISMA OPERACIÓN DE PRENSADO");
@@ -102,7 +102,7 @@ export async function buildProductionOrderWorkbook(order: ProductionOrderDocumen
     sheet.mergeCells(row, detailStart, row, columnCount);
     sheet.getCell(row, 1).value = item.label; sheet.getCell(row, 1).font = { name: "Arial", size: 8, bold: true, color: { argb: NAVY } }; fill(sheet.getCell(row, 1), LIGHT);
     sheet.getCell(row, componentCodeStart).value = item.code; sheet.getCell(row, detailStart).value = item.detail;
-    rangeStyle(row); sheet.getRow(row).height = 16;
+    rangeStyle(row); sheet.getRow(row).height = 19;
   });
 
   const programSectionRow = 18;
@@ -127,11 +127,11 @@ export async function buildProductionOrderWorkbook(order: ProductionOrderDocumen
     sheet.getCell(row, expectedColumn).value = "";
     rangeStyle(row);
   }
-  [headerRow, plannedRow].forEach((row) => { rangeStyle(row); for (let column = 1; column <= columnCount; column += 1) { const cell = sheet.getCell(row, column); cell.font = { name: "Arial", size: 8, bold: true, color: { argb: NAVY } }; if (row === headerRow) fill(cell, LIGHT); cell.alignment = { horizontal: "center", vertical: "middle" }; } });
+  [headerRow, plannedRow].forEach((row) => { rangeStyle(row); for (let column = 1; column <= columnCount; column += 1) { const cell = sheet.getCell(row, column); cell.font = { name: "Arial", size: row === plannedRow && column > 1 ? 9 : 8, bold: true, color: { argb: NAVY } }; if (row === headerRow) fill(cell, LIGHT); cell.alignment = { horizontal: "center", vertical: "middle" }; } });
   const observationRow = plannedRow + turnRows + 1;
   sheet.mergeCells(observationRow, 1, observationRow, columnCount);
   sheet.getCell(observationRow, 1).value = `Observaciones / incidencias: ${turns.map((turn) => turn.observations).filter(Boolean).join(" | ")}`;
   sheet.getCell(observationRow, 1).font = { name: "Arial", size: 8, bold: true, color: { argb: NAVY } };
-  fill(sheet.getCell(observationRow, 1), LIGHT); sheet.getCell(observationRow, 1).border = border; sheet.getRow(observationRow).height = 22;
+  fill(sheet.getCell(observationRow, 1), LIGHT); sheet.getCell(observationRow, 1).border = border; sheet.getRow(observationRow).height = 15;
   return workbook;
 }

@@ -97,6 +97,8 @@ Actualizado: 19/10/2026.
 - Suite de integración ejecutada contra ramas Neon temporales: 5 escenarios para rollback de compra inválida, idempotencia de stock inicial, aprobación concurrente sin doble contabilización, autenticación/bloqueo/cambio de contraseña y flujo completo Producción-Pedidos.
 - Producción validada de extremo a extremo con reserva, consumo valorizado, liberación de reserva e ingreso de producto terminado; Pedidos validado con reserva, despacho y protección ante reintentos duplicados.
 - Producción admite consolidar varias órdenes de pedido mediante una relación normalizada; el A5 actualizado muestra fecha de emisión en cabecera, mayor espacio en componentes y las columnas `TOTAL` y `TOTAL ESPERADO`.
+- El A5 de producción (con datos, en blanco y continuación) usa letra mayor en las celdas de contenido sin agrandar cabeceras, filas más amplias para escribir y observaciones de una sola línea; el Excel A5 aplica el mismo criterio.
+- Logos/marcas por cliente registrados en Catálogos (solo nombre) y seleccionables al crear la orden desde el cliente de los pedidos vinculados, con autocompletado editable del campo Logo / marca.
 - Lógica comprobable de credenciales y cambio de contraseña separada de la sesión/cookies de Next.js, manteniendo sin cambios el contrato de las rutas web.
 - Compatibilidad corregida con el adaptador HTTP de Neon para bloqueos consultivos PostgreSQL y mapeo explícito de saldos sin campos calculados ajenos al modelo.
 - Verificación visual local aprobada para el login y la redirección de visitantes anónimos.
@@ -109,5 +111,6 @@ Actualizado: 19/10/2026.
 3. Configurar `WORKER_SECRET` y un programador externo para procesar alertas aun cuando no haya usuarios conectados.
 4. Ejecutar Playwright en un entorno que permita crear procesos; este sandbox bloquea sus workers con `spawn EPERM`.
 5. Preparar datos UAT y ejecutar una ronda funcional con usuarios de negocio para Compras, Almacén, Recetas, Producción, Productos, Pedidos y Pick & Pack.
+6. Aplicar la migración `20261020235000_customer_brands` en Neon antes de desplegar los logos/marcas por cliente.
 
 Nunca versionar `.env.local`, credenciales de Neon ni secretos de Pusher.

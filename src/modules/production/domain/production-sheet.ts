@@ -42,6 +42,7 @@ export const productionSheetSchema = z.object({
   operatorName: optionalText,
   modelLogo: optionalText,
   brandColor: optionalText,
+  customerBrandId: z.uuid().nullable().optional(),
   productionTurns: z.array(productionTurnSchema).max(100).default([]),
   sizeProgram: sizeProgramSchema,
   components: z.array(productionComponentSchema).max(12).default([]),

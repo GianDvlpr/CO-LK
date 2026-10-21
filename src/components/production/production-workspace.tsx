@@ -24,7 +24,7 @@ type SizeProgram = { productVariantId: string; sku?: string; size: string; color
 type Turn = { date: string; quantities: { productVariantId: string; sku?: string; size: string; quantity: number }[]; observations?: string };
 type ComponentValue = { itemId: string; componentType: "CERCO_VIRA" | "INSERTO_PUNTA" | "INSERTO_TALON" | "OTRO"; quantity: number; colorDetail?: string };
 type SheetValues = {
-  operatorName?: string; modelLogo?: string; brandColor?: string;
+  operatorName?: string; modelLogo?: string; brandColor?: string; customerBrandId?: string | null;
   sizeProgram: SizeProgram[];
   productionTurns: { date: Dayjs; quantities: { productVariantId: string; sku?: string; size: string; quantity: number }[]; observations?: string }[];
   components: ComponentValue[];
@@ -41,7 +41,7 @@ export type Order = {
   id: string; number: string; status: string; priority: number; recipeRuns: string; secondaryRecipeRuns?: string;
   plannedQuantity: string; producedQuantity: string; plannedAt?: string; productionTurns?: Turn[];
   machineEquipment?: string;
-  salesOrders: { salesOrder: { id: string; number: string } }[]; materialItem?: { id: string; code: string; name: string; unit: { symbol: string } };
+  salesOrders: { salesOrder: { id: string; number: string; customer: { id: string; name: string } } }[]; materialItem?: { id: string; code: string; name: string; unit: { symbol: string } };
   machine?: { id: string; code: string; name: string; type: string; status: string };
   warehouse: { code: string; name: string };
   productVariant: Variant;
@@ -50,6 +50,7 @@ export type Order = {
   materials: Material[];
   components: { id: string; componentType: string; quantity: string; colorDetail?: string; item: { id: string; code: string; name: string; unit: { symbol: string } } }[];
   operatorName?: string; modelLogo?: string; brandColor?: string; sizeProgram?: SizeProgram[];
+  customerBrandId?: string | null;
 };
 type Options = {
   warehouses: { id: string; code: string; name: string }[];
@@ -57,7 +58,8 @@ type Options = {
   recipes: { id: string; productId: string; code: string; name: string; product: { id: string; code: string; name: string }; versions: { id: string; version: number; yieldQuantity: string; ingredients: { quantity: string; item: { id: string; code: string; name: string; unit: { symbol: string } } }[] }[] }[];
   machines: { id: string; code: string; name: string; type: string; status: string }[];
   materials: { id: string; code: string; name: string; type: string; unit: { symbol: string } }[];
-  salesOrders: { id: string; number: string; customer: { name: string }; promisedAt?: string; lines: { id: string; productVariantId: string; quantity: string }[] }[];
+  salesOrders: { id: string; number: string; customer: { id: string; name: string }; promisedAt?: string; lines: { id: string; productVariantId: string; quantity: string }[] }[];
+  customerBrands: { id: string; customerId: string; name: string }[];
 };
 type FormValues = SheetValues & {
   warehouseId: string; recipeVersionId: string; secondaryRecipeVersionId?: string; salesOrderIds?: string[];
@@ -115,7 +117,7 @@ function setVariantSnapshot(form: FormInstance, path: "sizeProgram" | "productio
   if (path === "sizeProgram") form.setFieldValue([...base, "color"], colorLabel(variant));
 }
 
-function ProductionDetailsFields({ form, variants, materials, structureLocked = false }: { form: FormInstance; variants: Variant[]; materials: Options["materials"]; structureLocked?: boolean }) {
+function ProductionDetailsFields({ form, variants, materials, customerBrands = [], structureLocked = false }: { form: FormInstance; variants: Variant[]; materials: Options["materials"]; customerBrands?: Options["customerBrands"]; structureLocked?: boolean }) {
   const program = (Form.useWatch("sizeProgram", form) ?? []) as SizeProgram[];
   const firstVariant = variants.find((item) => item.id === program.find((item) => item?.productVariantId)?.productVariantId);
   const compatibleVariants = firstVariant ? variants.filter((item) => colorPair(item) === colorPair(firstVariant)) : variants;
@@ -125,6 +127,7 @@ function ProductionDetailsFields({ form, variants, materials, structureLocked = 
     <Divider titlePlacement="left">Datos técnicos</Divider>
     <div className="purchase-form-grid">
       <Form.Item name="operatorName" label="Operario"><Input maxLength={150} /></Form.Item>
+      <Form.Item name="customerBrandId" label="Logo / marca registrado" tooltip="Logos/marcas registrados del cliente de los pedidos seleccionados."><Select allowClear showSearch optionFilterProp="label" disabled={structureLocked} placeholder={customerBrands.length ? "Selecciona un logo/marca" : "Sin logos/marcas registrados"} onChange={(id) => { const brand = customerBrands.find((item) => item.id === id); if (brand) form.setFieldValue("modelLogo", brand.name); }} options={customerBrands.map((brand) => ({ value: brand.id, label: brand.name }))} /></Form.Item>
       <Form.Item name="modelLogo" label="Logo / marca"><Input maxLength={150} /></Form.Item>
       <Form.Item name="brandColor" label="Color de marca"><Input maxLength={150} /></Form.Item>
     </div>
@@ -185,6 +188,7 @@ function ProductionDetailsFields({ form, variants, materials, structureLocked = 
 function sheetPayload(values: SheetValues) {
   return {
     ...values,
+    customerBrandId: values.customerBrandId ?? null,
     productionTurns: (values.productionTurns ?? []).map((turn) => ({ ...turn, date: turn.date.format("YYYY-MM-DD") })),
     components: values.components ?? [], sizeProgram: values.sizeProgram ?? [], dailyProduction: [],
   };
@@ -199,6 +203,7 @@ function orderToSheet(order: Order, variants: Variant[]): SheetValues {
   }).filter((item): item is SizeProgram => Boolean(item));
   return {
     operatorName: order.operatorName, modelLogo: order.modelLogo, brandColor: order.brandColor,
+    customerBrandId: order.customerBrandId ?? undefined,
     sizeProgram,
     productionTurns: (order.productionTurns ?? []).map((turn) => ({ ...turn, date: dayjs(turn.date) })),
     components: order.components.map((component) => ({ itemId: component.item.id, componentType: component.componentType as ComponentValue["componentType"], quantity: Number(component.quantity), colorDetail: component.colorDetail })),
@@ -230,6 +235,11 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   const allowedVariants = selectedRecipe ? options.data?.variants.filter((variant) => variant.product.id === selectedRecipe.product.id) ?? [] : [];
   const firstProgramVariant = allowedVariants.find((variant) => variant.id === program.find((item) => item?.productVariantId)?.productVariantId);
   const editVariants = editOrder ? options.data?.variants.filter((variant) => variant.product.id === editOrder.productVariant.product.id) ?? [] : [];
+  const selectedSalesOrderIds = Form.useWatch("salesOrderIds", form) ?? [];
+  const selectedCustomerIds = [...new Set((options.data?.salesOrders ?? []).filter((order) => selectedSalesOrderIds.includes(order.id)).map((order) => order.customer.id))];
+  const createBrands = selectedCustomerIds.length === 1 ? (options.data?.customerBrands ?? []).filter((brand) => brand.customerId === selectedCustomerIds[0]) : [];
+  const editCustomerIds = [...new Set((editOrder?.salesOrders ?? []).map((link) => link.salesOrder.customer.id))];
+  const editBrands = editCustomerIds.length === 1 ? (options.data?.customerBrands ?? []).filter((brand) => brand.customerId === editCustomerIds[0]) : [];
   const plannedPairs = program.reduce((sum, item) => sum + Number(item?.requestedPairs ?? 0), 0);
   const plannedRecipeConsumption = calculatePlannedRecipeConsumption(plannedPairs, [selectedRecipe, secondaryRecipe]);
   const refresh = async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ["production"] }), queryClient.invalidateQueries({ queryKey: ["inventory"] }), queryClient.invalidateQueries({ queryKey: ["kardex"] }), queryClient.invalidateQueries({ queryKey: ["calendar"] }), queryClient.invalidateQueries({ queryKey: ["orders"] })]); };
@@ -240,7 +250,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   const startFromBoard = useMutation({ mutationFn: async (order: Order) => { if (order.status === "DRAFT") await api(`/api/v1/production/${order.id}/release`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); return api(`/api/v1/production/${order.id}/start`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); }, onSuccess: async () => { toast.success("Orden iniciada y materiales descontados del kardex."); await refresh(); }, onError: (error) => toast.error(error.message) });
 
   const loadSalesOrders = (salesOrderIds: string[]) => {
-    if (!salesOrderIds.length || !selectedRecipe) return form.setFieldsValue({ sizeProgram: [], productionTurns: [] });
+    if (!salesOrderIds.length || !selectedRecipe) return form.setFieldsValue({ sizeProgram: [], productionTurns: [], customerBrandId: undefined });
     const selectedOrders = options.data?.salesOrders.filter((item) => salesOrderIds.includes(item.id)) ?? [];
     const candidates = selectedOrders.flatMap((salesOrder) => salesOrder.lines.map((line) => ({ line, variant: allowedVariants.find((variant) => variant.id === line.productVariantId) }))).filter((item): item is { line: Options["salesOrders"][number]["lines"][number]; variant: Variant } => Boolean(item.variant));
     if (!candidates.length) return toast.error("El pedido no tiene variantes del producto seleccionado.");
@@ -254,7 +264,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
       const current = grouped.get(variant.id);
       grouped.set(variant.id, { productVariantId: variant.id, sku: variant.sku, size: variant.size.name, color: colorLabel(variant), requestedPairs: Number(line.quantity) + Number(current?.requestedPairs ?? 0) });
     }
-    form.setFieldsValue({ sizeProgram: Array.from(grouped.values()).sort((a, b) => Number(a.size) - Number(b.size)), productionTurns: [] });
+    form.setFieldsValue({ sizeProgram: Array.from(grouped.values()).sort((a, b) => Number(a.size) - Number(b.size)), productionTurns: [], customerBrandId: undefined });
     if (compatible.length !== candidates.length) toast.info("Los pedidos contienen otras combinaciones de color; deberán producirse en otra orden.");
   };
 
@@ -319,7 +329,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
           <Form.Item name="plannedAt" label="Fecha programada" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}><Select options={[1, 2, 3].map((value) => ({ value, label: `Prioridad ${value}` }))} /></Form.Item>
           <Form.Item name="machineId" label="Máquina"><Select allowClear showSearch optionFilterProp="label" options={options.data?.machines.map((machine) => ({ value: machine.id, label: `${machine.code} · ${machine.name}${machine.status === "MAINTENANCE" ? " · En mantenimiento" : ""}` }))} /></Form.Item>
-          <Form.Item name="recipeVersionId" label="Formulación C1" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" onChange={() => form.setFieldsValue({ secondaryRecipeVersionId: undefined, salesOrderIds: [], sizeProgram: [], productionTurns: [] })} options={options.data?.recipes.filter((recipe) => recipe.versions[0]).map((recipe) => ({ value: recipe.versions[0].id, label: `${recipe.code} · ${recipe.name} · ${recipe.versions[0].yieldQuantity} pares` }))} /></Form.Item>
+          <Form.Item name="recipeVersionId" label="Formulación C1" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" onChange={() => form.setFieldsValue({ secondaryRecipeVersionId: undefined, salesOrderIds: [], sizeProgram: [], productionTurns: [], customerBrandId: undefined })} options={options.data?.recipes.filter((recipe) => recipe.versions[0]).map((recipe) => ({ value: recipe.versions[0].id, label: `${recipe.code} · ${recipe.name} · ${recipe.versions[0].yieldQuantity} pares` }))} /></Form.Item>
           <Form.Item name="secondaryRecipeVersionId" label="Formulación C2"><Select allowClear showSearch optionFilterProp="label" options={options.data?.recipes.filter((recipe) => recipe.productId === selectedRecipe?.productId && recipe.versions[0]?.id !== recipeVersionId).map((recipe) => ({ value: recipe.versions[0].id, label: `${recipe.code} · ${recipe.name} · ${recipe.versions[0].yieldQuantity} pares` }))} /></Form.Item>
           <Form.Item name="salesOrderIds" label="Pedidos" tooltip="Pedidos de cliente vinculados a la orden; puedes seleccionar varios."><Select mode="multiple" maxTagCount="responsive" allowClear showSearch optionFilterProp="label" placeholder="Selecciona uno o varios pedidos" onChange={loadSalesOrders} options={options.data?.salesOrders.filter((order) => order.lines.some((line) => allowedVariants.some((variant) => variant.id === line.productVariantId))).map((order) => ({ value: order.id, label: `${order.number} · ${order.customer.name}${order.promisedAt ? ` · ${dayjs(order.promisedAt).format("DD/MM/YYYY")}` : ""}` }))} /></Form.Item>
           <Form.Item name="materialItemId" label="Material"><Select allowClear showSearch optionFilterProp="label" options={options.data?.materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
@@ -333,14 +343,14 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
             : <Space size={[4, 4]} wrap><Typography.Text>Consumo al iniciar:</Typography.Text>{plannedRecipeConsumption.length ? plannedRecipeConsumption.map((item) => <Tag key={item.code}>{item.code}: {item.quantity.toFixed(3)} {item.unit}</Tag>) : <Typography.Text type="secondary">agrega las tallas y pares para calcularlo</Typography.Text>}</Space>}
           style={{ marginBottom: 12 }}
         /> : null}
-        <ProductionDetailsFields form={form} variants={allowedVariants} materials={options.data?.materials ?? []} />
+        <ProductionDetailsFields form={form} variants={allowedVariants} materials={options.data?.materials ?? []} customerBrands={createBrands} />
       </Form>
     </Modal>
 
     <Modal className="compact-form-modal" title={`Editar ${editOrder?.number ?? "orden"}`} open={Boolean(editOrder)} onCancel={() => setEditOrder(undefined)} onOk={() => editForm.submit()} okText="Guardar cambios" confirmLoading={update.isPending} width={1180} destroyOnHidden>
       <Form form={editForm} layout="vertical" onFinish={(values) => editOrder && update.mutate({ id: editOrder.id, values })}>
         {editOrder ? <Alert type="info" showIcon message={`${editOrder.recipeVersion.recipe.name}${editOrder.secondaryRecipeVersion ? ` + ${editOrder.secondaryRecipeVersion.recipe.name}` : ""} · ${editOrder.productVariant.product.matrixCode} · ${colorLabel(editOrder.productVariant)}`} style={{ marginBottom: 12 }} /> : null}
-        <ProductionDetailsFields form={editForm} variants={editVariants} materials={options.data?.materials ?? []} structureLocked={editOrder?.status !== "DRAFT"} />
+        <ProductionDetailsFields form={editForm} variants={editVariants} materials={options.data?.materials ?? []} customerBrands={editBrands} structureLocked={editOrder?.status !== "DRAFT"} />
       </Form>
     </Modal>
 

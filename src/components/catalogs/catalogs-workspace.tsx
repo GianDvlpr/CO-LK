@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircleOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined } from "@ant-design/icons";
+import { CheckCircleOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, TagsOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Checkbox, Empty, Form, Input, InputNumber, Modal, Select, Space, Tabs, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -34,7 +34,8 @@ type Common = {
   isBase?: boolean;
   active?: boolean;
 };
-type Contact = Common & { active: boolean };
+type CustomerBrand = { id: string; name: string; active: boolean };
+type Contact = Common & { active: boolean; brands?: CustomerBrand[] };
 type Warehouse = Common & { active: boolean };
 type Unit = Common & { symbol: string; decimalPlaces: number };
 type Currency = Common & { symbol: string; isBase: boolean };
@@ -116,6 +117,9 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
   const [checkedDocument, setCheckedDocument] = useState<string>();
   const [form] = Form.useForm<CatalogForm>();
   const [search, setSearch] = useState("");
+  const [brandCustomer, setBrandCustomer] = useState<Contact>();
+  const [newBrand, setNewBrand] = useState("");
+  const [editingBrand, setEditingBrand] = useState<{ id: string; name: string }>();
   const [settingsForm] = Form.useForm<{ igvRate: number }>();
   const taxId = Form.useWatch("taxId", form);
   const documentType = Form.useWatch("documentType", form) ?? "RUC";
@@ -200,6 +204,25 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
     },
     onError: (error) => toast.error(error.message),
   });
+  const refreshBrandDependencies = async () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["catalogs"] }),
+    queryClient.invalidateQueries({ queryKey: ["production-options"] }),
+  ]);
+  const createBrand = useMutation({
+    mutationFn: ({ customerId, name }: { customerId: string; name: string }) => api(`/api/v1/catalogs/CUSTOMER/${customerId}/brands`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) }),
+    onSuccess: async () => { toast.success("Logo/marca agregado."); setNewBrand(""); await refreshBrandDependencies(); },
+    onError: (error) => toast.error(error.message),
+  });
+  const updateBrand = useMutation({
+    mutationFn: ({ customerId, brandId, name, active }: { customerId: string; brandId: string; name?: string; active?: boolean }) => api(`/api/v1/catalogs/CUSTOMER/${customerId}/brands/${brandId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, active }) }),
+    onSuccess: async () => { toast.success("Logo/marca actualizado."); setEditingBrand(undefined); await refreshBrandDependencies(); },
+    onError: (error) => toast.error(error.message),
+  });
+  const deleteBrand = useMutation({
+    mutationFn: ({ customerId, brandId }: { customerId: string; brandId: string }) => api(`/api/v1/catalogs/CUSTOMER/${customerId}/brands/${brandId}`, { method: "DELETE" }),
+    onSuccess: async () => { toast.success("Logo/marca eliminado."); await refreshBrandDependencies(); },
+    onError: (error) => toast.error(error.message),
+  });
 
   const openCreate = () => {
     setEditing(undefined);
@@ -237,9 +260,10 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
   const table = (type: CatalogType, data: Common[], columns: ColumnsType<Common> = commonColumns) => {
     const actionColumns: ColumnsType<Common> = canManage ? [{
       title: "Acciones",
-      width: type === "SUPPLIER" || type === "CUSTOMER" ? 230 : 100,
+      width: type === "CUSTOMER" ? 360 : type === "SUPPLIER" ? 230 : 100,
       render: (_: unknown, row: Common) => <Space wrap>
         <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)}>Editar</Button>
+        {type === "CUSTOMER" ? <Button size="small" icon={<TagsOutlined />} onClick={() => { setBrandCustomer(row as Contact); setNewBrand(""); setEditingBrand(undefined); }}>Logos / marcas</Button> : null}
         {type === "SUPPLIER" || type === "CUSTOMER" ? <Button
           size="small"
           danger={row.active !== false}
@@ -277,6 +301,7 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
     { key: "CURRENCY", label: "Monedas", children: table("CURRENCY", catalogs.data?.currencies ?? [], [...commonColumns, { title: "Símbolo", dataIndex: "symbol", width: 120 }, { title: "Tipo", dataIndex: "isBase", width: 130, render: (value) => value ? <Tag color="gold">Moneda base</Tag> : "Alterna" }]) },
   ];
   const contactCatalog = active === "SUPPLIER" || active === "CUSTOMER";
+  const brandList = catalogs.data?.customers.find((item) => item.id === brandCustomer?.id)?.brands ?? [];
 
   return <>
     <div className="page-heading">
@@ -374,6 +399,47 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
           {active === "CURRENCY" ? <><Form.Item name="symbol" label="Símbolo" rules={[{ required: true }]}><Input placeholder="S/" /></Form.Item><Form.Item name="isBase" valuePropName="checked"><Checkbox>Usar como moneda base</Checkbox></Form.Item></> : null}
         </div>}
       </Form>
+    </Modal>
+    <Modal
+      title={`Logos / marcas · ${brandCustomer?.name ?? ""}`}
+      open={Boolean(brandCustomer)}
+      onCancel={() => { setBrandCustomer(undefined); setNewBrand(""); setEditingBrand(undefined); }}
+      footer={null}
+      width={640}
+      destroyOnHidden
+    >
+      {canManage ? <Space.Compact style={{ width: "100%", marginBottom: 12 }}>
+        <Input value={newBrand} onChange={(event) => setNewBrand(event.target.value)} placeholder="Nombre del logo/marca" maxLength={150} onPressEnter={() => newBrand.trim() && createBrand.mutate({ customerId: brandCustomer!.id, name: newBrand.trim() })} />
+        <Button type="primary" icon={<PlusOutlined />} loading={createBrand.isPending} disabled={!newBrand.trim()} onClick={() => createBrand.mutate({ customerId: brandCustomer!.id, name: newBrand.trim() })}>Agregar</Button>
+      </Space.Compact> : null}
+      <Table
+        rowKey="id"
+        size="small"
+        pagination={false}
+        dataSource={brandList}
+        locale={{ emptyText: <Empty description="Este cliente aún no tiene logos/marcas" /> }}
+        columns={[
+          {
+            title: "Logo / marca",
+            render: (_: unknown, brand: CustomerBrand) => editingBrand?.id === brand.id
+              ? <Space.Compact style={{ width: "100%" }}>
+                <Input value={editingBrand.name} onChange={(event) => setEditingBrand({ id: brand.id, name: event.target.value })} maxLength={150} onPressEnter={() => editingBrand.name.trim() && updateBrand.mutate({ customerId: brandCustomer!.id, brandId: brand.id, name: editingBrand.name.trim() })} />
+                <Button type="primary" loading={updateBrand.isPending} disabled={!editingBrand.name.trim()} onClick={() => updateBrand.mutate({ customerId: brandCustomer!.id, brandId: brand.id, name: editingBrand.name.trim() })}>Guardar</Button>
+                <Button onClick={() => setEditingBrand(undefined)}>Cancelar</Button>
+              </Space.Compact>
+              : <Space><span>{brand.name}</span>{brand.active ? null : <Tag>Inactivo</Tag>}</Space>,
+          },
+          {
+            title: "Acciones",
+            width: 280,
+            render: (_: unknown, brand: CustomerBrand) => <Space wrap>
+              <Button size="small" icon={<EditOutlined />} onClick={() => setEditingBrand({ id: brand.id, name: brand.name })}>Editar</Button>
+              <Button size="small" loading={updateBrand.isPending} onClick={() => updateBrand.mutate({ customerId: brandCustomer!.id, brandId: brand.id, active: !brand.active })}>{brand.active ? "Desactivar" : "Reactivar"}</Button>
+              <Button size="small" danger loading={deleteBrand.isPending} onClick={() => Modal.confirm({ title: "¿Eliminar logo/marca?", content: `Se eliminará "${brand.name}". Si ya se usó en órdenes de producción, desactívalo en su lugar.`, okText: "Eliminar", cancelText: "Cancelar", okButtonProps: { danger: true }, onOk: () => deleteBrand.mutateAsync({ customerId: brandCustomer!.id, brandId: brand.id }) })}>Eliminar</Button>
+            </Space>,
+          },
+        ]}
+      />
     </Modal>
   </>;
 }
