@@ -593,13 +593,46 @@ async function main() {
   for (const line of wasteOpeningLines) await postIncoming({ companyId: company.id, userId: adminUser.id, warehouseId: warehouse.id, itemId: line.itemId, quantity: line.quantity, unitCost: line.unitCost, type: "ADJUSTMENT_IN", referenceType: "INVENTORY_ADJUSTMENT", referenceId: wasteAdjustment.id, occurredAt: relativeDate(-15) });
 
   const press = await prisma.machine.create({ data: { companyId: company.id, code: "MAQ-000001", name: "Prensa hidráulica 01", type: "PRESS", brand: "HidraMax", model: "HM-220", serialNumber: "PR-22001", location: "Planta 1", status: "ACTIVE", purchaseDate: relativeDate(-730), notes: "Equipo principal para suelas prensadas" } });
-  const injector = await prisma.machine.create({ data: { companyId: company.id, code: "MAQ-000002", name: "Inyectora EVA 01", type: "INJECTOR", brand: "TecnoMold", model: "TM-500", serialNumber: "IN-50001", location: "Planta 1", status: "ACTIVE", purchaseDate: relativeDate(-510) } });
+  const injector = await prisma.machine.create({ data: { companyId: company.id, code: "MAQ-000002", name: "Inyectora estática Tien Kang", type: "INJECTOR", brand: "Tien Kang", location: "Planta 1", status: "ACTIVE", purchaseDate: relativeDate(-510), notes: "Dos estaciones visibles y canales 1C/2C; modelo pendiente de confirmar en placa." } });
   const cutter = await prisma.machine.create({ data: { companyId: company.id, code: "MAQ-000003", name: "Mezclador Banbury 01", type: "OTHER", brand: "MixTech", model: "BM-80", serialNumber: "BM-8001", location: "Área de mezclado", status: "MAINTENANCE", purchaseDate: relativeDate(-340) } });
+  const rotaryInjector = await prisma.machine.create({ data: { companyId: company.id, code: "MAQ-000004", name: "Inyectora rotativa Tien Kang", type: "INJECTOR", brand: "Tien Kang", location: "Planta 2", status: "ACTIVE", notes: "HMI WEINVIEW; cantidad física de estaciones y modelo pendientes de confirmar en placa." } });
   await prisma.machineMaintenanceRecord.createMany({ data: [
     { machineId: press.id, type: "PREVENTIVE", performedAt: relativeDate(-95), nextDueAt: relativeDate(-5), provider: "Servicio Técnico Industrial", description: "Cambio de aceite y revisión de presión", cost: 850, downtimeHours: 5 },
     { machineId: injector.id, type: "PREVENTIVE", performedAt: relativeDate(-35), nextDueAt: relativeDate(55), provider: "TecnoMold Perú", description: "Limpieza de boquillas y calibración", cost: 620, downtimeHours: 3 },
     { machineId: cutter.id, type: "REPAIR", performedAt: relativeDate(-2), nextDueAt: relativeDate(88), provider: "MixTech Service", description: "Cambio de rodamientos y calibración de temperatura", cost: 1280, downtimeHours: 12, notes: "Equipo aún en validación" },
+    { machineId: rotaryInjector.id, type: "PREVENTIVE", performedAt: relativeDate(-20), nextDueAt: relativeDate(70), provider: "Mantenimiento interno", description: "Inspección visual, limpieza y verificación general", cost: 280, downtimeHours: 2 },
   ] });
+
+  await prisma.machineParameterSheet.create({ data: {
+    machineId: injector.id, revision: 1, name: "Lectura observada · ST.1 · canales 1C/2C", configurationType: "STATIC_INJECTOR", application: "Configuración observada en HMI", material: "Por confirmar", createdById: operatorUser.id,
+    notes: "Valores transcritos de fotografías. Verificar unidades, material, molde y placa antes de utilizarlos.",
+    parameters: { create: [
+      { scope: "STATION", station: "ST.1", channel: "1C", groupName: "Presión", parameter: "Primera inyección", value: "70", unit: "kg/cm²", sortOrder: 0 },
+      { scope: "STATION", station: "ST.1", channel: "2C", groupName: "Presión", parameter: "Primera inyección", value: "90", unit: "kg/cm²", sortOrder: 1 },
+      { scope: "STATION", station: "ST.1", channel: "1C", groupName: "Flujo", parameter: "Primera inyección", value: "50", unit: "%", sortOrder: 2 },
+      { scope: "STATION", station: "ST.1", channel: "2C", groupName: "Flujo", parameter: "Primera inyección", value: "95", unit: "%", sortOrder: 3 },
+      { scope: "STATION", station: "ST.1", channel: "1C", groupName: "Tiempo / ciclo", parameter: "Tiempo de soporte", value: "7", notes: "Unidad pendiente de confirmar", sortOrder: 4 },
+      { scope: "STATION", station: "ST.1", channel: "2C", groupName: "Tiempo / ciclo", parameter: "Tiempo de soporte", value: "7", notes: "Unidad pendiente de confirmar", sortOrder: 5 },
+      { scope: "TEMPERATURE", channel: "INJ-1", groupName: "Zonas térmicas", parameter: "Zona 1 · SV", value: "142", unit: "°C", sortOrder: 6 },
+      { scope: "TEMPERATURE", channel: "INJ-2", groupName: "Zonas térmicas", parameter: "Zona 1 · SV", value: "138", unit: "°C", sortOrder: 7 },
+    ] },
+  } });
+  await prisma.machineParameterSheet.create({ data: {
+    machineId: rotaryInjector.id, revision: 1, name: "Lectura observada · estaciones 16 y 17", configurationType: "ROTARY_INJECTOR", application: "Configuración observada en HMI", material: "Por confirmar", createdById: operatorUser.id,
+    notes: "Valores observados, no especificaciones del fabricante. Las unidades de presión, flujo y tiempo están pendientes de confirmar.",
+    parameters: { create: [
+      { scope: "STATION", station: "ST.16", groupName: "Presión", parameter: "Inyección 1", value: "98", sortOrder: 0 },
+      { scope: "STATION", station: "ST.16", groupName: "Flujo", parameter: "Inyección 1", value: "20", sortOrder: 1 },
+      { scope: "STATION", station: "ST.16", groupName: "Ra.", parameter: "Inyección 1", value: "60", unit: "%", sortOrder: 2 },
+      { scope: "STATION", station: "ST.17", groupName: "Presión", parameter: "Inyección 1", value: "75", sortOrder: 3 },
+      { scope: "STATION", station: "ST.17", groupName: "Flujo", parameter: "Inyección 1", value: "60", sortOrder: 4 },
+      { scope: "STATION", station: "ST.17", groupName: "Ra.", parameter: "Inyección 1", value: "60", unit: "%", sortOrder: 5 },
+      { scope: "TEMPERATURE", groupName: "Zonas térmicas", parameter: "Temperatura 1 · SV", value: "154.0", unit: "°C", sortOrder: 6 },
+      { scope: "TEMPERATURE", groupName: "Zonas térmicas", parameter: "Temperatura 2 · SV", value: "168", unit: "°C", sortOrder: 7 },
+      { scope: "TEMPERATURE", groupName: "Zonas térmicas", parameter: "Temperatura 3 · SV", value: "188", unit: "°C", sortOrder: 8 },
+      { scope: "TEMPERATURE", groupName: "Zonas térmicas", parameter: "Temperatura 4 · SV", value: "188", unit: "°C", sortOrder: 9 },
+    ] },
+  } });
 
   const urbanVersionId = urbanRecipe.versions[0].id;
   const urbanRedVersionId = urbanRedRecipe.versions[0].id;
@@ -731,7 +764,7 @@ async function main() {
     { companyId: company.id, scope: "INVENTORY_INTERMEDIATE", year: 0, value: 1 },
     { companyId: company.id, scope: "INVENTORY_TRANSFORMATION", year: businessYear, value: 1 },
     { companyId: company.id, scope: "RECIPE", year: 0, value: 4 },
-    { companyId: company.id, scope: "MACHINE", year: 0, value: 3 },
+    { companyId: company.id, scope: "MACHINE", year: 0, value: 4 },
     { companyId: company.id, scope: "PRODUCT", year: businessYear, value: 2 },
     { companyId: company.id, scope: "PURCHASE", year: businessYear, value: 5 },
     { companyId: company.id, scope: "PRODUCTION", year: businessYear, value: 4 },

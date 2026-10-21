@@ -57,7 +57,7 @@ export async function buildProductionOrderPdf(order: ProductionOrderDocumentData
   ];
   info.forEach(([leftLabel, leftValue, rightLabel, rightValue], index) => {
     cell(page, font, bold, { x: margin, top, width: labelWidth, height: 16, text: leftLabel, label: true, size: 7.2 });
-    cell(page, font, bold, { x: margin + labelWidth, top, width: half - labelWidth, height: 16, text: leftValue, highlight: index === 0 || index === 1, size: 7.2 });
+    cell(page, font, bold, { x: margin + labelWidth, top, width: half - labelWidth, height: 16, text: leftValue, highlight: index === 0 || index === 3, size: 7.2 });
     cell(page, font, bold, { x: margin + half, top, width: labelWidth, height: 16, text: rightLabel, label: true, size: 7.2 });
     cell(page, font, bold, { x: margin + half + labelWidth, top, width: half - labelWidth, height: 16, text: rightValue, highlight: index === 0 || index === 1, size: 7.2 });
     top -= 16;
@@ -155,11 +155,11 @@ export async function buildBlankProductionOrderPdf() {
     ["SKU", "Color secundario C2"],
     ["Logo / marca", "Color de marca"],
   ];
-  info.forEach(([leftLabel, rightLabel]) => {
+  info.forEach(([leftLabel, rightLabel], index) => {
     cell(page, font, bold, { x: margin, top, width: labelWidth, height: 16, text: leftLabel, label: true, size: 7.2 });
-    cell(page, font, bold, { x: margin + labelWidth, top, width: half - labelWidth, height: 16, text: "", size: 7.2 });
+    cell(page, font, bold, { x: margin + labelWidth, top, width: half - labelWidth, height: 16, text: "", highlight: index === 0 || index === 3, size: 7.2 });
     cell(page, font, bold, { x: margin + half, top, width: labelWidth, height: 16, text: rightLabel, label: true, size: 7.2 });
-    cell(page, font, bold, { x: margin + half + labelWidth, top, width: half - labelWidth, height: 16, text: "", size: 7.2 });
+    cell(page, font, bold, { x: margin + half + labelWidth, top, width: half - labelWidth, height: 16, text: "", highlight: index === 0 || index === 1, size: 7.2 });
     top -= 16;
   });
   top -= 5;
@@ -169,10 +169,10 @@ export async function buildBlankProductionOrderPdf() {
   ["Componente", "Código / tipo / cantidad", "Color / detalle"].forEach((text, index) => cell(page, font, bold, { x: margin + componentWidths.slice(0, index).reduce((sum, value) => sum + value, 0), top, width: componentWidths[index], height: 14, text, label: true }));
   top -= 14;
   [...Object.values(componentNames), "Formulación C1", "Formulación C2"].forEach((label) => {
-    cell(page, font, bold, { x: margin, top, width: componentWidths[0], height: 15, text: label, label: true, size: 7.2 });
-    cell(page, font, bold, { x: margin + componentWidths[0], top, width: componentWidths[1], height: 15, text: "", size: 7.2 });
-    cell(page, font, bold, { x: margin + componentWidths[0] + componentWidths[1], top, width: componentWidths[2], height: 15, text: "", size: 7.2 });
-    top -= 15;
+    cell(page, font, bold, { x: margin, top, width: componentWidths[0], height: 20, text: label, label: true, size: 7.2 });
+    cell(page, font, bold, { x: margin + componentWidths[0], top, width: componentWidths[1], height: 20, text: "", size: 7.2 });
+    cell(page, font, bold, { x: margin + componentWidths[0] + componentWidths[1], top, width: componentWidths[2], height: 20, text: "", size: 7.2 });
+    top -= 20;
   });
   top -= 5;
 
@@ -183,16 +183,16 @@ export async function buildBlankProductionOrderPdf() {
   const expectedColumn = 64;
   const sizeWidth = (width - firstColumn - totalColumn - expectedColumn) / sizeCount;
   const emptyValues = Array.from({ length: sizeCount }, () => "");
-  const drawBlankRow = (label: string, values: string[], total: string, expected: string, rowHeight: number, header = false) => {
+  const drawBlankRow = (label: string, values: string[], total: string, expected: string, rowHeight: number, header = false, highlight = false) => {
     cell(page, font, bold, { x: margin, top, width: firstColumn, height: rowHeight, text: label, label: true });
-    values.forEach((value, index) => cell(page, font, bold, { x: margin + firstColumn + sizeWidth * index, top, width: sizeWidth, height: rowHeight, text: value, label: header, center: true, size: header ? 6 : 7 }));
+    values.forEach((value, index) => cell(page, font, bold, { x: margin + firstColumn + sizeWidth * index, top, width: sizeWidth, height: rowHeight, text: value, label: header, highlight, center: true, size: header ? 6 : 7 }));
     cell(page, font, bold, { x: margin + width - totalColumn - expectedColumn, top, width: totalColumn, height: rowHeight, text: total, label: header, center: true, size: header ? 6 : 7 });
     cell(page, font, bold, { x: margin + width - expectedColumn, top, width: expectedColumn, height: rowHeight, text: expected, label: header, center: true, size: header ? 5.5 : 6.5 });
     top -= rowHeight;
   };
   drawBlankRow("Talla", emptyValues, "TOTAL", "TOTAL ESPERADO", 14, true);
-  drawBlankRow("A fabricar", emptyValues, "", "", 15);
-  for (let index = 0; index < 5; index += 1) drawBlankRow(`Turno ${index + 1}`, emptyValues, "", "", 15);
+  drawBlankRow("A fabricar", emptyValues, "", "", 15, false, true);
+  for (let index = 0; index < 3; index += 1) drawBlankRow(`Turno ${index + 1}`, emptyValues, "", "", 15);
   cell(page, font, bold, { x: margin, top, width, height: 16, text: "Observaciones / incidencias: ", label: true, size: 5.8 });
 
   document.setTitle("Formato de orden de producción en blanco");

@@ -10,6 +10,7 @@ import {
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
+  SettingOutlined,
   ToolOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -37,6 +38,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
+import { MachineParameterSheetsDrawer } from "@/components/machinery/machine-parameter-sheets";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 
 type Maintenance = { id: string; type: string; performedAt: string; nextDueAt?: string; provider?: string; description: string; cost: string; downtimeHours: string; notes?: string };
@@ -65,6 +67,7 @@ export function MachineryWorkspace({ permissions }: { permissions: string[] }) {
   const [editingMachine, setEditingMachine] = useState<Machine>();
   const [maintenanceMachine, setMaintenanceMachine] = useState<Machine>();
   const [historyMachine, setHistoryMachine] = useState<Machine>();
+  const [parameterMachine, setParameterMachine] = useState<Machine>();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -160,6 +163,7 @@ export function MachineryWorkspace({ permissions }: { permissions: string[] }) {
     { title: "Acciones", fixed: "right", width: 300, render: (_, row) => <Space wrap>
       {permissions.includes("machinery.create") ? <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)}>Editar</Button> : null}
       {permissions.includes("machinery.maintenance") ? <Button size="small" icon={<ToolOutlined />} onClick={() => openMaintenance(row)}>Mantenimiento</Button> : null}
+      <Button size="small" icon={<SettingOutlined />} onClick={() => setParameterMachine(row)}>Parámetros</Button>
       <Button size="small" icon={<HistoryOutlined />} onClick={() => setHistoryMachine(row)}>Historial</Button>
     </Space> },
   ];
@@ -208,6 +212,7 @@ export function MachineryWorkspace({ permissions }: { permissions: string[] }) {
             <div className="machine-card-footer">
               {permissions.includes("machinery.create") ? <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(machine)}>Editar</Button> : null}
               {permissions.includes("machinery.maintenance") ? <Button size="small" icon={<ToolOutlined />} onClick={() => openMaintenance(machine)}>Mantenimiento</Button> : null}
+              <Button size="small" icon={<SettingOutlined />} onClick={() => setParameterMachine(machine)}>Parámetros</Button>
               <Button size="small" type="text" icon={<HistoryOutlined />} onClick={() => setHistoryMachine(machine)}>Historial</Button>
             </div>
           </Card>;
@@ -236,5 +241,6 @@ export function MachineryWorkspace({ permissions }: { permissions: string[] }) {
         <Form.Item name="machineStatus" label="Estado resultante"><Select options={[{ value: "ACTIVE", label: "Operativa" }, { value: "MAINTENANCE", label: "En mantenimiento" }, { value: "OUT_OF_SERVICE", label: "Fuera de servicio" }]} /></Form.Item>
       </div><Form.Item name="description" label="Trabajo realizado" rules={[{ required: true }]}><Input.TextArea rows={3} /></Form.Item><Form.Item name="notes" label="Observaciones"><Input.TextArea rows={2} /></Form.Item></Form>
     </Modal>
+    <MachineParameterSheetsDrawer machine={parameterMachine} permissions={permissions} onClose={() => setParameterMachine(undefined)} />
   </>;
 }

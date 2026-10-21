@@ -80,7 +80,8 @@ export async function buildProductionOrderWorkbook(order: ProductionOrderDocumen
     sheet.getCell(row, 1).value = leftLabel; sheet.getCell(row, rightStart).value = rightLabel;
     sheet.getCell(row, leftValueStart).value = leftValue; sheet.getCell(row, rightValueStart).value = rightValue;
     [sheet.getCell(row, 1), sheet.getCell(row, rightStart)].forEach((cell) => { cell.font = { name: "Arial", size: 8, bold: true, color: { argb: NAVY } }; fill(cell, LIGHT); });
-    if (index === 0 || index === 1) { fill(sheet.getCell(row, leftValueStart), INPUT); fill(sheet.getCell(row, rightValueStart), INPUT); }
+    if (index === 0 || index === 3) fill(sheet.getCell(row, leftValueStart), INPUT);
+    if (index === 0 || index === 1) fill(sheet.getCell(row, rightValueStart), INPUT);
     if (leftValue instanceof Date) sheet.getCell(row, leftValueStart).numFmt = "dd/mm/yyyy";
     if (rightValue instanceof Date) sheet.getCell(row, rightValueStart).numFmt = "dd/mm/yyyy";
     rangeStyle(row); sheet.getRow(row).height = 19;

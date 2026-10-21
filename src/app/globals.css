@@ -1954,6 +1954,202 @@ a {
   gap: 14px;
 }
 
+.machine-sheet-list {
+  display: grid;
+  gap: 12px;
+}
+
+.machine-sheet-card-head,
+.machine-parameter-list-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.machine-sheet-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.machine-parameter-list-heading {
+  align-items: center;
+  margin: 4px 0 10px;
+}
+
+.machine-parameter-list-heading .ant-typography {
+  margin: 0;
+}
+
+.machine-parameter-form-list {
+  min-width: 1080px;
+}
+
+.machine-parameter-form-header,
+.machine-parameter-form-row {
+  display: grid;
+  grid-template-columns: 128px 80px 100px 130px minmax(160px, 1.2fr) 100px 70px minmax(150px, 1fr) 34px;
+  gap: 8px;
+  align-items: start;
+}
+
+.machine-parameter-form-header {
+  min-width: 1080px;
+  padding: 7px 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.machine-parameter-form-row .ant-form-item {
+  margin-bottom: 8px;
+}
+
+.machine-sheet-modal .ant-modal-body {
+  max-height: min(74vh, 780px);
+  overflow: auto;
+}
+
+.machine-parameter-print-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+  color: #172033;
+  background: white;
+}
+
+.machine-parameter-print-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px;
+  color: white;
+  background: #19384c;
+}
+
+.machine-parameter-print-header span,
+.machine-parameter-print-info span,
+.machine-parameter-print-notes span {
+  display: block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.machine-parameter-print-header h1 {
+  margin: 3px 0 0;
+  color: white;
+  font-size: 22px;
+}
+
+.machine-parameter-print-header > strong {
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, .65);
+}
+
+.machine-parameter-print-info {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-right: 1px solid #93a4ae;
+}
+
+.machine-parameter-print-info > div {
+  min-height: 52px;
+  padding: 9px;
+  border-bottom: 1px solid #93a4ae;
+  border-left: 1px solid #93a4ae;
+}
+
+.machine-parameter-print-info span,
+.machine-parameter-print-notes span {
+  color: #526773;
+}
+
+.machine-parameter-print-section h2 {
+  margin: 16px 0 0;
+  padding: 6px 8px;
+  color: white;
+  background: #28526a;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.machine-parameter-print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.machine-parameter-print-table th,
+.machine-parameter-print-table td {
+  padding: 6px;
+  border: 1px solid #8799a3;
+  text-align: left;
+  vertical-align: top;
+}
+
+.machine-parameter-print-table th {
+  background: #e8eff3;
+}
+
+.machine-parameter-value {
+  min-width: 90px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.machine-parameter-print-notes {
+  min-height: 60px;
+  margin-top: 16px;
+  padding: 9px;
+  border: 1px solid #8799a3;
+}
+
+.machine-parameter-print-notes p {
+  margin: 6px 0 0;
+}
+
+.machine-parameter-print-warning {
+  margin-top: 12px;
+  color: #4b5563;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+@media (max-width: 700px) {
+  .machine-sheet-card-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .machine-parameter-form-header {
+    display: none;
+  }
+
+  .machine-parameter-form-list {
+    min-width: 0;
+  }
+
+  .machine-parameter-form-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 12px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .machine-parameter-form-row > :nth-child(5),
+  .machine-parameter-form-row > :nth-child(8) {
+    grid-column: 1 / -1;
+  }
+}
+
 .machine-card {
   min-width: 0;
   height: 100%;
@@ -2279,8 +2475,17 @@ a {
 
 @media print {
   @page {
+    margin: 6mm;
+  }
+
+  @page pick-pack {
     size: A5 landscape;
     margin: 6mm;
+  }
+
+  @page machine-params {
+    size: A4 portrait;
+    margin: 10mm;
   }
 
   body {
@@ -2308,6 +2513,7 @@ a {
   }
 
   .pick-pack-print-page {
+    page: pick-pack;
     width: 100%;
     max-width: none;
     margin: 0;
@@ -2380,6 +2586,58 @@ a {
   .pick-pack-print-table,
   .pick-pack-print-notes {
     break-inside: avoid;
+  }
+
+  .machine-parameter-print-page {
+    page: machine-params;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .machine-parameter-print-header,
+  .machine-parameter-print-info,
+  .machine-parameter-print-section,
+  .machine-parameter-print-notes {
+    break-inside: avoid;
+  }
+
+  .machine-parameter-print-header {
+    padding: 10px 12px;
+  }
+
+  .machine-parameter-print-header h1 {
+    font-size: 17px;
+  }
+
+  .machine-parameter-print-info > div {
+    min-height: 42px;
+    padding: 6px;
+    font-size: 9px;
+  }
+
+  .machine-parameter-print-section h2 {
+    margin-top: 10px;
+    padding: 4px 6px;
+    font-size: 9px;
+  }
+
+  .machine-parameter-print-table {
+    font-size: 8px;
+  }
+
+  .machine-parameter-print-table th,
+  .machine-parameter-print-table td {
+    padding: 4px;
+  }
+
+  .machine-parameter-value {
+    font-size: 9px;
+  }
+
+  .machine-parameter-print-warning {
+    font-size: 7px;
   }
 }
 

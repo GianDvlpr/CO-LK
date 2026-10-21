@@ -181,6 +181,10 @@ Reglas:
 - Estados: operativa, en mantenimiento o fuera de servicio.
 - Se registran mantenimientos preventivos, correctivos y reparaciones, fechas, próximo vencimiento, costos y observaciones.
 - Una máquina fuera de servicio no debe seleccionarse para una orden nueva.
+- Una máquina puede tener fichas de parámetros versionadas e imprimibles. Cada ficha conserva los valores registrados para ámbitos generales, estaciones, inyectores/canales y zonas térmicas.
+- Las fichas históricas no se sobrescriben: cuando cambia el material, molde, estación o configuración se crea una revisión nueva.
+- Las estructuras de inyectora estática y rotativa solo proponen nombres de campos; el sistema nunca debe inventar consignas, unidades o límites operativos.
+- La hoja impresa reproduce valores aprobados internamente y no sustituye manuales, bloqueo de seguridad ni capacitación del fabricante.
 
 ## 10. Pedidos, Pick & Pack y despacho
 

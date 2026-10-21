@@ -226,6 +226,7 @@ model User {
   productImages       ProductImage[]
   inventoryItemImages InventoryItemImage[]
   calendarEvents      CalendarEvent[]
+  machineParameterSheets MachineParameterSheet[]
 
   @@unique([companyId, email])
   @@index([companyId, status])
@@ -1018,6 +1019,7 @@ model Machine {
   updatedAt          DateTime                   @updatedAt @map("updated_at")
   company            Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   maintenanceRecords MachineMaintenanceRecord[]
+  parameterSheets    MachineParameterSheet[]
   productionOrders   ProductionOrder[]
 
   @@unique([companyId, code])
@@ -1042,6 +1044,44 @@ model MachineMaintenanceRecord {
   @@index([machineId, performedAt])
   @@index([nextDueAt])
   @@map("machine_maintenance_records")
+}
+
+model MachineParameterSheet {
+  id                String                  @id @default(uuid()) @db.Uuid
+  machineId         String                  @map("machine_id") @db.Uuid
+  revision          Int
+  name              String
+  configurationType String                  @map("configuration_type")
+  application       String?
+  material          String?
+  notes             String?
+  createdById       String                  @map("created_by_id") @db.Uuid
+  createdAt         DateTime                @default(now()) @map("created_at")
+  machine           Machine                 @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  createdBy         User                    @relation(fields: [createdById], references: [id])
+  parameters        MachineParameterValue[]
+
+  @@unique([machineId, revision])
+  @@index([machineId, createdAt])
+  @@map("machine_parameter_sheets")
+}
+
+model MachineParameterValue {
+  id           String                @id @default(uuid()) @db.Uuid
+  sheetId      String                @map("sheet_id") @db.Uuid
+  scope        String
+  station      String?
+  channel      String?
+  groupName    String                @map("group_name")
+  parameter    String
+  value        String
+  unit         String?
+  notes        String?
+  sortOrder    Int                   @default(0) @map("sort_order")
+  sheet        MachineParameterSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  @@index([sheetId, sortOrder])
+  @@map("machine_parameter_values")
 }
 
 model ProductionMaterial {

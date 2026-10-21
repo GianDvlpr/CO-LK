@@ -62,6 +62,18 @@ describe("orden de producción A5", () => {
     expect(sheet?.getCell(24, 1).font.size).toBe(8);
   });
 
+  it("resalta en amarillo número de orden, máquina, matriz, pedidos y A fabricar", async () => {
+    const workbook = await buildProductionOrderWorkbook(documentData);
+    const sheet = workbook.getWorksheet("Orden de producción");
+    const fillOf = (row: number, column: number) => sheet?.getCell(row, column).fill;
+    expect(fillOf(2, 3)).toMatchObject({ fgColor: { argb: "FFFFF1AD" } });
+    expect(fillOf(2, 8)).toMatchObject({ fgColor: { argb: "FFFFF1AD" } });
+    expect(fillOf(3, 8)).toMatchObject({ fgColor: { argb: "FFFFF1AD" } });
+    expect(fillOf(5, 3)).toMatchObject({ fgColor: { argb: "FFFFF1AD" } });
+    expect(fillOf(3, 3)).toBeUndefined();
+    expect(fillOf(20, 2)).toMatchObject({ fgColor: { argb: "FFFFF1AD" } });
+  });
+
   it("genera un PDF A5 descargable", async () => {
     const pdf = await buildProductionOrderPdf(documentData);
     expect(new TextDecoder().decode(pdf.slice(0, 4))).toBe("%PDF");
