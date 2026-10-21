@@ -2,7 +2,7 @@
 
 import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Form, Input, Modal, Select, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Form, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -43,7 +43,7 @@ export function RolesWorkspace({ canManage }: { canManage: boolean }) {
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Roles y permisos" eyebrow="Seguridad" description="Define perfiles de acceso. SUPERADMIN y ADMIN son roles del sistema; los roles personalizados adaptan el acceso de los usuarios operativos." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => roles.refetch()}>Actualizar</Button></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Roles y permisos" eyebrow="Seguridad" description="Define perfiles de acceso. SUPERADMIN y ADMIN son roles del sistema; los roles personalizados adaptan el acceso de los usuarios operativos." /><Space wrap className="module-actions"><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => roles.refetch()} /></Tooltip></Space></div>
     <Card className="section-card" title="Roles disponibles" extra={canManage ? <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Nuevo rol</Button> : null}>{roles.error ? <Alert type="error" showIcon message={roles.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={roles.isLoading} columns={columns} dataSource={roles.data?.items ?? []} expandable={{ expandedRowRender: (row) => { const grouped = new Map<string, Permission[]>(); for (const { permission } of row.permissions) grouped.set(permission.module, [...(grouped.get(permission.module) ?? []), permission]); return <Space direction="vertical" size={12} style={{ width: "100%" }}>{[...grouped.entries()].map(([module, permissions]) => <div key={module}><Typography.Text strong>{module.toUpperCase()}</Typography.Text><div style={{ marginTop: 6 }}><Space size={[4, 4]} wrap>{permissions.map((permission) => <Tag key={permission.id}>{permission.code}</Tag>)}</Space></div></div>)}</Space>; } }} pagination={false} locale={{ emptyText: <Empty description="Aún no hay roles registrados" /> }} /></Card>
     <Modal title="Nuevo rol" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Crear rol" confirmLoading={create.isPending} width={760} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={(values) => create.mutate(values)}>

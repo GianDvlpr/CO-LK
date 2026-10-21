@@ -2,7 +2,7 @@
 
 import { DownloadOutlined, EyeOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, DatePicker, Descriptions, Drawer, Empty, Input, Select, Space, Tag, Typography } from "antd";
+import { Alert, Button, Card, DatePicker, Descriptions, Drawer, Empty, Input, Select, Space, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/es";
@@ -105,7 +105,7 @@ export function AuditWorkspace() {
     <div className="page-heading">
       <ModuleHeadingIntro title="Auditoría" eyebrow="Seguridad" description="Trazabilidad de accesos, registros, cambios, eliminaciones, cargas, descargas y acciones operativas por usuario." />
       <Space wrap className="module-actions">
-        <Button icon={<ReloadOutlined />} loading={audit.isFetching} onClick={() => audit.refetch()}>Actualizar</Button>
+        <Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" loading={audit.isFetching} onClick={() => audit.refetch()} /></Tooltip>
         <Button type="primary" icon={<DownloadOutlined />} loading={downloading} onClick={download}>Descargar Excel</Button>
       </Space>
     </div>

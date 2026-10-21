@@ -38,6 +38,10 @@ function relativeDate(days: number, hour = 10) {
   return value;
 }
 
+function relativeHours(hours: number) {
+  return new Date(Date.now() + hours * 60 * 60 * 1000);
+}
+
 async function removeDemoCompany() {
   const demo = await prisma.company.findFirst({ where: { name: DEMO_COMPANY_NAME, taxId: DEMO_COMPANY_TAX_ID } });
   if (!demo) return false;
@@ -52,6 +56,7 @@ async function removeDemoCompany() {
   await prisma.stockBalance.deleteMany({ where: { warehouse: { companyId: demo.id } } });
   await prisma.purchase.deleteMany({ where: { companyId: demo.id } });
   await prisma.inventoryAdjustment.deleteMany({ where: { companyId: demo.id } });
+  await prisma.inventoryTransformation.deleteMany({ where: { companyId: demo.id } });
   await prisma.recipe.deleteMany({ where: { companyId: demo.id } });
   await prisma.product.deleteMany({ where: { companyId: demo.id } });
   await prisma.inventoryLot.deleteMany({ where: { warehouse: { companyId: demo.id } } });
@@ -108,7 +113,7 @@ async function nextPostingSequence(companyId: string) {
   return BigInt(counter.value);
 }
 
-async function postIncoming(input: { companyId: string; userId: string; warehouseId: string; itemId: string; quantity: number; unitCost: number; type: "PURCHASE_RECEIPT" | "PRODUCTION_OUTPUT" | "ADJUSTMENT_IN"; referenceType: string; referenceId: string; occurredAt?: Date }) {
+async function postIncoming(input: { companyId: string; userId: string; warehouseId: string; itemId: string; quantity: number; unitCost: number; type: "PURCHASE_RECEIPT" | "PRODUCTION_OUTPUT" | "ADJUSTMENT_IN" | "TRANSFORMATION_OUTPUT"; referenceType: string; referenceId: string; occurredAt?: Date }) {
   const current = await prisma.stockBalance.findFirst({ where: { warehouseId: input.warehouseId, itemId: input.itemId, lotId: null } });
   const currentQuantity = numeric(current?.onHandQuantity ?? 0);
   const currentValue = numeric(current?.inventoryValue ?? 0);
@@ -128,7 +133,7 @@ async function reserveStock(input: { warehouseId: string; itemId: string; quanti
   await prisma.stockReservation.create({ data: { warehouseId: input.warehouseId, itemId: input.itemId, quantity: input.quantity, referenceType: input.referenceType, referenceId: input.referenceId } });
 }
 
-async function postOutgoing(input: { companyId: string; userId: string; warehouseId: string; itemId: string; quantity: number; reservedQuantity?: number; type: "PRODUCTION_CONSUMPTION" | "SALES_DISPATCH"; referenceType: string; referenceId: string; occurredAt?: Date }) {
+async function postOutgoing(input: { companyId: string; userId: string; warehouseId: string; itemId: string; quantity: number; reservedQuantity?: number; type: "PRODUCTION_CONSUMPTION" | "SALES_DISPATCH" | "TRANSFORMATION_CONSUMPTION"; referenceType: string; referenceId: string; occurredAt?: Date }) {
   const balance = await prisma.stockBalance.findFirst({ where: { warehouseId: input.warehouseId, itemId: input.itemId, lotId: null } });
   if (!balance || numeric(balance.onHandQuantity) < input.quantity) throw new Error(`Stock demo insuficiente para ${input.itemId}.`);
   const unitCost = numeric(balance.averageUnitCost);
@@ -147,6 +152,42 @@ async function approveDemoPurchase(companyId: string, purchaseId: string, userId
   await prisma.purchaseApproval.create({ data: { purchaseId: purchase.id, userId, status: "APPROVED", comment: "Recepción validada para demostración" } });
 }
 
+async function completeDemoTransformation(input: { companyId: string; userId: string; warehouseId: string; recipeVersionId: string; number: string; outputQuantity: number; wasteQuantity: number }) {
+  const version = await prisma.recipeVersion.findUniqueOrThrow({
+    where: { id: input.recipeVersionId },
+    include: { recipe: { include: { outputItem: true } }, ingredients: true },
+  });
+  if (!version.recipe.outputItem) throw new Error("La receta demo no tiene un insumo resultante.");
+  const plannedOutputQuantity = input.outputQuantity + input.wasteQuantity;
+  const factor = plannedOutputQuantity / numeric(version.yieldQuantity);
+  const materials = version.ingredients.map((ingredient) => ({ itemId: ingredient.itemId, plannedQuantity: numeric(ingredient.quantity) * factor }));
+  const transformation = await prisma.inventoryTransformation.create({ data: {
+    companyId: input.companyId,
+    warehouseId: input.warehouseId,
+    recipeVersionId: version.id,
+    number: input.number,
+    status: "DRAFT",
+    plannedOutputQuantity,
+    notes: "Elaboración demo de un compuesto intermedio mediante Recetas",
+    createdById: input.userId,
+    materials: { create: materials },
+  }, include: { materials: true } });
+
+  let totalCost = 0;
+  for (const material of transformation.materials) {
+    const balance = await prisma.stockBalance.findFirstOrThrow({ where: { warehouseId: input.warehouseId, itemId: material.itemId, lotId: null } });
+    const quantity = numeric(material.plannedQuantity);
+    const unitCost = numeric(balance.averageUnitCost);
+    totalCost += quantity * unitCost;
+    await postOutgoing({ companyId: input.companyId, userId: input.userId, warehouseId: input.warehouseId, itemId: material.itemId, quantity, type: "TRANSFORMATION_CONSUMPTION", referenceType: "INVENTORY_TRANSFORMATION", referenceId: transformation.id, occurredAt: relativeDate(-9, 8) });
+    await prisma.inventoryTransformationMaterial.update({ where: { id: material.id }, data: { consumedQuantity: quantity, unitCost } });
+  }
+  await prisma.inventoryTransformation.update({ where: { id: transformation.id }, data: { status: "IN_PROGRESS", startedAt: relativeDate(-9, 8) } });
+  await postIncoming({ companyId: input.companyId, userId: input.userId, warehouseId: input.warehouseId, itemId: version.recipe.outputItem.id, quantity: input.outputQuantity, unitCost: totalCost / input.outputQuantity, type: "TRANSFORMATION_OUTPUT", referenceType: "INVENTORY_TRANSFORMATION", referenceId: transformation.id, occurredAt: relativeDate(-9, 12) });
+  await prisma.inventoryTransformation.update({ where: { id: transformation.id }, data: { status: "COMPLETED", actualOutputQuantity: input.outputQuantity, actualWasteQuantity: input.wasteQuantity, completedAt: relativeDate(-9, 12) } });
+  return transformation;
+}
+
 type DemoProductionInput = {
   companyId: string;
   userId: string;
@@ -154,6 +195,7 @@ type DemoProductionInput = {
   warehouseId: string;
   recipeVersionId: string;
   secondaryRecipeVersionId?: string;
+  customerBrandId?: string;
   salesOrderIds?: string[];
   materialItemId?: string;
   machineId: string;
@@ -217,6 +259,7 @@ async function createDemoProduction(input: DemoProductionInput) {
     productVariantId: primaryVariant.id,
     recipeVersionId: input.recipeVersionId,
     secondaryRecipeVersionId: input.secondaryRecipeVersionId,
+    customerBrandId: input.customerBrandId,
     materialItemId: input.materialItemId,
     machineId: input.machineId,
     number: input.number,
@@ -343,7 +386,12 @@ async function main() {
     prisma.currency.create({ data: { companyId: company.id, code: "USD", name: "Dólar estadounidense", symbol: "$" } }),
   ]);
   const pen = currencies.find((currency) => currency.code === "PEN")!;
-  const warehouse = await prisma.warehouse.create({ data: { companyId: company.id, code: "PRINCIPAL", name: "Almacén principal" } });
+  const [warehouse, chemicalWarehouse, finishedWarehouse, wasteWarehouse] = await Promise.all([
+    prisma.warehouse.create({ data: { companyId: company.id, code: "PRINCIPAL", name: "Materias primas", description: "Recepción, polímeros y materiales de consumo frecuente", layoutOrder: 0, layoutWidth: 2, layoutColor: "#1677ff" } }),
+    prisma.warehouse.create({ data: { companyId: company.id, code: "QUIMICOS", name: "Aditivos y químicos", description: "Pigmentos, cargas y aditivos con control separado", layoutOrder: 1, layoutWidth: 1, layoutColor: "#d97706" } }),
+    prisma.warehouse.create({ data: { companyId: company.id, code: "TERMINADOS", name: "Productos terminados", description: "Suelas terminadas listas para preparación y despacho", layoutOrder: 2, layoutWidth: 2, layoutColor: "#059669" } }),
+    prisma.warehouse.create({ data: { companyId: company.id, code: "MERMAS", name: "Mermas recuperables", description: "Coladas y molidos pesados para posible reutilización", layoutOrder: 3, layoutWidth: 1, layoutColor: "#dc2626" } }),
+  ]);
 
   await prisma.permission.createMany({ data: permissionCodes.map((code) => { const [module, action] = code.split("."); return { companyId: company.id, code, module, action }; }) });
   const permissions = await prisma.permission.findMany({ where: { companyId: company.id } });
@@ -364,8 +412,8 @@ async function main() {
     { userId: operatorUser.id, roleId: operatorRole.id },
   ] });
   await prisma.session.createMany({ data: [
-    { userId: operatorUser.id, tokenHash: `demo-active-${company.id}`, ipAddress: "192.168.1.48", userAgent: "Chrome · Tablet de planta", createdAt: relativeDate(-1, 7), lastSeenAt: relativeDate(0, 10), expiresAt: relativeDate(5, 18) },
-    { userId: adminUser.id, tokenHash: `demo-ended-${company.id}`, ipAddress: "192.168.1.21", userAgent: "Edge · Equipo administrativo", createdAt: relativeDate(-3, 8), lastSeenAt: relativeDate(-3, 16), expiresAt: relativeDate(2, 8), endedAt: relativeDate(-3, 16), endReason: "LOGOUT" },
+    { userId: operatorUser.id, tokenHash: `demo-active-${company.id}`, ipAddress: "192.168.1.48", userAgent: "Chrome · Tablet de planta", createdAt: relativeHours(-2), lastSeenAt: relativeHours(-0.1), expiresAt: relativeHours(6) },
+    { userId: adminUser.id, tokenHash: `demo-ended-${company.id}`, ipAddress: "192.168.1.21", userAgent: "Edge · Equipo administrativo", createdAt: relativeDate(-3, 8), lastSeenAt: relativeDate(-3, 14), expiresAt: relativeDate(-3, 16), endedAt: relativeDate(-3, 14), endReason: "LOGOUT" },
   ] });
 
   const businessYear = new Date().getFullYear();
@@ -379,6 +427,13 @@ async function main() {
     prisma.customer.create({ data: { companyId: company.id, code: "CLI-000101", name: "Tiendas Paso Firme", taxId: "20500000022", fiscalAddress: "Av. Grau 1120, Trujillo", department: "La Libertad", province: "Trujillo", district: "Trujillo", email: "abastecimiento@pasofirme-demo.pe", phone: "+51 988 200 202" } }),
     prisma.customer.create({ data: { companyId: company.id, code: "CLI-000102", name: "Servicios Industriales Sur", taxId: "20500000033", fiscalAddress: "Parque Industrial Río Seco, Cerro Colorado", department: "Arequipa", province: "Arequipa", district: "Cerro Colorado", email: "logistica@industrialessur-demo.pe", phone: "+51 988 200 303" } }),
   ]);
+  const [retailBrand, storeBrand, corporateBrand] = await Promise.all([
+    prisma.customerBrand.create({ data: { customerId: customerRetail.id, name: "Centro Urbano" } }),
+    prisma.customerBrand.create({ data: { customerId: customerStore.id, name: "Paso Firme" } }),
+    prisma.customerBrand.create({ data: { customerId: customerCorporate.id, name: "SegurStep" } }),
+  ]);
+  void retailBrand;
+  void corporateBrand;
 
   const materialDefinitions: { key: string; code: string; name: string; type: "RAW_MATERIAL" | "WASTE"; unit: string; minimumStock: number; abbreviation?: string; supplierProductCode?: string; referenceNetPrice?: number; referenceTaxRate?: number }[] = [
     { key: "DEMO-MP-PVC", code: "MP-000001", name: "PVC", type: "RAW_MATERIAL", unit: "KG", minimumStock: 120, abbreviation: "PVC", supplierProductCode: "PVC-450S", referenceNetPrice: 7.2, referenceTaxRate: 18 },
@@ -411,9 +466,11 @@ async function main() {
       : item.type === "WASTE" || ["DEMO-MP-CAU", "DEMO-MP-CG", "DEMO-MP-VIRA", "DEMO-MP-INS-TAL"].includes(item.key)
         ? supplierRubber.id
         : supplierPolymers.id;
-    return prisma.inventoryItem.create({ data: { companyId: company.id, code: item.code, abbreviation: item.abbreviation, name: item.name, type: item.type, supplierId, currencyId: pen.id, unitId: unitByCode.get(item.unit)!.id, minimumStock: item.minimumStock, lotTrackingMode: "NONE", supplierProductCode: item.supplierProductCode ?? null, referenceNetPrice: item.referenceNetPrice ?? null, referenceTaxRate: item.referenceTaxRate ?? null } });
+    const defaultWarehouseId = item.type === "WASTE" ? wasteWarehouse.id : chemicalMaterialKeys.has(item.key) ? chemicalWarehouse.id : warehouse.id;
+    return prisma.inventoryItem.create({ data: { companyId: company.id, code: item.code, abbreviation: item.abbreviation, name: item.name, type: item.type, supplierId, currencyId: pen.id, unitId: unitByCode.get(item.unit)!.id, defaultWarehouseId, minimumStock: item.minimumStock, lotTrackingMode: "NONE", supplierProductCode: item.supplierProductCode ?? null, referenceNetPrice: item.referenceNetPrice ?? null, referenceTaxRate: item.referenceTaxRate ?? null } });
   }));
   const materialByCode = new Map(materials.map((item, index) => [materialDefinitions[index].key, item]));
+  const intermediateCompound = await prisma.inventoryItem.create({ data: { companyId: company.id, code: "IE-000001", abbreviation: "CM-N", name: "Compuesto maestro negro PVC/TR", type: "INTERMEDIATE", unitId: unitByCode.get("KG")!.id, defaultWarehouseId: warehouse.id, minimumStock: 8, lotTrackingMode: "NONE" } });
 
   const [size38, size39, size40, size41, size42] = await Promise.all([
     prisma.size.create({ data: { companyId: company.id, code: "38", name: "Talla 38", sortOrder: 38 } }),
@@ -431,7 +488,7 @@ async function main() {
   const industrialSoleProduct = await prisma.product.create({ data: { companyId: company.id, code: `PROD-${businessYear}-000002`, matrixCode: "I0042", name: "Suela Industrial Grip", description: "Suela antideslizante reforzada para calzado industrial" } });
 
   async function createVariant(productId: string, sizeId: string, colorId: string, sku: string, itemName: string, secondaryColorId?: string) {
-    const inventoryItem = await prisma.inventoryItem.create({ data: { companyId: company.id, code: sku, name: itemName, type: "FINISHED_PRODUCT", unitId: unitByCode.get("PAR")!.id, minimumStock: 6, lotTrackingMode: "NONE" } });
+    const inventoryItem = await prisma.inventoryItem.create({ data: { companyId: company.id, code: sku, name: itemName, type: "FINISHED_PRODUCT", unitId: unitByCode.get("PAR")!.id, defaultWarehouseId: finishedWarehouse.id, minimumStock: 6, lotTrackingMode: "NONE" } });
     return prisma.productVariant.create({ data: { productId, sizeId, colorId, secondaryColorId, inventoryItemId: inventoryItem.id, sku } });
   }
 
@@ -455,6 +512,7 @@ async function main() {
     { itemId: materialByCode.get("DEMO-MP-PIG")!.id, quantity: 0.6 },
     { itemId: materialByCode.get("DEMO-MP-CACO3")!.id, quantity: 4 },
     { itemId: materialByCode.get("DEMO-MP-DESM")!.id, quantity: 0.8 },
+    { itemId: intermediateCompound.id, quantity: 4 },
   ] } } } }, include: { versions: true } });
   const urbanRedRecipe = await prisma.recipe.create({ data: { companyId: company.id, productId: urbanSoleProduct.id, code: "REC-000002", name: "Formulación C2 roja · Urbana Flex", status: "ACTIVE", versions: { create: { version: 1, yieldQuantity: 24, isActive: true, notes: "Rendimiento manual: 24 pares por carga de color secundario C2", ingredients: { create: [
     { itemId: materialByCode.get("DEMO-MP-PVC")!.id, quantity: 5 },
@@ -473,13 +531,26 @@ async function main() {
     { itemId: materialByCode.get("DEMO-MP-AZU")!.id, quantity: 0.4 },
     { itemId: materialByCode.get("DEMO-MP-CACO3")!.id, quantity: 4 },
   ] } } } }, include: { versions: true } });
+  const intermediateRecipe = await prisma.recipe.create({ data: { companyId: company.id, outputItemId: intermediateCompound.id, code: "REC-000004", name: "Compuesto maestro negro PVC/TR", status: "ACTIVE", versions: { create: { version: 1, yieldQuantity: 25, isActive: true, notes: "Rinde 25 kg de insumo elaborado para enviar a Almacén", ingredients: { create: [
+    { itemId: materialByCode.get("DEMO-MP-PVC")!.id, quantity: 10 },
+    { itemId: materialByCode.get("DEMO-MP-TR")!.id, quantity: 8 },
+    { itemId: materialByCode.get("DEMO-MP-PIG")!.id, quantity: 1 },
+    { itemId: materialByCode.get("DEMO-MP-CACO3")!.id, quantity: 5 },
+    { itemId: materialByCode.get("DEMO-MP-EST")!.id, quantity: 1 },
+  ] } } } }, include: { versions: true } });
 
-  const approvedLines = purchaseLineData([
-    { itemId: materialByCode.get("DEMO-MP-CAU")!.id, presentationType: "FARDO", presentationQty: 20, contentPerUnit: 15, pricePerBaseUnit: 8.4 },
+  const polymerLines = purchaseLineData([
     { itemId: materialByCode.get("DEMO-MP-PVC")!.id, presentationType: "SACO", presentationQty: 20, contentPerUnit: 20, pricePerBaseUnit: 7.2 },
     { itemId: materialByCode.get("DEMO-MP-TR")!.id, presentationType: "SACO", presentationQty: 10, contentPerUnit: 20, pricePerBaseUnit: 10.8 },
     { itemId: materialByCode.get("DEMO-MP-EVA")!.id, presentationType: "SACO", presentationQty: 10, contentPerUnit: 20, pricePerBaseUnit: 9.5 },
     { itemId: materialByCode.get("DEMO-MP-PU")!.id, presentationType: "CILINDRO", presentationQty: 5, contentPerUnit: 20, pricePerBaseUnit: 23 },
+  ]);
+  const rubberLines = purchaseLineData([
+    { itemId: materialByCode.get("DEMO-MP-CAU")!.id, presentationType: "FARDO", presentationQty: 20, contentPerUnit: 15, pricePerBaseUnit: 8.4 },
+    { itemId: materialByCode.get("DEMO-MP-VIRA")!.id, presentationType: "ROLLO", presentationQty: 10, contentPerUnit: 20, pricePerBaseUnit: 2.8 },
+    { itemId: materialByCode.get("DEMO-MP-INS-TAL")!.id, presentationType: "CAJA", presentationQty: 4, contentPerUnit: 50, pricePerBaseUnit: 1.6 },
+  ]);
+  const chemicalLines = purchaseLineData([
     { itemId: materialByCode.get("DEMO-MP-EST")!.id, presentationType: "SACO", presentationQty: 3, contentPerUnit: 5, pricePerBaseUnit: 13 },
     { itemId: materialByCode.get("DEMO-MP-ZINC")!.id, presentationType: "SACO", presentationQty: 6, contentPerUnit: 3, pricePerBaseUnit: 18 },
     { itemId: materialByCode.get("DEMO-MP-PIG")!.id, presentationType: "BOLSA", presentationQty: 10, contentPerUnit: 2, pricePerBaseUnit: 28 },
@@ -487,17 +558,29 @@ async function main() {
     { itemId: materialByCode.get("DEMO-MP-AZU")!.id, presentationType: "SACO", presentationQty: 6, contentPerUnit: 5, pricePerBaseUnit: 7.8 },
     { itemId: materialByCode.get("DEMO-MP-DESM")!.id, presentationType: "BIDÓN", presentationQty: 12, contentPerUnit: 5, pricePerBaseUnit: 15 },
     { itemId: materialByCode.get("DEMO-MP-PIG-ROJ")!.id, presentationType: "BOLSA", presentationQty: 8, contentPerUnit: 2, pricePerBaseUnit: 29 },
-    { itemId: materialByCode.get("DEMO-MP-VIRA")!.id, presentationType: "ROLLO", presentationQty: 10, contentPerUnit: 20, pricePerBaseUnit: 2.8 },
-    { itemId: materialByCode.get("DEMO-MP-INS-TAL")!.id, presentationType: "CAJA", presentationQty: 4, contentPerUnit: 50, pricePerBaseUnit: 1.6 },
   ]);
-  const approvedPurchase = await prisma.purchase.create({ data: { companyId: company.id, supplierId: supplierPolymers.id, warehouseId: warehouse.id, currencyId: pen.id, code: `CMP-${businessYear}-000001`, receptionDate: relativeDate(-18), documentNumber: "F001-001842", status: "PENDING", exchangeRate: 1, ...purchaseTotals(approvedLines), lines: { create: approvedLines } } });
-  await approveDemoPurchase(company.id, approvedPurchase.id, demoUser.id);
+  const polymerPurchase = await prisma.purchase.create({ data: { companyId: company.id, supplierId: supplierPolymers.id, warehouseId: warehouse.id, currencyId: pen.id, code: `CMP-${businessYear}-000001`, receptionDate: relativeDate(-18), documentNumber: "F001-001842", status: "PENDING", exchangeRate: 1, ...purchaseTotals(polymerLines), lines: { create: polymerLines } } });
+  const rubberPurchase = await prisma.purchase.create({ data: { companyId: company.id, supplierId: supplierRubber.id, warehouseId: warehouse.id, currencyId: pen.id, code: `CMP-${businessYear}-000002`, receptionDate: relativeDate(-17), documentNumber: "F002-000431", status: "PENDING", exchangeRate: 1, ...purchaseTotals(rubberLines), lines: { create: rubberLines } } });
+  const chemicalPurchase = await prisma.purchase.create({ data: { companyId: company.id, supplierId: supplierChemicals.id, warehouseId: warehouse.id, currencyId: pen.id, code: `CMP-${businessYear}-000003`, receptionDate: relativeDate(-16), documentNumber: "F003-000218", status: "PENDING", exchangeRate: 1, ...purchaseTotals(chemicalLines), lines: { create: chemicalLines } } });
+  await approveDemoPurchase(company.id, polymerPurchase.id, demoUser.id);
+  await approveDemoPurchase(company.id, rubberPurchase.id, demoUser.id);
+  await approveDemoPurchase(company.id, chemicalPurchase.id, demoUser.id);
 
-  const pendingLines = purchaseLineData([{ itemId: materialByCode.get("DEMO-MP-TR")!.id, presentationType: "SACO", presentationQty: 15, contentPerUnit: 20, pricePerBaseUnit: 10.4 }]);
-  await prisma.purchase.create({ data: { companyId: company.id, supplierId: supplierRubber.id, warehouseId: warehouse.id, currencyId: pen.id, code: `CMP-${businessYear}-000002`, receptionDate: relativeDate(-2), documentNumber: "G001-000776", status: "PENDING", exchangeRate: 1, ...purchaseTotals(pendingLines), lines: { create: pendingLines } } });
+  const pendingLines = purchaseLineData([{ itemId: materialByCode.get("DEMO-MP-CAU")!.id, presentationType: "FARDO", presentationQty: 15, contentPerUnit: 20, pricePerBaseUnit: 8.6 }]);
+  await prisma.purchase.create({ data: { companyId: company.id, supplierId: supplierRubber.id, warehouseId: warehouse.id, currencyId: pen.id, code: `CMP-${businessYear}-000004`, receptionDate: relativeDate(-2), documentNumber: "G001-000776", status: "PENDING", exchangeRate: 1, ...purchaseTotals(pendingLines), lines: { create: pendingLines } } });
   const rejectedLines = purchaseLineData([{ itemId: materialByCode.get("DEMO-MP-ZINC")!.id, presentationType: "SACO", presentationQty: 10, contentPerUnit: 3, pricePerBaseUnit: 17.5 }]);
-  const rejectedPurchase = await prisma.purchase.create({ data: { companyId: company.id, supplierId: supplierChemicals.id, warehouseId: warehouse.id, currencyId: pen.id, code: `CMP-${businessYear}-000003`, receptionDate: relativeDate(-7), documentNumber: "G002-000119", status: "REJECTED", exchangeRate: 1, ...purchaseTotals(rejectedLines), lines: { create: rejectedLines } } });
+  const rejectedPurchase = await prisma.purchase.create({ data: { companyId: company.id, supplierId: supplierChemicals.id, warehouseId: warehouse.id, currencyId: pen.id, code: `CMP-${businessYear}-000005`, receptionDate: relativeDate(-7), documentNumber: "G002-000119", status: "REJECTED", exchangeRate: 1, ...purchaseTotals(rejectedLines), lines: { create: rejectedLines } } });
   await prisma.purchaseApproval.create({ data: { purchaseId: rejectedPurchase.id, userId: adminUser.id, status: "REJECTED", comment: "Lote de óxido de zinc sin certificado de calidad" } });
+
+  await completeDemoTransformation({
+    companyId: company.id,
+    userId: operatorUser.id,
+    warehouseId: warehouse.id,
+    recipeVersionId: intermediateRecipe.versions[0].id,
+    number: `TRF-${businessYear}-000001`,
+    outputQuantity: 24,
+    wasteQuantity: 1,
+  });
 
   const wasteOpeningLines = [
     { itemId: materialByCode.get("DEMO-MP-COL-TR")!.id, quantity: 18, unitCost: 0.8 },
@@ -557,6 +640,7 @@ async function main() {
   const activeProduction = await createDemoProduction({
     companyId: company.id, userId: operatorUser.id, number: `OP-${businessYear}-000002`, warehouseId: warehouse.id,
     recipeVersionId: urbanVersionId, secondaryRecipeVersionId: urbanRedVersionId, salesOrderIds: [productionLinkedOrder.id],
+    customerBrandId: storeBrand.id,
     materialItemId: materialByCode.get("DEMO-MP-TR")!.id, machineId: press.id, priority: 1,
     plannedAt: relativeDate(0), operatorName: "Carlos Rojas", processType: "PRENSA", modelLogo: "Urbana Flex Bicolor / Paso Firme", brandColor: "Negro",
     pressNumber: "PR-01", pressLoad: "46 kg C1 + 14 kg C2",
@@ -613,7 +697,7 @@ async function main() {
   await createPickPack(dispatchedOrder.id, `PP-${businessYear}-000004`, "READY", 1);
   await dispatchDemoSalesOrder(company.id, dispatchedOrder.id, adminUser.id);
 
-  await prisma.importJob.create({ data: { companyId: company.id, createdById: adminUser.id, module: "INVENTORY", fileName: "plantilla_almacen_demo.xlsx", status: "COMPLETED", totalRows: 22, successRows: 22, errorRows: 0, finishedAt: relativeDate(-16) } });
+  await prisma.importJob.create({ data: { companyId: company.id, createdById: adminUser.id, module: "INVENTORY", fileName: "plantilla_almacen_demo.xlsx", status: "COMPLETED", totalRows: 23, successRows: 23, errorRows: 0, finishedAt: relativeDate(-16) } });
   await prisma.importJob.create({ data: { companyId: company.id, createdById: adminUser.id, module: "PURCHASES", fileName: "compras_revision_demo.xlsx", status: "FAILED", totalRows: 4, successRows: 3, errorRows: 1, finishedAt: relativeDate(-2), errors: { create: [{ rowNumber: 5, field: "Documento / guía", code: "DUPLICATE_DOCUMENT", message: "La compra ya existe y fue omitida; los demás registros nuevos sí se procesaron.", rawData: { documento: "F001-001842" } }] } } });
 
   await prisma.calendarEvent.createMany({ data: [
@@ -628,16 +712,28 @@ async function main() {
     { companyId: company.id, userId: demoUser.id, type: "DEMO_MAINTENANCE", title: "Mantenimiento vencido", message: "La prensa hidráulica 01 requiere programación de mantenimiento.", data: { machineCode: "MAQ-000001" } },
     { companyId: company.id, userId: demoUser.id, type: "DEMO_ORDER", title: "Pedido próximo a entrega", message: `El pedido PED-${businessYear}-000004 debe entregarse hoy.`, data: { orderNumber: `PED-${businessYear}-000004` } },
   ] });
+  await prisma.auditLog.createMany({ data: [
+    { companyId: company.id, userId: demoUser.id, module: "auth", entity: "Session", entityId: demoUser.id, action: "LOGIN", ipAddress: "192.168.1.10", userAgent: "Chrome · Equipo de gerencia", requestPath: "/api/v1/auth/login", createdAt: relativeDate(-4, 8) },
+    { companyId: company.id, userId: adminUser.id, module: "purchases", entity: "Purchase", entityId: polymerPurchase.id, action: "APPROVE", afterData: { code: `CMP-${businessYear}-000001`, status: "APPROVED" }, requestPath: `/api/v1/purchases/${polymerPurchase.id}/approve`, createdAt: relativeDate(-18, 11) },
+    { companyId: company.id, userId: operatorUser.id, module: "inventory", entity: "InventoryTransformation", entityId: intermediateRecipe.id, action: "COMPLETE", afterData: { number: `TRF-${businessYear}-000001`, outputQuantity: 24, wasteQuantity: 1 }, requestPath: `/api/v1/recipes/${intermediateRecipe.id}/produce-to-inventory`, createdAt: relativeDate(-9, 12) },
+    { companyId: company.id, userId: operatorUser.id, module: "production", entity: "ProductionOrder", entityId: completedProduction.id, action: "COMPLETE", afterData: { number: `OP-${businessYear}-000001`, producedQuantity: 36 }, requestPath: `/api/v1/production/${completedProduction.id}/complete`, createdAt: relativeDate(-10, 16) },
+    { companyId: company.id, userId: adminUser.id, module: "imports", entity: "ImportJob", entityId: company.id, action: "IMPORT", afterData: { module: "INVENTORY", fileName: "plantilla_almacen_demo.xlsx", successRows: 23 }, requestPath: "/api/v1/imports/confirm", createdAt: relativeDate(-16, 14) },
+    { companyId: company.id, userId: demoUser.id, module: "inventory", entity: "InventoryReport", entityId: company.id, action: "EXPORT", afterData: { format: "XLSX", range: "Últimos 30 días" }, requestPath: "/api/v1/exports/INVENTORY", createdAt: relativeDate(-1, 17) },
+    { companyId: company.id, userId: operatorUser.id, module: "production", entity: "Module", entityId: "production", action: "MODULE_ACCESS", ipAddress: "192.168.1.48", userAgent: "Chrome · Tablet de planta", requestPath: "/dashboard/production", createdAt: relativeHours(-1.5) },
+    { companyId: company.id, userId: demoUser.id, module: "dashboard", entity: "Module", entityId: "dashboard", action: "MODULE_ACCESS", ipAddress: "192.168.1.10", userAgent: "Chrome · Equipo de gerencia", requestPath: "/dashboard", createdAt: relativeHours(-0.5) },
+  ] });
 
   await prisma.correlativeCounter.createMany({ data: [
     { companyId: company.id, scope: "SUPPLIER", year: 0, value: 102 },
     { companyId: company.id, scope: "CUSTOMER", year: 0, value: 102 },
     { companyId: company.id, scope: "INVENTORY_RAW", year: 0, value: 17 },
     { companyId: company.id, scope: "INVENTORY_WASTE", year: 0, value: 5 },
-    { companyId: company.id, scope: "RECIPE", year: 0, value: 3 },
+    { companyId: company.id, scope: "INVENTORY_INTERMEDIATE", year: 0, value: 1 },
+    { companyId: company.id, scope: "INVENTORY_TRANSFORMATION", year: businessYear, value: 1 },
+    { companyId: company.id, scope: "RECIPE", year: 0, value: 4 },
     { companyId: company.id, scope: "MACHINE", year: 0, value: 3 },
     { companyId: company.id, scope: "PRODUCT", year: businessYear, value: 2 },
-    { companyId: company.id, scope: "PURCHASE", year: businessYear, value: 3 },
+    { companyId: company.id, scope: "PURCHASE", year: businessYear, value: 5 },
     { companyId: company.id, scope: "PRODUCTION", year: businessYear, value: 4 },
     { companyId: company.id, scope: "SALES_ORDER", year: businessYear, value: 6 },
     { companyId: company.id, scope: "PICK_PACK", year: businessYear, value: 4 },

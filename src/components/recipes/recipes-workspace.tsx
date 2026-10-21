@@ -2,7 +2,7 @@
 
 import { CheckOutlined, ExperimentOutlined, PlusOutlined, ReloadOutlined, RocketOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Form, Input, InputNumber, Modal, Radio, Select, Space, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Form, Input, InputNumber, Modal, Radio, Select, Space, Tag, Tooltip, Typography } from "antd";
 import type { FormInstance } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Decimal from "decimal.js";
@@ -72,7 +72,7 @@ export function RecipesWorkspace({ permissions, canCreate, canActivate }: { perm
     </Space> },
   ];
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Recetas" eyebrow="Formulaciones" description="Define una sola vez los ingredientes y decide si el resultado se envía a Producción o se elabora para ingresar a Almacén." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar código, nombre o producto" /><Button icon={<ReloadOutlined />} onClick={() => recipes.refetch()}>Actualizar</Button><ModuleImportButton module="recipes" permissions={permissions} /></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Recetas" eyebrow="Formulaciones" description="Define una sola vez los ingredientes y decide si el resultado se envía a Producción o se elabora para ingresar a Almacén." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar código, nombre o producto" /><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => recipes.refetch()} /></Tooltip><ModuleImportButton module="recipes" permissions={permissions} /></Space></div>
     <Card className="section-card" title="Recetas registradas" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Nueva receta</Button> : null}>{recipes.error ? <Alert type="error" showIcon message={recipes.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={recipes.isLoading} columns={columns} dataSource={filteredRecipes} expandable={{ expandedRowRender: (row) => { const version = row.versions[0]; return version ? <><Typography.Text strong>Versión {version.version}{version.isActive ? " · activa" : ""}</Typography.Text>{version.notes ? <Typography.Paragraph type="secondary">{version.notes}</Typography.Paragraph> : null}<Table rowKey="id" size="small" sticky={false} pagination={false} columns={ingredientColumns} dataSource={version.ingredients} /></> : null; } }} scroll={{ x: 1280 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay recetas registradas" /> }} /></Card>
     <Modal className="compact-form-modal" title="Nueva receta" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Crear borrador" confirmLoading={create.isPending} width={900} destroyOnHidden>
       {!options.data?.materials.length ? <Alert type="warning" showIcon message="Primero registra los ingredientes en Almacén." style={{ marginBottom: 16 }} /> : null}

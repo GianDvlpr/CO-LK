@@ -2,7 +2,7 @@
 
 import { CarOutlined, EditOutlined, PlusOutlined, PrinterOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import Decimal from "decimal.js";
@@ -57,7 +57,7 @@ export function PickPackWorkspace({ permissions }: { permissions: string[] }) {
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Pick & Pack" eyebrow="Preparación y despacho" description="Controla la recolección, empaque, incidencias y salida final. Picking y packing no descuentan stock; el kardex se actualiza al despachar lo realmente empacado." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar número, pedido o cliente" /><Button icon={<ReloadOutlined />} onClick={() => records.refetch()}>Actualizar</Button></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Pick & Pack" eyebrow="Preparación y despacho" description="Controla la recolección, empaque, incidencias y salida final. Picking y packing no descuentan stock; el kardex se actualiza al despachar lo realmente empacado." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar número, pedido o cliente" /><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => records.refetch()} /></Tooltip></Space></div>
     <Card className="section-card" title="Órdenes de preparación" extra={permissions.includes("pick_pack.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { createForm.resetFields(); createForm.setFieldsValue({ priority: "NORMAL" }); setCreateOpen(true); }}>Generar Pick & Pack</Button> : null}>
       {records.error ? <Alert type="error" showIcon message={records.error.message} style={{ marginBottom: 16 }} /> : null}
       <Table rowKey="id" loading={records.isLoading} columns={columns} dataSource={filteredRecords} scroll={{ x: 1240 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay órdenes de preparación" /> }} />

@@ -2,7 +2,7 @@
 
 import { EditOutlined, KeyOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Form, Input, Modal, Select, Space, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Form, Input, Modal, Select, Space, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { useState } from "react";
@@ -72,7 +72,7 @@ export function UsersWorkspace({ currentUserId, canCreate, canUpdate, canDeactiv
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Usuarios" eyebrow="Seguridad" description="Administra cuentas y roles. Las cuentas nuevas deben cambiar su contraseña en el primer ingreso y usar al menos 6 caracteres." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar nombre, usuario o rol" /><Button icon={<ReloadOutlined />} onClick={() => users.refetch()}>Actualizar</Button></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Usuarios" eyebrow="Seguridad" description="Administra cuentas y roles. Las cuentas nuevas deben cambiar su contraseña en el primer ingreso y usar al menos 6 caracteres." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar nombre, usuario o rol" /><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => users.refetch()} /></Tooltip></Space></div>
     <Card className="section-card" title="Usuarios registrados" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(undefined); form.resetFields(); setOpen(true); }}>Nuevo usuario</Button> : null}>{users.error ? <Alert type="error" showIcon message={users.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={users.isLoading} columns={columns} dataSource={filteredUsers} scroll={{ x: 1240 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay usuarios registrados" /> }} /></Card>
     <Modal title={editing ? "Editar usuario" : "Nuevo usuario"} open={open} onCancel={() => { setOpen(false); setEditing(undefined); }} onOk={() => form.submit()} okText={editing ? "Guardar cambios" : "Crear usuario"} confirmLoading={create.isPending || update.isPending} width={720} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={(values) => editing ? update.mutate(values) : create.mutate(values)}>

@@ -2,7 +2,7 @@
 
 import { CheckOutlined, EditOutlined, InboxOutlined, PlusOutlined, ReloadOutlined, SendOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag, Typography } from "antd";
+import { Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import Decimal from "decimal.js";
@@ -61,7 +61,7 @@ export function OrdersWorkspace({ permissions }: { permissions: string[] }) {
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Pedidos" eyebrow="Ventas" description="Registra pedidos por cliente y variante. Al confirmar se reserva el stock; Pick & Pack registra la preparación y habilita el despacho final." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar número o cliente" /><Button icon={<ReloadOutlined />} onClick={() => orders.refetch()}>Actualizar</Button><ModuleImportButton module="orders" permissions={permissions} /></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Pedidos" eyebrow="Ventas" description="Registra pedidos por cliente y variante. Al confirmar se reserva el stock; Pick & Pack registra la preparación y habilita el despacho final." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar número o cliente" /><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => orders.refetch()} /></Tooltip><ModuleImportButton module="orders" permissions={permissions} /></Space></div>
     <Card className="section-card" title="Órdenes de pedido" extra={permissions.includes("orders.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo pedido</Button> : null}>{orders.error ? <Alert type="error" showIcon message={orders.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={orders.isLoading} columns={columns} dataSource={filteredOrders} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" sticky={false} pagination={false} columns={lineColumns} dataSource={row.lines} /> }} scroll={{ x: 1200 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay pedidos registrados" /> }} /></Card>
     <Modal className="compact-form-modal" title={editing ? `Editar ${editing.number}` : "Nuevo pedido"} open={open} onCancel={() => { setOpen(false); setEditing(undefined); }} onOk={() => form.submit()} okText={editing ? "Guardar cambios" : "Crear borrador"} confirmLoading={save.isPending} width={900} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={(values) => save.mutate(values)}>

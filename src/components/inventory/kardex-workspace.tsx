@@ -2,7 +2,7 @@
 
 import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Select, Space, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Select, Space, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import Decimal from "decimal.js";
@@ -38,7 +38,7 @@ export function KardexWorkspace() {
     { title: "Costo prom.", dataIndex: "averageCostAfter", width: 130, align: "right", render: (value) => `S/ ${new Decimal(value).toFixed(4)}` },
   ];
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Kardex valorizado" eyebrow="Trazabilidad" description="Movimientos inmutables ordenados por secuencia contable, con saldos y promedio ponderado." /><Space wrap className="module-actions"><Link href="/dashboard/inventory"><Button icon={<ArrowLeftOutlined />}>Volver al almacén</Button></Link><Button icon={<ReloadOutlined />} onClick={() => movements.refetch()}>Actualizar</Button></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Kardex valorizado" eyebrow="Trazabilidad" description="Movimientos inmutables ordenados por secuencia contable, con saldos y promedio ponderado." /><Space wrap className="module-actions"><Link href="/dashboard/inventory"><Button icon={<ArrowLeftOutlined />}>Volver al almacén</Button></Link><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => movements.refetch()} /></Tooltip></Space></div>
     <Card className="section-card" style={{ marginBottom: 18 }}><Space wrap><Select allowClear showSearch optionFilterProp="label" placeholder="Todos los ítems" style={{ minWidth: 280 }} value={itemId} onChange={setItemId} options={options.data?.items.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /><Select allowClear showSearch optionFilterProp="label" placeholder="Todos los almacenes" style={{ minWidth: 240 }} value={warehouseId} onChange={setWarehouseId} options={options.data?.warehouses.map((warehouse) => ({ value: warehouse.id, label: `${warehouse.code} · ${warehouse.name}` }))} /></Space></Card>
     <Card className="section-card">{movements.error ? <Alert type="error" showIcon message={movements.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={movements.isLoading} columns={columns} dataSource={movements.data?.items ?? []} scroll={{ x: 1750 }} pagination={{ pageSize: 30 }} locale={{ emptyText: <Empty description="No hay movimientos para los filtros seleccionados" /> }} /></Card>
   </>;

@@ -29,6 +29,7 @@ import {
   Select,
   Space,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -173,7 +174,7 @@ export function MachineryWorkspace({ permissions }: { permissions: string[] }) {
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Maquinaria" eyebrow="Mantenimiento" description="Registra prensas, inyectoras y otros equipos; controla mantenimientos, reparaciones, costos y próximas fechas." /><Space wrap className="module-actions"><Button icon={<ReloadOutlined />} onClick={() => machines.refetch()}>Actualizar</Button></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Maquinaria" eyebrow="Mantenimiento" description="Registra prensas, inyectoras y otros equipos; controla mantenimientos, reparaciones, costos y próximas fechas." /><Space wrap className="module-actions"><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => machines.refetch()} /></Tooltip></Space></div>
     <div className="machinery-overview" aria-label="Resumen de maquinaria">
       <div className="machinery-overview-counts">
         <span><strong>{items.length}</strong> registradas</span>

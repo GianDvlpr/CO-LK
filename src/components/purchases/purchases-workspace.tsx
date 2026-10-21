@@ -179,7 +179,7 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
   return <>
     <div className="page-heading">
       <ModuleHeadingIntro title="Compras y recepciones" eyebrow="Operativo" description="Registra documentos de proveedor, presentaciones, lotes, moneda, IGV y aprobación de entradas al kardex." />
-      <Space wrap className="module-actions"><TableSearch value={search} onChange={(value) => { setSearch(value); setPage(1); }} placeholder="Buscar código, documento o proveedor" /><Button icon={<ReloadOutlined />} onClick={() => purchases.refetch()}>Actualizar</Button><ModuleImportButton module="purchases" permissions={permissions} /></Space>
+      <Space wrap className="module-actions"><TableSearch value={search} onChange={(value) => { setSearch(value); setPage(1); }} placeholder="Buscar código, documento o proveedor" /><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => purchases.refetch()} /></Tooltip><ModuleImportButton module="purchases" permissions={permissions} /></Space>
     </div>
     <Card className="section-card" title="Recepciones registradas" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Nueva recepción</Button> : null}>
       {purchases.error ? <Alert type="error" showIcon message={purchases.error.message} action={<Button onClick={() => router.refresh()}>Reintentar</Button>} /> : null}

@@ -2,7 +2,7 @@
 
 import { DeleteOutlined, EditOutlined, PictureOutlined, PlusOutlined, ReloadOutlined, SettingOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Avatar, Button, Card, Checkbox, Empty, Form, Image, Input, InputNumber, Modal, Popconfirm, Select, Space, Tag, Typography, Upload } from "antd";
+import { Alert, Avatar, Button, Card, Checkbox, Empty, Form, Image, Input, InputNumber, Modal, Popconfirm, Select, Space, Tag, Tooltip, Typography, Upload } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Decimal from "decimal.js";
 import { ModuleImportButton } from "@/components/imports/module-import-button";
@@ -65,7 +65,7 @@ export function ProductsWorkspace({ permissions, canCreate, canManageImages, clo
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Productos" eyebrow="Operativo" description={`Gestiona modelos de calzado y variantes por talla, color y SKU vinculadas al inventario.${cloudinaryConfigured ? "" : " Las imágenes estarán disponibles cuando Cloudinary esté configurado."}`} /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar código, matriz o nombre" /><Button icon={<ReloadOutlined />} onClick={() => products.refetch()}>Actualizar</Button><ModuleImportButton module="products" permissions={permissions} /></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Productos" eyebrow="Operativo" description={`Gestiona modelos de calzado y variantes por talla, color y SKU vinculadas al inventario.${cloudinaryConfigured ? "" : " Las imágenes estarán disponibles cuando Cloudinary esté configurado."}`} /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar código, matriz o nombre" /><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => products.refetch()} /></Tooltip><ModuleImportButton module="products" permissions={permissions} /></Space></div>
     <Card className="section-card" title="Productos y variantes" extra={canCreate ? <Space wrap><Button icon={<SettingOutlined />} onClick={() => setOptionType("SIZE")}>Nueva talla</Button><Button icon={<SettingOutlined />} onClick={() => setOptionType("COLOR")}>Nuevo color</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Nuevo producto</Button></Space> : null}>{products.error ? <Alert type="error" showIcon message={products.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={products.isLoading} columns={columns} dataSource={filteredProducts} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" sticky={false} pagination={false} columns={variantColumns} dataSource={row.variants} /> }} scroll={{ x: 950 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay productos registrados" /> }} /></Card>
     <Modal className="compact-form-modal" title="Nuevo producto" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Crear producto" confirmLoading={create.isPending} width={900} destroyOnHidden>
       {(!options.data?.sizes.length || !options.data?.colors.length) ? <Alert type="warning" showIcon message="Crea al menos una talla y un color antes de registrar variantes." style={{ marginBottom: 16 }} /> : null}

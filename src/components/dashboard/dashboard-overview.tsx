@@ -2,7 +2,7 @@
 
 import { AlertOutlined, DollarOutlined, ReloadOutlined, ShoppingCartOutlined, WarningOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, Col, DatePicker, Empty, List, Row, Space, Statistic, Tag, Typography } from "antd";
+import { Alert, Button, Card, Col, DatePicker, Empty, List, Row, Space, Statistic, Tag, Tooltip, Typography } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import Link from "next/link";
 import { useState } from "react";
@@ -36,7 +36,7 @@ export function DashboardOverview() {
   const productBars = (data?.orders.topProducts ?? []).map((product) => ({ label: truncateLabel(product.name, 22), fullName: `${product.code} · ${product.name}`, value: product.quantity }));
   const consumedBars = (data?.production.consumedMaterials ?? []).map((material) => ({ label: truncateLabel(`${material.name} (${material.unit})`, 22), fullName: `${material.code} · ${material.name} (${material.unit})`, value: material.quantity }));
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Panel de control" eyebrow="Analítica operativa" description="Indicadores de módulos, alertas de stock y compromisos de entrega para tomar acción." /><Space wrap className="dashboard-filter"><DatePicker.RangePicker value={period} allowClear={false} format="DD/MM/YYYY" onChange={(value) => { if (value?.[0] && value[1]) setPeriod([value[0], value[1]]); }} /><Button icon={<ReloadOutlined />} loading={analytics.isFetching} onClick={() => analytics.refetch()}>Actualizar</Button></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Panel de control" eyebrow="Analítica operativa" description="Indicadores de módulos, alertas de stock y compromisos de entrega para tomar acción." /><Space wrap className="dashboard-filter"><DatePicker.RangePicker value={period} allowClear={false} format="DD/MM/YYYY" onChange={(value) => { if (value?.[0] && value[1]) setPeriod([value[0], value[1]]); }} /><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" loading={analytics.isFetching} onClick={() => analytics.refetch()} /></Tooltip></Space></div>
     {analytics.error ? <Alert type="error" showIcon message={analytics.error.message} style={{ marginBottom: 18 }} /> : null}
     <Row gutter={[18, 18]}>
       <Col xs={24} sm={12} xl={6}><Card className="metric-card" loading={analytics.isLoading}><Statistic title="Inventario valorizado" value={data?.inventory.totalValue ?? 0} formatter={(value) => money.format(Number(value))} prefix={<DollarOutlined />} /><Typography.Text type="secondary">{data?.inventory.totalItems ?? 0} ítems activos</Typography.Text></Card></Col>

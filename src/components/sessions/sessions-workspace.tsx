@@ -153,7 +153,7 @@ export function SessionsWorkspace({ canRevoke }: { canRevoke: boolean }) {
   return <>
     <div className="page-heading">
       <ModuleHeadingIntro title="Sesiones" eyebrow="Seguridad" description="Consulta accesos, duración, IP aproximada, dispositivo y cierres. La última actividad se actualiza como máximo cada dos minutos." />
-      <Space wrap className="module-actions"><Button icon={<ReloadOutlined />} loading={sessions.isFetching} onClick={() => sessions.refetch()}>Actualizar</Button></Space>
+      <Space wrap className="module-actions"><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" loading={sessions.isFetching} onClick={() => sessions.refetch()} /></Tooltip></Space>
     </div>
     <div className="session-overview" aria-label="Resumen de sesiones">
       <span><strong>{summary?.active ?? 0}</strong> activas</span>

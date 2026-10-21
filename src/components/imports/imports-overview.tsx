@@ -2,7 +2,7 @@
 
 import { CheckOutlined, DownloadOutlined, FileExcelOutlined, InboxOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Col, DatePicker, Empty, List, Modal, Row, Select, Space, Tag, Typography, Upload } from "antd";
+import { Alert, Button, Card, Col, DatePicker, Empty, List, Modal, Row, Select, Space, Tag, Tooltip, Typography, Upload } from "antd";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 import { TableSearch, matchesSearch } from "@/components/common/table-search";
 import type { ColumnsType } from "antd/es/table";
@@ -68,7 +68,7 @@ export function ImportsOverview({ permissions }: { permissions: string[] }) {
   ];
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Importaciones y reportes" eyebrow="Excel v1.5" description="Descarga plantillas, exporta la información vigente y valida archivos antes de aplicar una carga masiva." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar archivo, módulo o estado" /><Button icon={<ReloadOutlined />} onClick={() => jobs.refetch()}>Actualizar historial</Button></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Importaciones y reportes" eyebrow="Excel v1.5" description="Descarga plantillas, exporta la información vigente y valida archivos antes de aplicar una carga masiva." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar archivo, módulo o estado" /><Tooltip title="Actualizar historial"><Button icon={<ReloadOutlined />} aria-label="Actualizar historial" onClick={() => jobs.refetch()} /></Tooltip></Space></div>
     <Card className="section-card" style={{ marginBottom: 18 }} title="Periodo de los reportes">
       <Space direction="vertical" size="small">
         <RangePicker value={reportPeriod} format="DD/MM/YYYY" allowClear={false} onChange={(value) => { if (value?.[0] && value[1]) setReportPeriod([value[0], value[1]]); }} />

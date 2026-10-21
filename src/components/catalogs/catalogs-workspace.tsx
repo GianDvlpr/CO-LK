@@ -2,7 +2,7 @@
 
 import { CheckCircleOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, TagsOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Checkbox, Empty, Form, Input, InputNumber, Modal, Select, Space, Tabs, Tag } from "antd";
+import { Alert, Button, Card, Checkbox, Empty, Form, Input, InputNumber, Modal, Select, Space, Tabs, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -306,7 +306,7 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
   return <>
     <div className="page-heading">
       <ModuleHeadingIntro title="Catálogos" eyebrow="Maestros" description="Administra los datos base usados por compras, almacén, producción y pedidos." />
-      <Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar código, nombre o documento" /><Button icon={<ReloadOutlined />} onClick={() => catalogs.refetch()}>Actualizar</Button></Space>
+      <Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar código, nombre o documento" /><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => catalogs.refetch()} /></Tooltip></Space>
     </div>
     <Card className="section-card" title={labels[active].plural} extra={canManage ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo {labels[active].singular}</Button> : null}>
       {catalogs.error ? <Alert type="error" showIcon message={catalogs.error.message} style={{ marginBottom: 16 }} /> : null}
