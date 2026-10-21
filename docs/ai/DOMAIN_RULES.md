@@ -167,6 +167,7 @@ Reglas:
 - El costo consumido completo, incluida la porción declarada como merma, se distribuye entre los pares buenos terminados.
 - Finalizar ingresa el producto terminado al SKU correspondiente y actualiza pedido/stock.
 - El documento se exporta en Excel y PDF con tamaño físico A5, pero no imprime la palabra “A5” en la cabecera.
+- Además del PDF con datos, existe un formato A5 en blanco (sin valores) para llenarlo a mano.
 - El formato muestra solo la sección de prensa, inyectora, ambas o ninguna según el tipo de proceso seleccionado.
 - Una orden de producción puede consolidar varias órdenes de pedido. Las cantidades programadas por talla no pueden superar la suma disponible de las líneas seleccionadas.
 - El A5 muestra la fecha de emisión en la cabecera, omite estado, prioridad y serie/modelo, y separa `TOTAL` de `TOTAL ESPERADO` en el control por talla.
@@ -199,7 +200,7 @@ PENDING → PICKING → PACKING → READY → DISPATCHED
 
 - Registra cantidades solicitadas, recogidas y empacadas, ubicación, lote, incidencias y paquetes.
 - No incluye responsables de pick/pack ni firmas en el formato.
-- El formato imprimible es A4 apaisado.
+- El formato imprimible es A5 apaisado.
 - Despachar descuenta lo realmente empacado y libera reservas no utilizadas.
 - Un reintento no debe duplicar la salida del kardex.
 

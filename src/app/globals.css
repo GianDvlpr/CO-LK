@@ -2279,8 +2279,8 @@ a {
 
 @media print {
   @page {
-    size: A4 landscape;
-    margin: 10mm;
+    size: A5 landscape;
+    margin: 6mm;
   }
 
   body {
@@ -2312,6 +2312,67 @@ a {
     max-width: none;
     margin: 0;
     padding: 0;
+    font-size: 7px;
+  }
+
+  .pick-pack-print-header {
+    gap: 8px;
+    padding: 6px 8px;
+    border-width: 1px;
+  }
+
+  .pick-pack-print-header h1 {
+    margin: 1px 0 0;
+    font-size: 13px;
+  }
+
+  .pick-pack-print-header > strong {
+    font-size: 11px;
+  }
+
+  .pick-pack-print-header span,
+  .pick-pack-print-info span,
+  .pick-pack-print-notes span {
+    font-size: 6px;
+    letter-spacing: .04em;
+  }
+
+  .pick-pack-print-info > div {
+    min-height: 0;
+    padding: 3px 4px;
+    font-size: 7px;
+  }
+
+  .pick-pack-print-info strong {
+    font-size: 7px;
+  }
+
+  .pick-pack-print-page h2 {
+    margin: 6px 0 3px;
+    font-size: 8px;
+  }
+
+  .pick-pack-print-table {
+    width: 100%;
+    font-size: 6.2px;
+  }
+
+  .pick-pack-print-table th,
+  .pick-pack-print-table td {
+    padding: 2px;
+    overflow-wrap: anywhere;
+  }
+
+  .pick-pack-print-notes,
+  .pick-pack-print-empty {
+    min-height: 22px;
+    margin-top: 6px;
+    padding: 4px;
+  }
+
+  .print-table-scroll {
+    width: 100%;
+    overflow: visible;
   }
 
   .pick-pack-print-header,

@@ -1,8 +1,8 @@
 "use client";
 
 import { PrinterOutlined } from "@ant-design/icons";
-import { Button } from "antd";
+import { Button, Space, Typography } from "antd";
 
 export function PrintButton() {
-  return <Button type="primary" icon={<PrinterOutlined />} onClick={() => window.print()}>Imprimir / guardar PDF</Button>;
+  return <Space><Typography.Text type="secondary">Papel A5 horizontal · escala 100 %</Typography.Text><Button type="primary" icon={<PrinterOutlined />} onClick={() => window.print()}>Imprimir / guardar PDF</Button></Space>;
 }

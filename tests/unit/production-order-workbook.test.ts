@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
+import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
-import { buildProductionOrderPdf } from "@/modules/production/application/production-order-pdf";
+import { buildBlankProductionOrderPdf, buildProductionOrderPdf } from "@/modules/production/application/production-order-pdf";
 import { skuPattern } from "@/modules/production/application/production-order-document";
 import { buildProductionOrderWorkbook } from "@/modules/production/application/production-order-workbook";
 import { validateProductionSheetTotals } from "@/modules/production/domain/production-sheet";
@@ -20,8 +21,12 @@ const documentData = {
 
 describe("orden de producción A5", () => {
   it("muestra las tallas reales en el SKU cuando la orden tiene varias tallas", () => {
-    expect(skuPattern(documentData)).toBe("I0034-NEG-ROJ-38/39");
+    expect(skuPattern(documentData)).toBe("I0034-NEG-ROJ-38, I0034-NEG-ROJ-39");
     expect(skuPattern(documentData)).not.toContain("{TALLA}");
+  });
+
+  it("muestra un solo SKU cuando la orden tiene una sola talla", () => {
+    expect(skuPattern({ ...documentData, sizeProgram: [documentData.sizeProgram[0]] })).toBe("I0034-NEG-ROJ-38");
   });
 
   it("genera un Excel A5 con dos colores, componentes, tallas y turnos", async () => {
@@ -46,6 +51,16 @@ describe("orden de producción A5", () => {
   it("genera un PDF A5 descargable", async () => {
     const pdf = await buildProductionOrderPdf(documentData);
     expect(new TextDecoder().decode(pdf.slice(0, 4))).toBe("%PDF");
+  });
+
+  it("genera un formato en blanco A5 de una sola página", async () => {
+    const pdf = await buildBlankProductionOrderPdf();
+    expect(new TextDecoder().decode(pdf.slice(0, 4))).toBe("%PDF");
+    const document = await PDFDocument.load(pdf);
+    expect(document.getPageCount()).toBe(1);
+    const { width, height } = document.getPage(0).getSize();
+    expect(Math.round(width)).toBe(595);
+    expect(Math.round(height)).toBe(420);
   });
 
   it("rechaza una programación que no coincide con el plan", () => {

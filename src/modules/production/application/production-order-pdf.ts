@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import {
-  componentRows, formatDate, productionTurns, programEntries, salesOrderReferences, skuPattern,
+  componentNames, componentRows, formatDate, productionTurns, programEntries, salesOrderReferences, skuPattern,
   type ProductionOrderDocumentData,
 } from "@/modules/production/application/production-order-document";
 
@@ -65,7 +65,7 @@ export async function buildProductionOrderPdf(order: ProductionOrderDocumentData
   top -= 5;
 
   top = section(page, bold, top, "COMPONENTES INTEGRADOS EN LA MISMA OPERACIÓN DE PRENSADO", margin, width);
-  const componentWidths = [110, 230, width - 340];
+  const componentWidths = [76, 250, width - 326];
   ["Componente", "Código / tipo / cantidad", "Color / detalle"].forEach((text, index) => cell(page, font, bold, { x: margin + componentWidths.slice(0, index).reduce((sum, value) => sum + value, 0), top, width: componentWidths[index], height: 14, text, label: true }));
   top -= 14;
   componentRows(order).forEach((row) => {
@@ -128,6 +128,73 @@ export async function buildProductionOrderPdf(order: ProductionOrderDocumentData
   }
 
   document.setTitle(`Orden de producción ${order.number}`);
+  document.setAuthor("LK INNOVACION");
+  return document.save();
+}
+
+export async function buildBlankProductionOrderPdf() {
+  const document = await PDFDocument.create();
+  const font = await document.embedFont(StandardFonts.Helvetica);
+  const bold = await document.embedFont(StandardFonts.HelveticaBold);
+  const page = document.addPage(A5_LANDSCAPE);
+  const [pageWidth, pageHeight] = A5_LANDSCAPE;
+  const margin = 12;
+  const width = pageWidth - margin * 2;
+  let top = pageHeight - margin;
+
+  cell(page, font, bold, { x: margin, top, width, height: 20, text: "LK INNOVACION DE SUELAS PARA CALZADO  |  ORDEN DE PRODUCCIÓN  |  FECHA DE EMISIÓN: ____/____/________", dark: true, size: 8 });
+  top -= 20;
+  const half = width / 2;
+  const labelWidth = 92;
+  const info: [string, string][] = [
+    ["N.° OP", "Máquina"],
+    ["Operario", "Matriz"],
+    ["Fecha programada", "Material"],
+    ["Referencias de pedido", "Color principal C1"],
+    ["SKU", "Color secundario C2"],
+    ["Logo / marca", "Color de marca"],
+  ];
+  info.forEach(([leftLabel, rightLabel]) => {
+    cell(page, font, bold, { x: margin, top, width: labelWidth, height: 14, text: leftLabel, label: true });
+    cell(page, font, bold, { x: margin + labelWidth, top, width: half - labelWidth, height: 14, text: "" });
+    cell(page, font, bold, { x: margin + half, top, width: labelWidth, height: 14, text: rightLabel, label: true });
+    cell(page, font, bold, { x: margin + half + labelWidth, top, width: half - labelWidth, height: 14, text: "" });
+    top -= 14;
+  });
+  top -= 5;
+
+  top = section(page, bold, top, "COMPONENTES INTEGRADOS EN LA MISMA OPERACIÓN DE PRENSADO", margin, width);
+  const componentWidths = [76, 250, width - 326];
+  ["Componente", "Código / tipo / cantidad", "Color / detalle"].forEach((text, index) => cell(page, font, bold, { x: margin + componentWidths.slice(0, index).reduce((sum, value) => sum + value, 0), top, width: componentWidths[index], height: 14, text, label: true }));
+  top -= 14;
+  [...Object.values(componentNames), "Formulación C1", "Formulación C2"].forEach((label) => {
+    cell(page, font, bold, { x: margin, top, width: componentWidths[0], height: 13, text: label, label: true });
+    cell(page, font, bold, { x: margin + componentWidths[0], top, width: componentWidths[1], height: 13, text: "" });
+    cell(page, font, bold, { x: margin + componentWidths[0] + componentWidths[1], top, width: componentWidths[2], height: 13, text: "" });
+    top -= 13;
+  });
+  top -= 5;
+
+  top = section(page, bold, top, "PROGRAMACIÓN Y CONTROL DE PARES POR TALLA", margin, width);
+  const sizeCount = 6;
+  const firstColumn = 100;
+  const totalColumn = 42;
+  const expectedColumn = 64;
+  const sizeWidth = (width - firstColumn - totalColumn - expectedColumn) / sizeCount;
+  const emptyValues = Array.from({ length: sizeCount }, () => "");
+  const drawBlankRow = (label: string, values: string[], total: string, expected: string, rowHeight: number, header = false) => {
+    cell(page, font, bold, { x: margin, top, width: firstColumn, height: rowHeight, text: label, label: true });
+    values.forEach((value, index) => cell(page, font, bold, { x: margin + firstColumn + sizeWidth * index, top, width: sizeWidth, height: rowHeight, text: value, label: header, center: true, size: 6 }));
+    cell(page, font, bold, { x: margin + width - totalColumn - expectedColumn, top, width: totalColumn, height: rowHeight, text: total, label: header, center: true, size: 6 });
+    cell(page, font, bold, { x: margin + width - expectedColumn, top, width: expectedColumn, height: rowHeight, text: expected, label: header, center: true, size: 5.5 });
+    top -= rowHeight;
+  };
+  drawBlankRow("Talla", emptyValues, "TOTAL", "TOTAL ESPERADO", 14, true);
+  drawBlankRow("A fabricar", emptyValues, "", "", 14);
+  for (let index = 0; index < 5; index += 1) drawBlankRow(`Turno ${index + 1}`, emptyValues, "", "", 13);
+  cell(page, font, bold, { x: margin, top, width, height: Math.max(18, top - margin), text: "Observaciones / incidencias: ", label: true, size: 5.8 });
+
+  document.setTitle("Formato de orden de producción en blanco");
   document.setAuthor("LK INNOVACION");
   return document.save();
 }

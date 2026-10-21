@@ -47,7 +47,7 @@ export function statusLabel(status: string) {
 export function skuPattern(order: ProductionOrderDocumentData) {
   const program = programEntries(order.sizeProgram);
   const skus = [...new Set(program.map((entry) => entry.sku?.trim()).filter((sku): sku is string => Boolean(sku)))];
-  if (skus.length === 1) return skus[0];
+  if (skus.length) return skus.join(", ");
 
   const sizes = [...new Set(program.map((entry) => entry.size?.trim()).filter(Boolean))];
   if (sizes.length > 0) {
