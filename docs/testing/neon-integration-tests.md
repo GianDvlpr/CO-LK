@@ -2,6 +2,8 @@
 
 Las pruebas de integración deben ejecutarse únicamente contra una rama Neon temporal cuyo nombre comience con `codex-integration-`. La suite rechaza una URL igual a `DATABASE_URL` y nunca debe apuntar a `production`.
 
+Si `INTEGRATION_DATABASE_URL` o `INTEGRATION_BRANCH_NAME` no están definidas, las suites se **omiten** y el comando termina con éxito; la ejecución real solo ocurre cuando se configura una rama temporal válida.
+
 ## Cobertura actual
 
 - Rollback completo al crear una compra inválida después de iniciar la transacción.

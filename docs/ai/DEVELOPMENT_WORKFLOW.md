@@ -93,7 +93,7 @@ $env:INTEGRATION_BRANCH_NAME = "codex-integration-AAAAMMDD"
 npm run test:integration:sandbox
 ```
 
-La suite debe rechazar la URL productiva. Eliminar la rama temporal al terminar.
+La suite debe rechazar la URL productiva. Eliminar la rama temporal al terminar. Si faltan las variables, las suites se omiten (no fallan); la ejecución real exige la rama temporal.
 
 ### E2E y revisión visual
 

@@ -11,10 +11,11 @@ import { completeProductionOrder, createProductionOrder, releaseProductionOrder,
 
 const connectionString = process.env.INTEGRATION_DATABASE_URL;
 const branchName = process.env.INTEGRATION_BRANCH_NAME;
-if (!connectionString || !branchName?.startsWith("codex-integration-")) throw new Error("Las pruebas requieren una rama codex-integration-* aislada.");
-if (connectionString === process.env.DATABASE_URL) throw new Error("La base de integración no puede ser la base principal.");
+const integrationConfigured = Boolean(connectionString) && Boolean(branchName?.startsWith("codex-integration-"));
+if (connectionString && connectionString === process.env.DATABASE_URL) throw new Error("La base de integración no puede ser la base principal.");
 
-const prisma = new PrismaClient({ adapter: new PrismaNeon({ connectionString }) });
+const prisma = new PrismaClient({ adapter: new PrismaNeon({ connectionString: connectionString ?? "postgresql://localhost/integration" }) });
+const describeIntegration = integrationConfigured ? describe : describe.skip;
 const suffix = randomUUID().slice(0, 8);
 const authIdentifier = `flow-${suffix}`;
 const authIpAddress = `integration-${suffix}`;
@@ -22,6 +23,7 @@ const authBucketKey = createHash("sha256").update(`${authIdentifier}:${authIpAdd
 let fixture: { companyId: string; userId: string; warehouseId: string; rawItemId: string; finishedItemId: string; variantId: string; recipeVersionId: string; customerId: string };
 
 beforeAll(async () => {
+  if (!integrationConfigured) return;
   const company = await prisma.company.create({ data: { name: `Flujos ${suffix}`, taxId: `FLOW-${suffix}` } });
   const unit = await prisma.unitOfMeasure.create({ data: { companyId: company.id, code: "UND", name: "Unidad", symbol: "und" } });
   const [user, warehouse, size, color, rawItem, finishedItem, customer] = await Promise.all([
@@ -41,6 +43,7 @@ beforeAll(async () => {
 }, 30_000);
 
 afterAll(async () => {
+  if (!integrationConfigured) return;
   if (fixture?.companyId) {
     const itemIds = [fixture.rawItemId, fixture.finishedItemId];
     await prisma.salesOrder.deleteMany({ where: { companyId: fixture.companyId } });
@@ -57,7 +60,7 @@ afterAll(async () => {
   await prisma.$disconnect();
 }, 30_000);
 
-describe("autenticación sobre PostgreSQL real", () => {
+describeIntegration("autenticación sobre PostgreSQL real", () => {
   it("valida credenciales, limita intentos y permite cambiar la contraseña", async () => {
     const base = { username: authIdentifier, ipAddress: authIpAddress };
     const authenticated = await authenticateCredentials(prisma, { ...base, password: "clave-inicial" });
@@ -75,7 +78,7 @@ describe("autenticación sobre PostgreSQL real", () => {
   });
 });
 
-describe("producción y pedidos sobre PostgreSQL real", () => {
+describeIntegration("producción y pedidos sobre PostgreSQL real", () => {
   it("consume materias primas, ingresa producto terminado, reserva y despacha", async () => {
     await createOpeningStock(prisma, { companyId: fixture.companyId, createdById: fixture.userId, referenceNumber: "OPEN-FLOW", itemId: fixture.rawItemId, warehouseId: fixture.warehouseId, quantity: 30, unitCost: 4, occurredAt: new Date() });
     const production = await createProductionOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, number: "OP-001", warehouseId: fixture.warehouseId, productVariantId: fixture.variantId, recipeVersionId: fixture.recipeVersionId, recipeRuns: 2 });
