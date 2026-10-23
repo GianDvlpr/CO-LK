@@ -39,6 +39,7 @@ export async function GET() {
         productVariant: { include: { product: { select: { id: true, code: true, matrixCode: true, name: true } }, size: { select: { name: true } }, color: { select: { id: true, code: true, name: true } }, secondaryColor: { select: { id: true, code: true, name: true } } } },
         recipeVersion: { include: { recipe: { select: { code: true, name: true } } } },
         secondaryRecipeVersion: { include: { recipe: { select: { code: true, name: true } } } },
+        customerBrand: { select: { id: true, name: true, active: true } },
         salesOrders: { select: { salesOrder: { select: { id: true, number: true, customer: { select: { id: true, name: true } } } } }, orderBy: { salesOrder: { number: "asc" } } },
         materialItem: { select: { id: true, code: true, name: true, unit: { select: { symbol: true } } } },
         machine: { select: { id: true, code: true, name: true, type: true, status: true } },

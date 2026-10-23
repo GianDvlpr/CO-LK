@@ -6,6 +6,7 @@ import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { nextBusinessCode } from "@/lib/database/business-code";
+import { canPrepareSalesOrder } from "@/modules/pick-pack/domain/pick-pack-creation";
 
 const createSchema = z.object({ salesOrderId: z.uuid(), priority: z.enum(["NORMAL", "URGENT"]).default("NORMAL"), notes: z.string().trim().max(1000).optional() });
 const include = {
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     const result = await prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({ where: { id: parsed.data.salesOrderId, companyId: user.companyId }, include: { lines: true, pickPackOrder: { select: { id: true } } } });
       if (!order) throw new Error("ORDER_NOT_FOUND");
-      if (order.status !== "CONFIRMED") throw new Error("ORDER_NOT_CONFIRMED");
+      if (!canPrepareSalesOrder(order.status)) throw new Error("ORDER_NOT_CONFIRMED");
       if (order.pickPackOrder) throw new Error("PICK_PACK_EXISTS");
       const reservation = await tx.stockReservation.findFirst({ where: { referenceType: "SALES_ORDER", referenceId: order.id, active: true }, select: { warehouseId: true } });
       if (!reservation) throw new Error("RESERVATION_NOT_FOUND");
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
     });
     return apiSuccess(result, 201);
   } catch (error) {
-    const messages: Record<string, [string, string, number]> = { ORDER_NOT_FOUND: ["ORDER_NOT_FOUND", "El pedido no existe.", 404], ORDER_NOT_CONFIRMED: ["ORDER_NOT_CONFIRMED", "Solo se puede preparar un pedido confirmado.", 422], PICK_PACK_EXISTS: ["PICK_PACK_EXISTS", "El pedido ya tiene una orden de Pick & Pack.", 409], RESERVATION_NOT_FOUND: ["RESERVATION_NOT_FOUND", "El pedido no tiene stock reservado.", 422] };
+    const messages: Record<string, [string, string, number]> = { ORDER_NOT_FOUND: ["ORDER_NOT_FOUND", "El pedido no existe.", 404], ORDER_NOT_CONFIRMED: ["ORDER_NOT_CONFIRMED", "Solo se puede preparar un pedido confirmado, en producción o listo.", 422], PICK_PACK_EXISTS: ["PICK_PACK_EXISTS", "El pedido ya tiene una orden de Pick & Pack.", 409], RESERVATION_NOT_FOUND: ["RESERVATION_NOT_FOUND", "El pedido no tiene stock reservado.", 422] };
     if (error instanceof Error && messages[error.message]) { const [code, message, status] = messages[error.message]; return apiError(code, message, status); }
     const response = known(error); if (response) return response; throw error;
   }

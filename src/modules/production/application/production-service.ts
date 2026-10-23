@@ -166,7 +166,7 @@ export async function startProductionOrder(database: PrismaClient, command: { co
     for (const material of order.materials) await consumeMaterial(tx, command.companyId, command.userId, order, material);
     await tx.stockReservation.updateMany({ where: { referenceType: "PRODUCTION_ORDER", referenceId: order.id, active: true }, data: { active: false } });
     const result = await tx.productionOrder.update({ where: { id: order.id }, data: { status: "IN_PROGRESS", startedAt: new Date() } });
-    if (order.salesOrders.length) await tx.salesOrder.updateMany({ where: { id: { in: order.salesOrders.map((link) => link.salesOrderId) } }, data: { status: "IN_PRODUCTION" } });
+    if (order.salesOrders.length) await tx.salesOrder.updateMany({ where: { id: { in: order.salesOrders.map((link) => link.salesOrderId) }, status: { in: ["CONFIRMED", "IN_PRODUCTION", "READY"] } }, data: { status: "IN_PRODUCTION" } });
     await event(tx, command.companyId, command.userId, order.id, "START", "IN_PROGRESS"); return result;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
@@ -231,7 +231,7 @@ export async function completeProductionOrder(database: PrismaClient, command: {
     const result = await tx.productionOrder.update({ where: { id: order.id }, data: { status: "COMPLETED", producedQuantity: produced, sizeProgram: completedProgram as Prisma.InputJsonValue, completedAt: new Date() } });
     for (const link of order.salesOrders) {
       const remaining = await tx.salesOrderLine.count({ where: { salesOrderId: link.salesOrderId, OR: [{ productionOrderId: null }, { productionOrder: { status: { not: "COMPLETED" } } }] } });
-      if (remaining === 0) await tx.salesOrder.update({ where: { id: link.salesOrderId }, data: { status: "READY" } });
+      if (remaining === 0) await tx.salesOrder.updateMany({ where: { id: link.salesOrderId, status: { in: ["CONFIRMED", "IN_PRODUCTION"] } }, data: { status: "READY" } });
     }
     await event(tx, command.companyId, command.userId, order.id, "COMPLETE", "COMPLETED"); return result;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

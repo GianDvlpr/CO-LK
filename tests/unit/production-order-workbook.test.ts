@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { buildBlankProductionOrderPdf, buildProductionOrderPdf } from "@/modules/production/application/production-order-pdf";
-import { skuPattern } from "@/modules/production/application/production-order-document";
+import { formatDate, skuPattern } from "@/modules/production/application/production-order-document";
 import { buildProductionOrderWorkbook } from "@/modules/production/application/production-order-workbook";
 import { validateProductionSheetTotals } from "@/modules/production/domain/production-sheet";
 
@@ -27,6 +27,13 @@ describe("orden de producción A5", () => {
 
   it("muestra un solo SKU cuando la orden tiene una sola talla", () => {
     expect(skuPattern({ ...documentData, sizeProgram: [documentData.sizeProgram[0]] })).toBe("I0034-NEG-ROJ-38");
+  });
+
+  it("formatea fechas sin retroceder un día en la zona de Lima", () => {
+    expect(formatDate(new Date("2026-10-15T00:00:00.000Z"))).toBe("15/10/2026");
+    expect(formatDate("2026-10-15")).toBe("15/10/2026");
+    expect(formatDate(new Date("2026-10-15T22:30:00.000Z"))).toBe("15/10/2026");
+    expect(formatDate(null)).toBe("");
   });
 
   it("genera un Excel A5 con dos colores, componentes, tallas y turnos", async () => {

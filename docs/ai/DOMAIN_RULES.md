@@ -174,6 +174,7 @@ Reglas:
 - El A5 de producción usa letra mayor en las celdas de contenido (no en cabeceras) y el recuadro de observaciones ocupa una sola línea; el Excel conserva el mismo criterio.
 - Cada cliente puede registrar una lista de logos/marcas (solo nombre). Al crear la orden se selecciona uno de los logos del cliente de los pedidos vinculados; el campo Logo / marca se autocompleta y sigue siendo editable.
 - Los pedidos vinculados a una orden con logo/marca registrado deben pertenecer al mismo cliente.
+- Una orden conserva su logo/marca aunque la marca se desactive después; la marca activa solo se exige al elegir una nueva.
 
 ## 9. Maquinaria
 
@@ -207,6 +208,8 @@ PENDING → PICKING → PACKING → READY → DISPATCHED
 ```
 
 - Registra cantidades solicitadas, recogidas y empacadas, ubicación, lote, incidencias y paquetes.
+- Un Pick & Pack puede crearse con el pedido confirmado, en producción o listo; después del despacho no se crea otro.
+- La producción nunca rebaja el estado de un pedido ya despachado.
 - No incluye responsables de pick/pack ni firmas en el formato.
 - El formato se descarga como PDF A5 apaisado generado por el servidor; no usa la página de impresión del navegador.
 - Despachar descuenta lo realmente empacado y libera reservas no utilizadas.

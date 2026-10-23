@@ -85,8 +85,12 @@ export function componentRows(order: ProductionOrderDocumentData) {
   return rows;
 }
 
+const limaDate = new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Lima" });
+const utcDate = new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
+
 export function formatDate(value: Date | string | null | undefined) {
   if (!value) return "";
-  const date = typeof value === "string" ? new Date(`${value.slice(0, 10)}T12:00:00`) : value;
-  return new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Lima" }).format(date);
+  if (typeof value === "string") return limaDate.format(new Date(`${value.slice(0, 10)}T12:00:00Z`));
+  const dateOnly = value.getUTCHours() === 0 && value.getUTCMinutes() === 0 && value.getUTCSeconds() === 0 && value.getUTCMilliseconds() === 0;
+  return (dateOnly ? utcDate : limaDate).format(value);
 }

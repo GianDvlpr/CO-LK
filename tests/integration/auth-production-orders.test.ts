@@ -119,5 +119,31 @@ describeIntegration("producción y pedidos sobre PostgreSQL real", () => {
     expect(await prisma.stockMovement.count({ where: { referenceType: "SALES_ORDER", referenceId: salesOrder.id, type: "SALES_DISPATCH" } })).toBe(1);
     expect(await prisma.outboxEvent.count({ where: { aggregateId: production.id } })).toBe(4);
     expect(await prisma.outboxEvent.count({ where: { aggregateId: salesOrder.id } })).toBe(3);
+
+    // Flujo Pedido -> Producción -> Pick & Pack -> Despacho: la producción vinculada mueve el pedido
+    // a IN_PRODUCTION/READY y el pedido sigue pudiendo prepararse y despacharse.
+    const secondOrder = await createSalesOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, number: "PED-002", customerId: fixture.customerId, requestedAt: new Date(), lines: [{ productVariantId: fixture.variantId, quantity: 2, unitPrice: 20 }] });
+    await confirmSalesOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, orderId: secondOrder.id });
+    const linkedProduction = await createProductionOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, number: "OP-002", warehouseId: fixture.warehouseId, productVariantId: fixture.variantId, recipeVersionId: fixture.recipeVersionId, recipeRuns: 1, salesOrderIds: [secondOrder.id] });
+    expect(linkedProduction.plannedQuantity.toString()).toBe("2");
+    await releaseProductionOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, orderId: linkedProduction.id });
+    await startProductionOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, orderId: linkedProduction.id });
+    expect((await prisma.salesOrder.findUniqueOrThrow({ where: { id: secondOrder.id } })).status).toBe("IN_PRODUCTION");
+    await completeProductionOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, orderId: linkedProduction.id, producedQuantity: 2 });
+    expect((await prisma.salesOrder.findUniqueOrThrow({ where: { id: secondOrder.id } })).status).toBe("READY");
+    const secondLine = await prisma.salesOrderLine.findFirstOrThrow({ where: { salesOrderId: secondOrder.id } });
+    await prisma.pickPackOrder.create({ data: { companyId: fixture.companyId, salesOrderId: secondOrder.id, warehouseId: fixture.warehouseId, number: "PP-TEST-002", status: "READY", lines: { create: { salesOrderLineId: secondLine.id, requestedQuantity: 2, pickedQuantity: 2, packedQuantity: 2 } } } });
+    await dispatchSalesOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, orderId: secondOrder.id });
+
+    // Una producción vinculada a un pedido ya despachado no debe rebajar su estado terminal.
+    const lateProduction = await createProductionOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, number: "OP-003", warehouseId: fixture.warehouseId, productVariantId: fixture.variantId, recipeVersionId: fixture.recipeVersionId, recipeRuns: 1, salesOrderIds: [salesOrder.id] });
+    await releaseProductionOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, orderId: lateProduction.id });
+    await startProductionOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, orderId: lateProduction.id });
+    expect((await prisma.salesOrder.findUniqueOrThrow({ where: { id: salesOrder.id } })).status).toBe("DISPATCHED");
+    await completeProductionOrder(prisma, { companyId: fixture.companyId, userId: fixture.userId, orderId: lateProduction.id, producedQuantity: 2 });
+    expect((await prisma.salesOrder.findUniqueOrThrow({ where: { id: salesOrder.id } })).status).toBe("DISPATCHED");
+    finished = await prisma.stockBalance.findFirstOrThrow({ where: { warehouseId: fixture.warehouseId, itemId: fixture.finishedItemId, lotId: null } });
+    expect(finished.onHandQuantity.toString()).toBe("4");
+    expect(finished.reservedQuantity.toString()).toBe("0");
   });
 });

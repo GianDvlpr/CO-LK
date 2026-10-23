@@ -19,6 +19,12 @@ function between(date: Date | null | undefined, from: Date, to: Date) {
   return Boolean(date && date >= from && date <= to);
 }
 
+// Las columnas tipo fecha (@db.Date) llegan a medianoche UTC; se envían como
+// fecha sin hora para que el navegador no las muestre con un día de diferencia.
+function dateOnly(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
 export async function GET(request: Request) {
   try {
     const user = await requirePermission("calendar.read");
@@ -63,23 +69,23 @@ export async function GET(request: Request) {
       })),
       ...orders.flatMap((order) => {
         const events = [];
-        if (between(order.requestedAt, from, to)) events.push({ id: `order-requested:${order.id}`, source: "ORDERS", kind: "REQUESTED", title: `Pedido ${order.number}`, subtitle: `${order.customer.name} · Fecha de pedido`, startAt: order.requestedAt.toISOString(), endAt: null, allDay: true, status: order.status, priority: "NORMAL", href: "/dashboard/orders", warehouseId: null, warehouse: null, machineId: null, machine: null });
-        if (between(order.promisedAt, from, to)) events.push({ id: `order-due:${order.id}`, source: "ORDERS", kind: "DUE", title: `Entrega ${order.number}`, subtitle: order.customer.name, startAt: order.promisedAt!.toISOString(), endAt: null, allDay: true, status: order.status, priority: "HIGH", href: "/dashboard/orders", warehouseId: null, warehouse: null, machineId: null, machine: null });
+        if (between(order.requestedAt, from, to)) events.push({ id: `order-requested:${order.id}`, source: "ORDERS", kind: "REQUESTED", title: `Pedido ${order.number}`, subtitle: `${order.customer.name} · Fecha de pedido`, startAt: dateOnly(order.requestedAt), endAt: null, allDay: true, status: order.status, priority: "NORMAL", href: "/dashboard/orders", warehouseId: null, warehouse: null, machineId: null, machine: null });
+        if (between(order.promisedAt, from, to)) events.push({ id: `order-due:${order.id}`, source: "ORDERS", kind: "DUE", title: `Entrega ${order.number}`, subtitle: order.customer.name, startAt: dateOnly(order.promisedAt!), endAt: null, allDay: true, status: order.status, priority: "HIGH", href: "/dashboard/orders", warehouseId: null, warehouse: null, machineId: null, machine: null });
         return events;
       }),
       ...production.map((order) => ({
         id: `production:${order.id}`, source: "PRODUCTION", kind: "PLANNED", title: `Producción ${order.number}`,
-        subtitle: `${order.productVariant.sku} · ${order.productVariant.product.name}`, startAt: order.plannedAt!.toISOString(), endAt: null, allDay: false,
+        subtitle: `${order.productVariant.sku} · ${order.productVariant.product.name}`, startAt: dateOnly(order.plannedAt!), endAt: null, allDay: false,
         status: order.status, priority: "NORMAL", href: "/dashboard/production", warehouseId: order.warehouseId, warehouse: order.warehouse.name, machineId: null, machine: null,
       })),
       ...pickPack.map((order) => ({
         id: `pick-pack:${order.id}`, source: "PICK_PACK", kind: "DISPATCH", title: `Preparar ${order.salesOrder.number}`,
-        subtitle: `${order.number} · ${order.salesOrder.customer.name}`, startAt: (order.salesOrder.promisedAt ?? order.createdAt).toISOString(), endAt: null, allDay: true,
+        subtitle: `${order.number} · ${order.salesOrder.customer.name}`, startAt: order.salesOrder.promisedAt ? dateOnly(order.salesOrder.promisedAt) : order.createdAt.toISOString(), endAt: null, allDay: true,
         status: order.status, priority: order.priority, href: "/dashboard/pick-pack", warehouseId: order.warehouseId, warehouse: order.warehouse.name, machineId: null, machine: null,
       })),
       ...machines.flatMap((machine) => machine.maintenanceRecords.filter((record) => between(record.nextDueAt, from, to)).map((record) => ({
         id: `maintenance:${record.id}`, source: "MAINTENANCE", kind: record.type, title: `Mantenimiento ${machine.code}`,
-        subtitle: `${machine.name} · ${record.description}`, startAt: record.nextDueAt!.toISOString(), endAt: null, allDay: true,
+        subtitle: `${machine.name} · ${record.description}`, startAt: dateOnly(record.nextDueAt!), endAt: null, allDay: true,
         status: machine.status === "OUT_OF_SERVICE" ? "CANCELLED" : "PENDING", priority: "HIGH", href: "/dashboard/machinery", warehouseId: null, warehouse: null, machineId: machine.id, machine: `${machine.code} · ${machine.name}`,
       }))),
     ].sort((a, b) => a.startAt.localeCompare(b.startAt));

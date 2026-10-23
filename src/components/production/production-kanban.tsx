@@ -24,7 +24,7 @@ function KanbanCard({ order }: { order: Order }) {
     <span className="production-kanban-product">{order.productVariant.product.name}</span>
     <small>{order.productVariant.product.matrixCode} · {order.productVariant.color.name}{order.productVariant.secondaryColor ? ` / ${order.productVariant.secondaryColor.name}` : ""} · {(order.sizeProgram ?? []).map((item) => item.size).join(", ") || order.productVariant.size.name}</small>
     <div className="production-kanban-progress"><span>Producido</span><strong>{new Decimal(order.producedQuantity).toFixed(0)} / {new Decimal(order.plannedQuantity).toFixed(0)}</strong></div>
-    <div className="production-kanban-meta"><span>{order.machine ? `${order.machine.code} · ${order.machine.name}` : order.machineEquipment || "Sin máquina"}</span><span>{order.plannedAt ? dayjs(order.plannedAt).format("DD/MM/YYYY") : "Sin fecha"}</span></div>
+    <div className="production-kanban-meta"><span>{order.machine ? `${order.machine.code} · ${order.machine.name}` : order.machineEquipment || "Sin máquina"}</span><span>{order.plannedAt ? dayjs(order.plannedAt.slice(0, 10)).format("DD/MM/YYYY") : "Sin fecha"}</span></div>
   </article>;
 }
 
@@ -34,7 +34,7 @@ function KanbanCardOverlay({ order }: { order: Order }) {
     <span className="production-kanban-product">{order.productVariant.product.name}</span>
     <small>{order.productVariant.product.matrixCode} · {order.productVariant.color.name}{order.productVariant.secondaryColor ? ` / ${order.productVariant.secondaryColor.name}` : ""} · {(order.sizeProgram ?? []).map((item) => item.size).join(", ") || order.productVariant.size.name}</small>
     <div className="production-kanban-progress"><span>Producido</span><strong>{new Decimal(order.producedQuantity).toFixed(0)} / {new Decimal(order.plannedQuantity).toFixed(0)}</strong></div>
-    <div className="production-kanban-meta"><span>{order.machine ? `${order.machine.code} · ${order.machine.name}` : order.machineEquipment || "Sin máquina"}</span><span>{order.plannedAt ? dayjs(order.plannedAt).format("DD/MM/YYYY") : "Sin fecha"}</span></div>
+    <div className="production-kanban-meta"><span>{order.machine ? `${order.machine.code} · ${order.machine.name}` : order.machineEquipment || "Sin máquina"}</span><span>{order.plannedAt ? dayjs(order.plannedAt.slice(0, 10)).format("DD/MM/YYYY") : "Sin fecha"}</span></div>
   </article>;
 }
 

@@ -73,8 +73,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const newComponents = normalized.components.map(componentKey).sort();    if (existing.status !== "DRAFT" && oldComponents.join(";") !== newComponents.join(";")) return apiError("PRODUCTION_COMPONENTS_LOCKED", "Los componentes solo pueden cambiar mientras la orden está pendiente.", 422);
     if (existing.status !== "DRAFT" && programKeys(existing.sizeProgram).join(";") !== programKeys(normalized.sizeProgram).join(";")) return apiError("PRODUCTION_PROGRAM_LOCKED", "Las tallas y cantidades solo pueden cambiar mientras la orden está pendiente.", 422);
 
+    const brandUnchanged = Boolean(parsed.data.customerBrandId && parsed.data.customerBrandId === existing.customerBrandId);
     const customerBrand = parsed.data.customerBrandId
-      ? await prisma.customerBrand.findFirst({ where: { id: parsed.data.customerBrandId, active: true, customer: { companyId: user.companyId, active: true } } })
+      ? await prisma.customerBrand.findFirst({
+        where: brandUnchanged
+          ? { id: parsed.data.customerBrandId, customer: { companyId: user.companyId } }
+          : { id: parsed.data.customerBrandId, active: true, customer: { companyId: user.companyId, active: true } },
+      })
       : null;
     if (parsed.data.customerBrandId && !customerBrand) return apiError("PRODUCTION_INVALID_BRAND", "El logo/marca no está disponible para esta empresa.", 422);
     const brandIssue = validateCustomerBrand(customerBrand, existing.salesOrders.map((link) => link.salesOrder.customerId));

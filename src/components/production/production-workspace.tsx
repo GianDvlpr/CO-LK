@@ -23,6 +23,7 @@ type Material = { id: string; plannedQuantity: string; consumedQuantity: string;
 type SizeProgram = { productVariantId: string; sku?: string; size: string; color?: string; requestedPairs: number; producedPairs?: number };
 type Turn = { date: string; quantities: { productVariantId: string; sku?: string; size: string; quantity: number }[]; observations?: string };
 type ComponentValue = { itemId: string; componentType: "CERCO_VIRA" | "INSERTO_PUNTA" | "INSERTO_TALON" | "OTRO"; quantity: number; colorDetail?: string };
+type BrandOption = { id: string; customerId: string; name: string; active?: boolean };
 type SheetValues = {
   operatorName?: string; modelLogo?: string; brandColor?: string; customerBrandId?: string | null;
   sizeProgram: SizeProgram[];
@@ -51,6 +52,7 @@ export type Order = {
   components: { id: string; componentType: string; quantity: string; colorDetail?: string; item: { id: string; code: string; name: string; unit: { symbol: string } } }[];
   operatorName?: string; modelLogo?: string; brandColor?: string; sizeProgram?: SizeProgram[];
   customerBrandId?: string | null;
+  customerBrand?: { id: string; name: string; active: boolean } | null;
 };
 type Options = {
   warehouses: { id: string; code: string; name: string }[];
@@ -117,7 +119,7 @@ function setVariantSnapshot(form: FormInstance, path: "sizeProgram" | "productio
   if (path === "sizeProgram") form.setFieldValue([...base, "color"], colorLabel(variant));
 }
 
-function ProductionDetailsFields({ form, variants, materials, customerBrands = [], structureLocked = false }: { form: FormInstance; variants: Variant[]; materials: Options["materials"]; customerBrands?: Options["customerBrands"]; structureLocked?: boolean }) {
+function ProductionDetailsFields({ form, variants, materials, customerBrands = [], structureLocked = false }: { form: FormInstance; variants: Variant[]; materials: Options["materials"]; customerBrands?: BrandOption[]; structureLocked?: boolean }) {
   const program = (Form.useWatch("sizeProgram", form) ?? []) as SizeProgram[];
   const firstVariant = variants.find((item) => item.id === program.find((item) => item?.productVariantId)?.productVariantId);
   const compatibleVariants = firstVariant ? variants.filter((item) => colorPair(item) === colorPair(firstVariant)) : variants;
@@ -127,7 +129,7 @@ function ProductionDetailsFields({ form, variants, materials, customerBrands = [
     <Divider titlePlacement="left">Datos técnicos</Divider>
     <div className="purchase-form-grid">
       <Form.Item name="operatorName" label="Operario"><Input maxLength={150} /></Form.Item>
-      <Form.Item name="customerBrandId" label="Logo / marca registrado" tooltip="Logos/marcas registrados del cliente de los pedidos seleccionados."><Select allowClear showSearch optionFilterProp="label" disabled={structureLocked} placeholder={customerBrands.length ? "Selecciona un logo/marca" : "Sin logos/marcas registrados"} onChange={(id) => { const brand = customerBrands.find((item) => item.id === id); if (brand) form.setFieldValue("modelLogo", brand.name); }} options={customerBrands.map((brand) => ({ value: brand.id, label: brand.name }))} /></Form.Item>
+      <Form.Item name="customerBrandId" label="Logo / marca registrado" tooltip="Logos/marcas registrados del cliente de los pedidos seleccionados."><Select allowClear showSearch optionFilterProp="label" placeholder={customerBrands.length ? "Selecciona un logo/marca" : "Sin logos/marcas registrados"} onChange={(id) => { const brand = customerBrands.find((item) => item.id === id); if (brand) form.setFieldValue("modelLogo", brand.name); }} options={customerBrands.map((brand) => ({ value: brand.id, label: brand.active === false ? `${brand.name} · inactiva` : brand.name }))} /></Form.Item>
       <Form.Item name="modelLogo" label="Logo / marca"><Input maxLength={150} /></Form.Item>
       <Form.Item name="brandColor" label="Color de marca"><Input maxLength={150} /></Form.Item>
     </div>
@@ -239,7 +241,9 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   const selectedCustomerIds = [...new Set((options.data?.salesOrders ?? []).filter((order) => selectedSalesOrderIds.includes(order.id)).map((order) => order.customer.id))];
   const createBrands = selectedCustomerIds.length === 1 ? (options.data?.customerBrands ?? []).filter((brand) => brand.customerId === selectedCustomerIds[0]) : [];
   const editCustomerIds = [...new Set((editOrder?.salesOrders ?? []).map((link) => link.salesOrder.customer.id))];
-  const editBrands = editCustomerIds.length === 1 ? (options.data?.customerBrands ?? []).filter((brand) => brand.customerId === editCustomerIds[0]) : [];
+  const editActiveBrands = editCustomerIds.length === 1 ? (options.data?.customerBrands ?? []).filter((brand) => brand.customerId === editCustomerIds[0]) : [];
+  const editBrands: BrandOption[] = [...editActiveBrands];
+  if (editOrder?.customerBrand && editCustomerIds.length === 1 && !editBrands.some((brand) => brand.id === editOrder.customerBrand!.id)) editBrands.push({ ...editOrder.customerBrand, customerId: editCustomerIds[0] });
   const plannedPairs = program.reduce((sum, item) => sum + Number(item?.requestedPairs ?? 0), 0);
   const plannedRecipeConsumption = calculatePlannedRecipeConsumption(plannedPairs, [selectedRecipe, secondaryRecipe]);
   const refresh = async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ["production"] }), queryClient.invalidateQueries({ queryKey: ["inventory"] }), queryClient.invalidateQueries({ queryKey: ["kardex"] }), queryClient.invalidateQueries({ queryKey: ["calendar"] }), queryClient.invalidateQueries({ queryKey: ["orders"] })]); };

@@ -55,6 +55,7 @@ Actualizado: 19/10/2026.
 - Confirmación transaccional de pedidos con reserva de producto terminado.
 - Módulo Pick & Pack con correlativo, prioridad, picking, packing, ubicaciones, lotes, incidencias, paquetes, transportista y documento de salida.
 - Flujo obligatorio `CONFIRMED → PICKING → PACKING → READY → DISPATCHED`; el despacho directo queda bloqueado.
+- Pick & Pack puede crearse con el pedido confirmado, en producción o listo, de modo que el flujo Pedido → Producción → Pick & Pack → Despacho queda habilitado.
 - Formato descargable en PDF A5 apaisado generado por el servidor, sin firmas, con cabecera, detalle de productos, verificación, incidencias, paquetes y observaciones.
 - Despacho valorizado de las cantidades realmente empacadas, liberación de diferencias reservadas, actualización del kardex, auditoría y notificaciones Pusher.
 - Calendario operativo integrado con pedidos, producción, Pick & Pack, mantenimientos y eventos manuales; incluye agenda móvil, tablero arrastrable de tareas, filtros, vencimientos y recordatorios Pusher.
@@ -99,6 +100,8 @@ Actualizado: 19/10/2026.
 - Producción admite consolidar varias órdenes de pedido mediante una relación normalizada; el A5 actualizado muestra fecha de emisión en cabecera, mayor espacio en componentes y las columnas `TOTAL` y `TOTAL ESPERADO`.
 - El A5 de producción (con datos, en blanco y continuación) usa letra mayor en las celdas de contenido sin agrandar cabeceras, filas más amplias para escribir y observaciones de una sola línea; el Excel A5 aplica el mismo criterio.
 - Logos/marcas por cliente registrados en Catálogos (solo nombre) y seleccionables al crear la orden desde el cliente de los pedidos vinculados, con autocompletado editable del campo Logo / marca.
+- Una orden conserva su logo/marca aunque la marca se desactive después; la reactivación solo se exige al elegir una nueva.
+- La producción vinculada no rebaja el estado de un pedido ya despachado y la fecha programada, las fechas de pedido y los mantenimientos se muestran sin desfase de un día en PDF, Kanban y calendario.
 - Lógica comprobable de credenciales y cambio de contraseña separada de la sesión/cookies de Next.js, manteniendo sin cambios el contrato de las rutas web.
 - Compatibilidad corregida con el adaptador HTTP de Neon para bloqueos consultivos PostgreSQL y mapeo explícito de saldos sin campos calculados ajenos al modelo.
 - Verificación visual local aprobada para el login y la redirección de visitantes anónimos.
