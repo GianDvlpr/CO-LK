@@ -48,6 +48,8 @@ Incluyen proveedores, clientes, almacenes, unidades y monedas.
 - Teléfono y correo se ingresan manualmente.
 - Se usan dos tokens RUC en orden aleatorio y con fallback.
 - Inactivar evita uso nuevo, pero conserva relaciones históricas.
+- Un almacén solo se desactiva cuando no tiene stock en mano ni reservado; se elimina solo cuando no tiene movimientos ni documentos asociados.
+- El mapa del almacén permite posicionar los sectores libremente con zoom y desplazamiento; la posición se guarda por almacén.
 - Si no existe almacén al importar, la referencia operativa esperada es `PRINCIPAL` una vez creado por el seed.
 
 ## 4. Compras
@@ -103,6 +105,14 @@ Datos de referencia para compras:
 - También puede registrar un costo de referencia opcional: precio neto y tasa de IGV en porcentaje. El costo total de referencia es `precio neto × (1 + IGV/100)`, usando el IGV configurado por empresa cuando no se informa.
 - Estos datos son informativos para preparar pedidos al proveedor; no generan movimientos ni modifican la valorización del saldo inicial.
 - Al aprobar una compra cuya moneda coincide con la moneda de referencia del ítem, el precio neto y la tasa IGV de la línea reemplazan la referencia del ítem en una operación auditada. Si las monedas difieren, la referencia no cambia.
+
+Presentación habitual:
+
+- Un ítem puede registrar opcionalmente un tipo de presentación y su contenido por envase, por ejemplo `BOLSA` + `50` para una bolsa de 50 KG.
+- Ambos campos se informan juntos y el contenido debe ser mayor que cero. La unidad es siempre la unidad base del ítem; no se duplica ni se convierte.
+- La presentación es informativa. No modifica cantidades, costo promedio, kardex ni control por lote.
+- La equivalencia de envases completos y remanente se calcula desde el stock base. Por ejemplo, 170 KG con bolsas de 50 KG muestra 3 bolsas completas + 20 KG remanentes; no representa trazabilidad física por envase.
+- La presentación real de cada recepción continúa registrándose en Compras y puede diferir de la presentación habitual del ítem.
 
 Distinción crítica:
 

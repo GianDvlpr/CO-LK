@@ -1,6 +1,6 @@
 # Campos de importación y reportes Excel
 
-Actualizado: 20/10/2026.
+Actualizado: 24/10/2026.
 
 ## Regla general
 
@@ -30,6 +30,8 @@ El encabezado visible es `Costo unitario`; la moneda se registra por separado en
 
 El ítem también puede registrar datos de referencia para sus pedidos al proveedor: `codigo_producto_proveedor` (código con el que el proveedor identifica el producto), `precio_neto` y `tasa_igv` (porcentaje). El `costo_total` se recalcula como `precio_neto × (1 + IGV/100)` y usa el IGV configurado por empresa (18 % por defecto). Estos valores no modifican la valorización del saldo inicial ni generan movimientos. Las cuatro columnas son opcionales: los archivos generados con versiones anteriores siguen siendo válidos y una celda vacía conserva el valor ya registrado en el ítem.
 
+La presentación habitual del ítem se registra con `tipo_presentacion` y `contenido_por_presentacion`. Ambas columnas son opcionales, pero si se completa una también debe completarse la otra; el contenido debe ser mayor que cero y queda expresado en `unidad_base`. Ejemplo: `BOLSA` + `50` + `KG`. Sirven para mostrar equivalencias calculadas del stock (170 KG = 3 bolsas completas + 20 KG remanentes), sin crear movimientos ni llevar trazabilidad física de cada envase. En una actualización Excel, dejar ambas celdas vacías conserva la presentación existente.
+
 ## Códigos automáticos
 
 Los códigos oficiales no se escriben al crear registros desde la aplicación. Se generan dentro de la misma transacción de guardado, por empresa, sin reutilizar números y con bloqueo para evitar duplicados concurrentes.
@@ -54,7 +56,7 @@ En una plantilla Excel, un código vacío significa “crear” y el sistema asi
 Estas columnas se conservan para que el reporte tenga el mismo formato, pero no determinan el registro importado:
 
 - Compras: `tipo_documento`, `fecha_tipo_cambio`, `fuente_tipo_cambio`, `estado`, `observaciones`, `tipo_presentacion`, `unidad_contenido`, `precio_unitario_con_igv`, `subtotal_neto`, `igv` y `total_linea`.
-- Almacén: `almacen_codigo` define el sector del ítem (obligatorio para materia prima en la aplicación; si se deja vacío al importar se usa `PRINCIPAL`) y, cuando hay stock inicial, también el almacén del movimiento. `stock_inicial`, `costo_unitario_pen`, `lote` y `fecha_inicial` están en la misma hoja y pueden quedar vacíos si no hay stock inicial. `codigo_producto_proveedor`, `precio_neto` y `tasa_igv` son datos de referencia del ítem; `costo_total` se recalcula y no determina la importación.
+- Almacén: `almacen_codigo` define el sector del ítem (obligatorio para materia prima en la aplicación; si se deja vacío al importar se usa `PRINCIPAL`) y, cuando hay stock inicial, también el almacén del movimiento. `stock_inicial`, `costo_unitario_pen`, `lote` y `fecha_inicial` están en la misma hoja y pueden quedar vacíos si no hay stock inicial. `codigo_producto_proveedor`, `precio_neto` y `tasa_igv` son datos de referencia del ítem; `costo_total` se recalcula y no determina la importación. `tipo_presentacion` y `contenido_por_presentacion` describen el envase habitual y tampoco alteran el stock.
 - Recetas: `producto_codigo` se conserva por compatibilidad con archivos antiguos; `variante_sku`, `unidad_salida` y `estado` son informativos. La importación crea la receta o versión como borrador.
 - Productos: `categoria` y `precio_venta`.
 - Pedidos: `moneda`, `tipo_cambio_pen`, `estado`, `tasa_igv`, `subtotal_neto`, `igv` y `total_linea`. El pedido importado queda en borrador.

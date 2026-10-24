@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/database/prisma";
 import { apiError, apiSuccess } from "@/lib/http/api-response";
 import { AuthError } from "@/modules/auth/application/auth-errors";
@@ -32,4 +33,38 @@ export async function PATCH(request: Request, context: { params: Promise<{ type:
     if (!result) return apiError("CATALOG_NOT_FOUND", "El registro no existe.", 404);
     return apiSuccess(result);
   } catch (error) { if (error instanceof AuthError) return apiError(error.code, error.message, error.status); throw error; }
+}
+
+export async function DELETE(request: Request, context: { params: Promise<{ type: string; id: string }> }) {
+  try { requireSameOrigin(request); } catch (error) { if (error instanceof AuthError) return apiError(error.code, error.message, error.status); throw error; }
+  try {
+    const user = await requirePermission("catalogs.manage");
+    const { type, id } = await context.params;
+    if (type.toUpperCase() !== "WAREHOUSE") return apiError("CATALOG_DELETE_UNSUPPORTED", "Solo se pueden eliminar almacenes.", 400);
+    const warehouse = await prisma.warehouse.findFirst({ where: { id, companyId: user.companyId }, select: { id: true, code: true, name: true } });
+    if (!warehouse) return apiError("CATALOG_NOT_FOUND", "El almacén no existe.", 404);
+    const [balances, movements, reservations, lots, adjustments, purchases, productionOrders, pickPackOrders, transformations, defaultItems] = await prisma.$transaction([
+      prisma.stockBalance.count({ where: { warehouseId: id } }),
+      prisma.stockMovement.count({ where: { warehouseId: id } }),
+      prisma.stockReservation.count({ where: { warehouseId: id } }),
+      prisma.inventoryLot.count({ where: { warehouseId: id } }),
+      prisma.inventoryAdjustment.count({ where: { warehouseId: id } }),
+      prisma.purchase.count({ where: { warehouseId: id } }),
+      prisma.productionOrder.count({ where: { warehouseId: id } }),
+      prisma.pickPackOrder.count({ where: { warehouseId: id } }),
+      prisma.inventoryTransformation.count({ where: { warehouseId: id } }),
+      prisma.inventoryItem.count({ where: { defaultWarehouseId: id } }),
+    ]);
+    if (balances + movements + reservations + lots + adjustments + purchases + productionOrders + pickPackOrders + transformations + defaultItems > 0) return apiError("WAREHOUSE_IN_USE", "El almacén ya tiene movimientos o documentos asociados; desactívalo en lugar de eliminarlo.", 409);
+    await prisma.$transaction(async (tx) => {
+      await tx.warehouse.delete({ where: { id } });
+      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module: "catalogs", entity: "Catalog:WAREHOUSE", entityId: id, action: "DELETE", beforeData: { code: warehouse.code, name: warehouse.name } } });
+      await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "catalog.deleted.v1", aggregateId: id, payload: { catalogType: "WAREHOUSE", id } } });
+    });
+    return apiSuccess({ id });
+  } catch (error) {
+    if (error instanceof AuthError) return apiError(error.code, error.message, error.status);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") return apiError("WAREHOUSE_IN_USE", "El almacén ya tiene movimientos o documentos asociados; desactívalo en lugar de eliminarlo.", 409);
+    throw error;
+  }
 }

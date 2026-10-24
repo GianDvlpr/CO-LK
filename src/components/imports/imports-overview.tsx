@@ -14,7 +14,7 @@ import { ImportIssueList, type ImportIssue } from "@/components/imports/import-i
 
 const modules = [
   { key: "purchases", label: "Compras", sheets: "Compras y DetalleCompra" },
-  { key: "inventory", label: "Almacén", sheets: "Items y MovimientosIniciales" },
+  { key: "inventory", label: "Almacén", sheets: "Ítems, presentación habitual y saldo inicial" },
   { key: "recipes", label: "Recetas", sheets: "Producción o Almacén · una fila por ingrediente" },
   { key: "products", label: "Productos", sheets: "Productos y Variantes" },
   { key: "orders", label: "Pedidos", sheets: "Pedidos y DetallePedido" },

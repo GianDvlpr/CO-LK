@@ -18,6 +18,8 @@ const updateSchema = z.object({
   sectors: z.array(z.object({
     id: z.uuid(),
     layoutOrder: z.coerce.number().int().min(0).optional(),
+    layoutX: z.coerce.number().int().min(0).max(50000).optional(),
+    layoutY: z.coerce.number().int().min(0).max(50000).optional(),
     name: z.string().trim().min(1).max(150).optional(),
     description: z.string().trim().max(300).nullable().optional(),
     layoutWidth: z.coerce.number().int().min(1).max(3).optional(),
@@ -38,7 +40,7 @@ export async function GET() {
       where: { companyId: user.companyId, active: true },
       orderBy: [{ layoutOrder: "asc" }, { name: "asc" }],
       select: {
-        id: true, code: true, name: true, description: true, layoutOrder: true, layoutWidth: true, layoutColor: true,
+        id: true, code: true, name: true, description: true, layoutOrder: true, layoutX: true, layoutY: true, layoutWidth: true, layoutColor: true,
         _count: { select: { defaultInventoryItems: true, balances: true } },
       },
     });
@@ -54,7 +56,8 @@ export async function POST(request: Request) {
     const user = await requirePermission("catalogs.manage");
     const sector = await prisma.$transaction(async (tx) => {
       const last = await tx.warehouse.aggregate({ where: { companyId: user.companyId }, _max: { layoutOrder: true } });
-      const created = await tx.warehouse.create({ data: { companyId: user.companyId, ...parsed.data, description: parsed.data.description || null, layoutOrder: (last._max.layoutOrder ?? -1) + 1 } });
+      const layoutOrder = (last._max.layoutOrder ?? -1) + 1;
+      const created = await tx.warehouse.create({ data: { companyId: user.companyId, ...parsed.data, description: parsed.data.description || null, layoutOrder, layoutX: (layoutOrder % 3) * 260, layoutY: Math.floor(layoutOrder / 3) * 220 } });
       await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "WarehouseLayout", entityId: created.id, action: "CREATE", afterData: { code: created.code, name: created.name, layoutOrder: created.layoutOrder, layoutWidth: created.layoutWidth, layoutColor: created.layoutColor } } });
       return created;
     });

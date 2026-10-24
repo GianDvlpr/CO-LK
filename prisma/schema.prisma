@@ -205,29 +205,29 @@ model Company {
 }
 
 model User {
-  id                  String               @id @default(uuid()) @db.Uuid
-  companyId           String               @map("company_id") @db.Uuid
-  username            String               @unique
-  email               String
-  passwordHash        String               @map("password_hash")
-  mustChangePassword  Boolean              @default(true) @map("must_change_password")
-  name                String
-  status              UserStatus           @default(ACTIVE)
-  avatarUrl           String?              @map("avatar_url")
-  avatarPublicId      String?              @map("avatar_public_id")
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
-  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  sessions            Session[]
-  endedSessions       Session[]            @relation("SessionEndedBy")
-  userRoles           UserRole[]
-  auditLogs           AuditLog[]
-  notifications       Notification[]
-  imports             ImportJob[]
-  approvals           PurchaseApproval[]
-  productImages       ProductImage[]
-  inventoryItemImages InventoryItemImage[]
-  calendarEvents      CalendarEvent[]
+  id                     String                  @id @default(uuid()) @db.Uuid
+  companyId              String                  @map("company_id") @db.Uuid
+  username               String                  @unique
+  email                  String
+  passwordHash           String                  @map("password_hash")
+  mustChangePassword     Boolean                 @default(true) @map("must_change_password")
+  name                   String
+  status                 UserStatus              @default(ACTIVE)
+  avatarUrl              String?                 @map("avatar_url")
+  avatarPublicId         String?                 @map("avatar_public_id")
+  createdAt              DateTime                @default(now()) @map("created_at")
+  updatedAt              DateTime                @updatedAt @map("updated_at")
+  company                Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sessions               Session[]
+  endedSessions          Session[]               @relation("SessionEndedBy")
+  userRoles              UserRole[]
+  auditLogs              AuditLog[]
+  notifications          Notification[]
+  imports                ImportJob[]
+  approvals              PurchaseApproval[]
+  productImages          ProductImage[]
+  inventoryItemImages    InventoryItemImage[]
+  calendarEvents         CalendarEvent[]
   machineParameterSheets MachineParameterSheet[]
 
   @@unique([companyId, email])
@@ -394,6 +394,8 @@ model Warehouse {
   name                     String
   description              String?
   layoutOrder              Int                       @default(0) @map("layout_order")
+  layoutX                  Int                       @default(0) @map("layout_x")
+  layoutY                  Int                       @default(0) @map("layout_y")
   layoutWidth              Int                       @default(1) @map("layout_width")
   layoutColor              String                    @default("#1677ff") @map("layout_color") @db.VarChar(7)
   active                   Boolean                   @default(true)
@@ -415,45 +417,47 @@ model Warehouse {
 }
 
 model InventoryItem {
-  id                       String                            @id @default(uuid()) @db.Uuid
-  companyId                String                            @map("company_id") @db.Uuid
-  code                     String
-  abbreviation             String?
-  name                     String
-  type                     InventoryItemType
-  unitId                   String                            @map("unit_id") @db.Uuid
-  supplierId               String?                           @map("supplier_id") @db.Uuid
-  currencyId               String?                           @map("currency_id") @db.Uuid
-  supplierProductCode      String?                           @map("supplier_product_code")
-  referenceNetPrice        Decimal?                          @map("reference_net_price") @db.Decimal(18, 6)
-  referenceTaxRate         Decimal?                          @map("reference_tax_rate") @db.Decimal(7, 4)
-  defaultWarehouseId       String?                           @map("default_warehouse_id") @db.Uuid
-  minimumStock             Decimal                           @default(0) @map("minimum_stock") @db.Decimal(18, 6)
-  lotTrackingMode          LotTrackingMode                   @default(NONE) @map("lot_tracking_mode")
-  active                   Boolean                           @default(true)
-  createdAt                DateTime                          @default(now()) @map("created_at")
-  updatedAt                DateTime                          @updatedAt @map("updated_at")
-  company                  Company                           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  unit                     UnitOfMeasure                     @relation(fields: [unitId], references: [id])
-  supplier                 Supplier?                         @relation("InventoryItemSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
-  currency                 Currency?                         @relation("InventoryItemCurrency", fields: [currencyId], references: [id], onDelete: SetNull)
-  defaultWarehouse         Warehouse?                        @relation("InventoryItemDefaultWarehouse", fields: [defaultWarehouseId], references: [id], onDelete: SetNull)
-  images                   InventoryItemImage[]
-  lots                     InventoryLot[]
-  balances                 StockBalance[]
-  movements                StockMovement[]
-  reservations             StockReservation[]
-  adjustmentLines          InventoryAdjustmentLine[]
-  purchaseLines            PurchaseLine[]
-  productVariants          ProductVariant[]
-  recipeIngredients        RecipeIngredient[]
-  recipeOutputs            Recipe[]                          @relation("RecipeInventoryOutput")
-  productionMaterials      ProductionMaterial[]
-  productionOrderMaterials ProductionOrder[]                 @relation("ProductionOrderMaterialItem")
-  productionComponents     ProductionComponent[]
-  formulaOutputs           InventoryFormula[]                @relation("InventoryFormulaOutput")
-  formulaIngredients       InventoryFormulaIngredient[]      @relation("InventoryFormulaIngredientItem")
-  transformationMaterials  InventoryTransformationMaterial[] @relation("InventoryTransformationMaterialItem")
+  id                         String                            @id @default(uuid()) @db.Uuid
+  companyId                  String                            @map("company_id") @db.Uuid
+  code                       String
+  abbreviation               String?
+  name                       String
+  type                       InventoryItemType
+  unitId                     String                            @map("unit_id") @db.Uuid
+  supplierId                 String?                           @map("supplier_id") @db.Uuid
+  currencyId                 String?                           @map("currency_id") @db.Uuid
+  supplierProductCode        String?                           @map("supplier_product_code")
+  referenceNetPrice          Decimal?                          @map("reference_net_price") @db.Decimal(18, 6)
+  referenceTaxRate           Decimal?                          @map("reference_tax_rate") @db.Decimal(7, 4)
+  defaultPresentationType    String?                           @map("default_presentation_type") @db.VarChar(50)
+  defaultPresentationContent Decimal?                          @map("default_presentation_content") @db.Decimal(18, 6)
+  defaultWarehouseId         String?                           @map("default_warehouse_id") @db.Uuid
+  minimumStock               Decimal                           @default(0) @map("minimum_stock") @db.Decimal(18, 6)
+  lotTrackingMode            LotTrackingMode                   @default(NONE) @map("lot_tracking_mode")
+  active                     Boolean                           @default(true)
+  createdAt                  DateTime                          @default(now()) @map("created_at")
+  updatedAt                  DateTime                          @updatedAt @map("updated_at")
+  company                    Company                           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  unit                       UnitOfMeasure                     @relation(fields: [unitId], references: [id])
+  supplier                   Supplier?                         @relation("InventoryItemSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
+  currency                   Currency?                         @relation("InventoryItemCurrency", fields: [currencyId], references: [id], onDelete: SetNull)
+  defaultWarehouse           Warehouse?                        @relation("InventoryItemDefaultWarehouse", fields: [defaultWarehouseId], references: [id], onDelete: SetNull)
+  images                     InventoryItemImage[]
+  lots                       InventoryLot[]
+  balances                   StockBalance[]
+  movements                  StockMovement[]
+  reservations               StockReservation[]
+  adjustmentLines            InventoryAdjustmentLine[]
+  purchaseLines              PurchaseLine[]
+  productVariants            ProductVariant[]
+  recipeIngredients          RecipeIngredient[]
+  recipeOutputs              Recipe[]                          @relation("RecipeInventoryOutput")
+  productionMaterials        ProductionMaterial[]
+  productionOrderMaterials   ProductionOrder[]                 @relation("ProductionOrderMaterialItem")
+  productionComponents       ProductionComponent[]
+  formulaOutputs             InventoryFormula[]                @relation("InventoryFormulaOutput")
+  formulaIngredients         InventoryFormulaIngredient[]      @relation("InventoryFormulaIngredientItem")
+  transformationMaterials    InventoryTransformationMaterial[] @relation("InventoryTransformationMaterialItem")
 
   @@unique([companyId, code])
   @@index([companyId, type, active])
@@ -1069,18 +1073,18 @@ model MachineParameterSheet {
 }
 
 model MachineParameterValue {
-  id           String                @id @default(uuid()) @db.Uuid
-  sheetId      String                @map("sheet_id") @db.Uuid
-  scope        String
-  station      String?
-  channel      String?
-  groupName    String                @map("group_name")
-  parameter    String
-  value        String
-  unit         String?
-  notes        String?
-  sortOrder    Int                   @default(0) @map("sort_order")
-  sheet        MachineParameterSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  id        String                @id @default(uuid()) @db.Uuid
+  sheetId   String                @map("sheet_id") @db.Uuid
+  scope     String
+  station   String?
+  channel   String?
+  groupName String                @map("group_name")
+  parameter String
+  value     String
+  unit      String?
+  notes     String?
+  sortOrder Int                   @default(0) @map("sort_order")
+  sheet     MachineParameterSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
 
   @@index([sheetId, sortOrder])
   @@map("machine_parameter_values")

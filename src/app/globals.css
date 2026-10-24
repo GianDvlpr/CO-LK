@@ -1990,20 +1990,22 @@ a {
 }
 
 /* Plano visual de sectores del almacén. */
-.warehouse-layout-board {
-  display: grid;
-  grid-auto-flow: dense;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  min-height: 420px;
-  padding: 18px;
+.warehouse-map {
+  height: clamp(420px, 62vh, 680px);
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background-color: color-mix(in srgb, var(--canvas) 88%, var(--surface));
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px);
-  background-size: 24px 24px;
+  background: color-mix(in srgb, var(--canvas) 88%, var(--surface));
+}
+
+.warehouse-map .react-flow__node {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.warehouse-map .warehouse-sector {
+  min-height: 100%;
 }
 
 .warehouse-sector {
@@ -2018,9 +2020,6 @@ a {
   box-shadow: 0 7px 20px color-mix(in srgb, var(--sector-color) 9%, transparent);
   transition: border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
 }
-
-.warehouse-sector-width-2 { grid-column: span 2; }
-.warehouse-sector-width-3 { grid-column: span 3; }
 
 .warehouse-sector.is-dragging {
   z-index: 5;
@@ -2058,23 +2057,6 @@ a {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.warehouse-sector-drag-handle {
-  display: inline-grid;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  place-items: center;
-  background: transparent;
-  color: var(--muted);
-  cursor: grab;
-  touch-action: none;
-}
-
-.warehouse-sector-drag-handle:hover { background: color-mix(in srgb, var(--sector-color) 13%, transparent); color: var(--ink); }
-.warehouse-sector-drag-handle:active { cursor: grabbing; }
 
 .warehouse-sector-description {
   min-height: 42px;
@@ -2165,10 +2147,6 @@ a {
 }
 
 @media (max-width: 1024px) {
-  .warehouse-layout-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .warehouse-sector-width-2,
-  .warehouse-sector-width-3 { grid-column: span 2; }
-
   .machinery-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2210,9 +2188,7 @@ a {
   }
 
   .warehouse-layout-card .ant-card-extra { margin-inline-start: 0; }
-  .warehouse-layout-board { grid-template-columns: minmax(0, 1fr); min-height: 300px; padding: 10px; }
-  .warehouse-sector-width-2,
-  .warehouse-sector-width-3 { grid-column: span 1; }
+  .warehouse-map { height: 420px; }
 
   .machinery-overview {
     align-items: stretch;

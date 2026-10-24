@@ -7,6 +7,7 @@ import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { nextBusinessCode } from "@/lib/database/business-code";
 import { normalizeReferenceCost, type ReferenceCostValues } from "@/modules/inventory/domain/reference-cost";
+import { normalizeDefaultPresentation, type DefaultPresentationValues } from "@/modules/inventory/domain/default-presentation";
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(150),
@@ -20,6 +21,8 @@ const createSchema = z.object({
   supplierProductCode: z.string().trim().max(100).nullable().optional(),
   referenceNetPrice: z.union([z.string(), z.number()]).nullable().optional(),
   referenceTaxRate: z.union([z.string(), z.number()]).nullable().optional(),
+  defaultPresentationType: z.string().trim().max(50).nullable().optional(),
+  defaultPresentationContent: z.union([z.string(), z.number()]).nullable().optional(),
   defaultWarehouseId: z.uuid().nullable().optional(),
 });
 
@@ -49,13 +52,16 @@ export async function POST(request: Request) {
     const user = await requirePermission("inventory.create_item");
     const company = await prisma.company.findUniqueOrThrow({ where: { id: user.companyId }, select: { igvRate: true } });
     let reference: ReferenceCostValues;
+    let presentation: DefaultPresentationValues;
     try { reference = normalizeReferenceCost(parsed.data.referenceNetPrice, parsed.data.referenceTaxRate, company.igvRate.toString()); }
     catch { return apiError("INVENTORY_INVALID_REFERENCE_COST", "El precio neto o el IGV del ítem no son válidos.", 422); }
+    try { presentation = normalizeDefaultPresentation(parsed.data.defaultPresentationType, parsed.data.defaultPresentationContent); }
+    catch (error) { return apiError("INVENTORY_INVALID_PRESENTATION", error instanceof Error ? error.message : "La presentación no es válida.", 422); }
     const [unit, supplier, currency, warehouse] = await Promise.all([
       prisma.unitOfMeasure.findFirst({ where: { id: parsed.data.unitId, companyId: user.companyId } }),
       parsed.data.supplierId ? prisma.supplier.findFirst({ where: { id: parsed.data.supplierId, companyId: user.companyId, active: true } }) : null,
       parsed.data.currencyId ? prisma.currency.findFirst({ where: { id: parsed.data.currencyId, companyId: user.companyId } }) : null,
-      parsed.data.defaultWarehouseId ? prisma.warehouse.findFirst({ where: { id: parsed.data.defaultWarehouseId, companyId: user.companyId } }) : null,
+      parsed.data.defaultWarehouseId ? prisma.warehouse.findFirst({ where: { id: parsed.data.defaultWarehouseId, companyId: user.companyId, active: true } }) : null,
     ]);
     if (!unit) return apiError("INVENTORY_INVALID_UNIT", "La unidad de medida no es válida.", 422);
     if (parsed.data.defaultWarehouseId && !warehouse) return apiError("INVENTORY_INVALID_WAREHOUSE", "El sector no existe.", 422);
@@ -67,9 +73,9 @@ export async function POST(request: Request) {
     const item = await prisma.$transaction(async (tx) => {
       const codeKind = parsed.data.type === "RAW_MATERIAL" ? "INVENTORY_RAW" : parsed.data.type === "INTERMEDIATE" ? "INVENTORY_INTERMEDIATE" : parsed.data.type === "WASTE" ? "INVENTORY_WASTE" : "INVENTORY_FINISHED";
       const code = await nextBusinessCode(tx, user.companyId, codeKind);
-      const values = { ...parsed.data, supplierId: supplier?.id ?? null, currencyId: currency?.id ?? null, abbreviation: parsed.data.abbreviation || null, supplierProductCode: parsed.data.supplierProductCode || null, defaultWarehouseId: parsed.data.defaultWarehouseId || null, ...reference };
+      const values = { ...parsed.data, supplierId: supplier?.id ?? null, currencyId: currency?.id ?? null, abbreviation: parsed.data.abbreviation || null, supplierProductCode: parsed.data.supplierProductCode || null, defaultWarehouseId: parsed.data.defaultWarehouseId || null, ...reference, ...presentation };
       const created = await tx.inventoryItem.create({ data: { ...values, code, minimumStock: parsed.data.minimumStock, companyId: user.companyId } });
-      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "InventoryItem", entityId: created.id, action: "CREATE", afterData: { code: created.code, name: created.name, supplierId: created.supplierId, currencyId: created.currencyId, supplierProductCode: created.supplierProductCode, referenceNetPrice: created.referenceNetPrice?.toString() ?? null, referenceTaxRate: created.referenceTaxRate?.toString() ?? null, defaultWarehouseId: created.defaultWarehouseId } } });
+      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "InventoryItem", entityId: created.id, action: "CREATE", afterData: { code: created.code, name: created.name, supplierId: created.supplierId, currencyId: created.currencyId, supplierProductCode: created.supplierProductCode, referenceNetPrice: created.referenceNetPrice?.toString() ?? null, referenceTaxRate: created.referenceTaxRate?.toString() ?? null, defaultPresentationType: created.defaultPresentationType, defaultPresentationContent: created.defaultPresentationContent?.toString() ?? null, defaultWarehouseId: created.defaultWarehouseId } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "inventory.item-created.v1", aggregateId: created.id, payload: { itemId: created.id, code: created.code } } });
       return created;
     });

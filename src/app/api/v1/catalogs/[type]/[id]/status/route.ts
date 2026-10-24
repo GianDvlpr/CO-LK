@@ -6,7 +6,7 @@ import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { requirePermission } from "@/modules/auth/application/session-service";
 
 const schema = z.object({ active: z.boolean() });
-const supported = ["SUPPLIER", "CUSTOMER"] as const;
+const supported = ["SUPPLIER", "CUSTOMER", "WAREHOUSE"] as const;
 
 export async function PATCH(request: Request, context: { params: Promise<{ type: string; id: string }> }) {
   try {
@@ -22,16 +22,25 @@ export async function PATCH(request: Request, context: { params: Promise<{ type:
     const result = await prisma.$transaction(async (tx) => {
       const current = type === "SUPPLIER"
         ? await tx.supplier.findFirst({ where: { id: params.id, companyId: user.companyId }, select: { id: true, code: true, name: true, active: true } })
-        : await tx.customer.findFirst({ where: { id: params.id, companyId: user.companyId }, select: { id: true, code: true, name: true, active: true } });
+        : type === "CUSTOMER"
+          ? await tx.customer.findFirst({ where: { id: params.id, companyId: user.companyId }, select: { id: true, code: true, name: true, active: true } })
+          : await tx.warehouse.findFirst({ where: { id: params.id, companyId: user.companyId }, select: { id: true, code: true, name: true, active: true } });
       if (!current) return null;
 
+      if (type === "WAREHOUSE" && !parsed.data.active) {
+        const withStock = await tx.stockBalance.count({ where: { warehouseId: current.id, OR: [{ onHandQuantity: { gt: 0 } }, { reservedQuantity: { gt: 0 } }] } });
+        if (withStock > 0) throw new Error("WAREHOUSE_NOT_EMPTY");
+      }
+
       if (type === "SUPPLIER") await tx.supplier.update({ where: { id: current.id }, data: { active: parsed.data.active } });
-      else await tx.customer.update({ where: { id: current.id }, data: { active: parsed.data.active } });
+      else if (type === "CUSTOMER") await tx.customer.update({ where: { id: current.id }, data: { active: parsed.data.active } });
+      else await tx.warehouse.update({ where: { id: current.id }, data: { active: parsed.data.active } });
 
       await tx.auditLog.create({
         data: {
           companyId: user.companyId,
           userId: user.id,
+          module: "catalogs",
           entity: `Catalog:${type}`,
           entityId: current.id,
           action: parsed.data.active ? "ACTIVATE" : "DEACTIVATE",
@@ -55,6 +64,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ type:
     return apiSuccess(result);
   } catch (error) {
     if (error instanceof AuthError) return apiError(error.code, error.message, error.status);
+    if (error instanceof Error && error.message === "WAREHOUSE_NOT_EMPTY") return apiError("WAREHOUSE_NOT_EMPTY", "El almacén tiene stock; no se puede desactivar.", 409);
     throw error;
   }
 }

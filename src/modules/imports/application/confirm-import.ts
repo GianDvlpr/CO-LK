@@ -6,6 +6,7 @@ import { nextBusinessCode } from "@/lib/database/business-code";
 import { isBlankNumericCell } from "@/modules/imports/domain/numeric-cell";
 import { buildProductSku, normalizeMatrixCode, productVariantColorLabel } from "@/modules/products/domain/product-sku";
 import { createsInventoryFormulaCycle } from "@/modules/inventory/domain/inventory-formula-cycle";
+import { normalizeDefaultPresentation } from "@/modules/inventory/domain/default-presentation";
 import type { ImportModule, ParsedWorkbookRow } from "./workbook";
 
 type ImportData = Record<string, ParsedWorkbookRow[]>;
@@ -129,6 +130,16 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
     if (netPrice?.isNegative()) throw new ImportApplicationError("INVALID_NUMBER", "El precio neto no puede ser negativo.", row.rowNumber, "precio_neto");
     const taxRate = netPrice ? (text(row, "tasa_igv") ? number(row, "tasa_igv") : new Decimal(existing?.referenceTaxRate?.toString() ?? companyIgvRate)) : null;
     if (taxRate && (taxRate.isNegative() || taxRate.greaterThan(100))) throw new ImportApplicationError("INVALID_NUMBER", "El IGV debe estar entre 0 y 100.", row.rowNumber, "tasa_igv");
+    const presentationType = text(row, "tipo_presentacion");
+    const presentationContent = text(row, "contenido_por_presentacion");
+    let presentation = {
+      defaultPresentationType: existing?.defaultPresentationType ?? null,
+      defaultPresentationContent: existing?.defaultPresentationContent?.toString() ?? null,
+    };
+    if (presentationType || presentationContent) {
+      try { presentation = normalizeDefaultPresentation(presentationType, presentationContent); }
+      catch (error) { throw new ImportApplicationError("INVALID_PRESENTATION", error instanceof Error ? error.message : "La presentación no es válida.", row.rowNumber, presentationType ? "contenido_por_presentacion" : "tipo_presentacion"); }
+    }
     const sectorCode = text(row, "almacen_codigo");
     let defaultWarehouseId: string | null;
     if (sectorCode) {
@@ -145,7 +156,7 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
     } else {
       defaultWarehouseId = null;
     }
-    const values = { name: text(row, "nombre"), abbreviation: text(row, "sigla") || null, type: type as "RAW_MATERIAL" | "INTERMEDIATE" | "WASTE" | "FINISHED_PRODUCT", supplierId: supplierMatches[0]?.id ?? null, currencyId: currencyMatches[0]?.id ?? null, unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo"), supplierProductCode: supplierProductCode || existing?.supplierProductCode || null, referenceNetPrice: netPrice ? netPrice.toString() : existing?.referenceNetPrice?.toString() ?? null, referenceTaxRate: taxRate ? taxRate.toString() : existing?.referenceTaxRate?.toString() ?? null, defaultWarehouseId };
+    const values = { name: text(row, "nombre"), abbreviation: text(row, "sigla") || null, type: type as "RAW_MATERIAL" | "INTERMEDIATE" | "WASTE" | "FINISHED_PRODUCT", supplierId: supplierMatches[0]?.id ?? null, currencyId: currencyMatches[0]?.id ?? null, unitId: unit.id, lotTrackingMode: modeLot as "NONE" | "OPTIONAL" | "REQUIRED", minimumStock: number(row, "stock_minimo", 0).toString(), active: boolean(row, "activo"), supplierProductCode: supplierProductCode || existing?.supplierProductCode || null, referenceNetPrice: netPrice ? netPrice.toString() : existing?.referenceNetPrice?.toString() ?? null, referenceTaxRate: taxRate ? taxRate.toString() : existing?.referenceTaxRate?.toString() ?? null, ...presentation, defaultWarehouseId };
     const item = existing
       ? await tx.inventoryItem.update({ where: { id: existing.id }, data: values })
       : await tx.inventoryItem.create({ data: { companyId, code, ...values } });

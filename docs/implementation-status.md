@@ -28,10 +28,12 @@ Actualizado: 19/10/2026.
 - Pantalla operativa de Compras conectada a API: listado, alta multilínea, presentaciones, lotes, cálculo de IGV/total y aprobación.
 - Endpoint protegido de opciones de Compras para proveedores, almacenes, monedas y materias primas.
 - Módulo operativo de Almacén: listado valorizado, disponibilidad, stock mínimo, alta de materias primas/mermas, proveedor y moneda de referencia, y configuración de lotes. El modal usa selectores registrados y Excel resuelve el proveedor por nombre y la moneda por código o nombre.
+- Mapa visual de almacenes con React Flow: sectores posicionables libremente, zoom, desplazamiento y minimapa; los almacenes se pueden desactivar solo si no tienen stock y eliminar solo si no tienen movimientos ni documentos.
 - Códigos de negocio autogenerados, inmutables y seguros ante concurrencia para Compras, Almacén (`MP`/`PT`), Recetas, Producción, Maquinaria, Pedidos, Pick & Pack, Proveedores y Clientes; los correlativos anuales se reinician por empresa y año, y los continuos no reutilizan números.
 - Registro transaccional e idempotente de stock inicial con saldo global/por lote, promedio ponderado, auditoría, outbox y secuencia de contabilización.
 - Kardex valorizado con filtros por ítem y almacén, lote, cantidades, costos, valor y saldo posterior a cada movimiento.
 - Ítems de Almacén con código de producto del proveedor y costo de referencia opcional (precio neto, IGV y costo total calculado), administrables desde el modal y desde Excel sin afectar la valorización.
+- Presentación habitual opcional por ítem de Almacén (tipo de envase y contenido en unidad base), administrable desde el modal y Excel; la tabla muestra la equivalencia calculada entre envases completos y remanente sin alterar stock ni kardex.
 - La aprobación de compras valoriza el inventario con el IGV incluido en el costo unitario; el saldo inicial se registra con el costo total con IGV.
 - Tasa de IGV configurable por empresa desde Catálogos → Configuración general, aplicada a compras (modal y Excel), costo de referencia de ítems e importaciones.
 - El Excel de Compras ya no solicita la tasa de IGV por línea; los archivos anteriores con `IGV (%)` siguen siendo válidos y esa columna se ignora.

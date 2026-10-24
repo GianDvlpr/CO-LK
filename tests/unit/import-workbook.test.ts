@@ -55,7 +55,7 @@ describe("import workbooks", () => {
 
   it("exige costo y fecha cuando se informa stock inicial", async () => {
     const bytes = await createWorkbook("inventory", {
-      "Almacén": [[null, "PVC", "Cuero negro", "MATERIA_PRIMA", "Polímeros Andinos SAC", null, "PEN", null, null, null, "M2", "OPTIONAL", 20, "SI", "PRINCIPAL", 100]],
+      "Almacén": [[null, "PVC", "Cuero negro", "MATERIA_PRIMA", "Polímeros Andinos SAC", null, "PEN", null, null, null, "M2", null, null, "OPTIONAL", 20, "SI", "PRINCIPAL", 100]],
     });
     const result = await validateWorkbook("inventory", bytes as ArrayBuffer);
     expect(result.errors).toEqual(expect.arrayContaining([
@@ -80,6 +80,8 @@ describe("import workbooks", () => {
     expect(items?.getRow(1).values).toContain("Precio neto");
     expect(items?.getRow(1).values).toContain("IGV (%)");
     expect(items?.getRow(1).values).toContain("Costo total");
+    expect(items?.getRow(1).values).toContain("Tipo de presentación");
+    expect(items?.getRow(1).values).toContain("Contenido por presentación");
     expect(items?.getRow(1).values).not.toContain("Costo unitario (PEN)");
     expect(items?.getRow(1).values).not.toContain("Código anterior");
     expect(items?.getRow(1).values).not.toContain("accion");
@@ -94,7 +96,7 @@ describe("import workbooks", () => {
     await workbook.xlsx.load(Buffer.from(bytes as ArrayBuffer) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
     const sheet = workbook.getWorksheet("Almacén")!;
     const header = sheet.getRow(1);
-    const newColumns = ["Código de producto del proveedor", "Precio neto", "IGV (%)", "Costo total"];
+    const newColumns = ["Código de producto del proveedor", "Precio neto", "IGV (%)", "Costo total", "Tipo de presentación", "Contenido por presentación"];
     for (let index = 1; index <= header.cellCount; index += 1) {
       if (newColumns.includes(String(header.getCell(index).value ?? ""))) header.getCell(index).value = null;
     }
@@ -142,7 +144,7 @@ describe("import workbooks", () => {
     await registeredWorkbook.xlsx.load(Buffer.from(registeredBytes as ArrayBuffer) as unknown as Parameters<typeof registeredWorkbook.xlsx.load>[0]);
     const registeredList = registeredWorkbook.getWorksheet("_Listas");
     const inventorySheet = registeredWorkbook.getWorksheet("Almacén");
-    const movementValidation = inventorySheet?.getCell("O2").dataValidation;
+    const movementValidation = inventorySheet?.getCell("Q2").dataValidation;
     const supplierValidation = inventorySheet?.getCell("E2").dataValidation;
     const currencyValidation = inventorySheet?.getCell("G2").dataValidation;
 
@@ -161,7 +163,7 @@ describe("import workbooks", () => {
 
   it("exige proveedor y moneda en nuevos ítems de Almacén", async () => {
     const bytes = await createWorkbook("inventory", {
-      "Almacén": [[null, "PVC", "PVC flexible", "MATERIA_PRIMA", null, null, null, null, null, null, "KG", "OPTIONAL", 10, "SI"]],
+      "Almacén": [[null, "PVC", "PVC flexible", "MATERIA_PRIMA", null, null, null, null, null, null, "KG", null, null, "OPTIONAL", 10, "SI"]],
     }, { fileKind: "TEMPLATE" });
     const result = await validateWorkbook("inventory", bytes as ArrayBuffer);
 
@@ -173,10 +175,23 @@ describe("import workbooks", () => {
 
   it("permite registrar un insumo elaborado sin proveedor ni moneda", async () => {
     const bytes = await createWorkbook("inventory", {
-      "Almacén": [[null, "CMP", "Compuesto interno", "INSUMO_ELABORADO", null, null, null, null, null, null, "KG", "OPTIONAL", 10, "SI"]],
+      "Almacén": [[null, "CMP", "Compuesto interno", "INSUMO_ELABORADO", null, null, null, null, null, null, "KG", null, null, "OPTIONAL", 10, "SI"]],
     }, { fileKind: "TEMPLATE" });
     const result = await validateWorkbook("inventory", bytes as ArrayBuffer);
     expect(result.errors).toEqual([]);
+  });
+
+  it("valida que la presentación de Almacén esté completa y tenga contenido positivo", async () => {
+    const incompleteBytes = await createWorkbook("inventory", {
+      "Almacén": [[null, "PVC", "PVC flexible", "MATERIA_PRIMA", "Polímeros Andinos SAC", null, "PEN", null, null, null, "KG", "BOLSA", null, "OPTIONAL", 10, "SI"]],
+    }, { fileKind: "TEMPLATE" });
+    const incomplete = await validateWorkbook("inventory", incompleteBytes as ArrayBuffer);
+    expect(incomplete.errors).toContainEqual(expect.objectContaining({ field: "contenido_por_presentacion", code: "REQUIRED_FIELD" }));
+
+    const validBytes = await createWorkbook("inventory", {
+      "Almacén": [[null, "PVC", "PVC flexible", "MATERIA_PRIMA", "Polímeros Andinos SAC", null, "PEN", null, null, null, "KG", "BOLSA", 50, "OPTIONAL", 10, "SI"]],
+    }, { fileKind: "TEMPLATE" });
+    expect((await validateWorkbook("inventory", validBytes as ArrayBuffer)).errors).toEqual([]);
   });
 
   it("acepta un reporte que conserva el mismo formato de la plantilla", async () => {
@@ -248,7 +263,7 @@ describe("import workbooks", () => {
 
   it("marca como error los valores no numéricos y acepta guiones como vacío", async () => {
     const bytes = await createWorkbook("inventory", {
-      "Almacén": [[null, "PVC", "PVC flexible", "MATERIA_PRIMA", "Polímeros Andinos SAC", null, "PEN", "abc", "18", null, "KG", "OPTIONAL", "diez", "SI", "PRINCIPAL", "-"]],
+      "Almacén": [[null, "PVC", "PVC flexible", "MATERIA_PRIMA", "Polímeros Andinos SAC", null, "PEN", "abc", "18", null, "KG", null, null, "OPTIONAL", "diez", "SI", "PRINCIPAL", "-"]],
     });
     const result = await validateWorkbook("inventory", bytes as ArrayBuffer);
 

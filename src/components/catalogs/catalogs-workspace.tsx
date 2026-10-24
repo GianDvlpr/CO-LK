@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircleOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, TagsOutlined } from "@ant-design/icons";
+import { CheckCircleOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, TagsOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Checkbox, Empty, Form, Input, InputNumber, Modal, Select, Space, Tabs, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -131,6 +131,9 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
     queryClient.invalidateQueries({ queryKey: ["purchase-options"] }),
     queryClient.invalidateQueries({ queryKey: ["order-options"] }),
     queryClient.invalidateQueries({ queryKey: ["inventory-options"] }),
+    queryClient.invalidateQueries({ queryKey: ["production-options"] }),
+    queryClient.invalidateQueries({ queryKey: ["recipe-options"] }),
+    queryClient.invalidateQueries({ queryKey: ["warehouse-layout"] }),
   ]);
   const create = useMutation({
     mutationFn: (values: CatalogForm) => api("/api/v1/catalogs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: active, ...values }) }),
@@ -197,11 +200,16 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
     onError: (error) => toast.error(error.message),
   });
   const changeStatus = useMutation({
-    mutationFn: ({ type, id, nextActive }: { type: "SUPPLIER" | "CUSTOMER"; id: string; nextActive: boolean }) => api(`/api/v1/catalogs/${type}/${id}/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ active: nextActive }) }),
+    mutationFn: ({ type, id, nextActive }: { type: "SUPPLIER" | "CUSTOMER" | "WAREHOUSE"; id: string; nextActive: boolean }) => api(`/api/v1/catalogs/${type}/${id}/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ active: nextActive }) }),
     onSuccess: async (_, variables) => {
       toast.success(`${labels[variables.type].singular[0].toUpperCase()}${labels[variables.type].singular.slice(1)} ${variables.nextActive ? "reactivado" : "inactivado"}.`);
       await refreshCatalogDependencies();
     },
+    onError: (error) => toast.error(error.message),
+  });
+  const deleteWarehouse = useMutation({
+    mutationFn: (id: string) => api(`/api/v1/catalogs/WAREHOUSE/${id}`, { method: "DELETE" }),
+    onSuccess: async () => { toast.success("Almacén eliminado."); await refreshCatalogDependencies(); },
     onError: (error) => toast.error(error.message),
   });
   const refreshBrandDependencies = async () => Promise.all([
@@ -260,27 +268,33 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
   const table = (type: CatalogType, data: Common[], columns: ColumnsType<Common> = commonColumns) => {
     const actionColumns: ColumnsType<Common> = canManage ? [{
       title: "Acciones",
-      width: type === "CUSTOMER" ? 360 : type === "SUPPLIER" ? 230 : 100,
+      width: type === "CUSTOMER" ? 360 : type === "SUPPLIER" ? 230 : type === "WAREHOUSE" ? 340 : 100,
       render: (_: unknown, row: Common) => <Space wrap>
         <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)}>Editar</Button>
         {type === "CUSTOMER" ? <Button size="small" icon={<TagsOutlined />} onClick={() => { setBrandCustomer(row as Contact); setNewBrand(""); setEditingBrand(undefined); }}>Logos / marcas</Button> : null}
-        {type === "SUPPLIER" || type === "CUSTOMER" ? <Button
+        {type === "SUPPLIER" || type === "CUSTOMER" || type === "WAREHOUSE" ? <Button
           size="small"
           danger={row.active !== false}
           icon={row.active === false ? <CheckCircleOutlined /> : <StopOutlined />}
           loading={changeStatus.isPending}
           onClick={() => {
             const nextActive = row.active === false;
+            const content = type === "WAREHOUSE"
+              ? nextActive
+                ? `${row.name} volverá a estar disponible en los selectores de almacén.`
+                : "Solo se desactiva si no tiene stock en mano ni reservado; el historial se conserva."
+              : nextActive ? `${row.name} volverá a estar disponible en nuevas operaciones.` : `${row.name} conservará todo su historial, pero dejará de aparecer al crear nuevas ${type === "SUPPLIER" ? "compras" : "órdenes de pedido"}.`;
             Modal.confirm({
-              title: `¿${nextActive ? "Reactivar" : "Inactivar"} ${labels[type].singular}?`,
-              content: nextActive ? `${row.name} volverá a estar disponible en nuevas operaciones.` : `${row.name} conservará todo su historial, pero dejará de aparecer al crear nuevas ${type === "SUPPLIER" ? "compras" : "órdenes de pedido"}.`,
-              okText: nextActive ? "Reactivar" : "Inactivar",
+              title: `¿${nextActive ? "Reactivar" : type === "WAREHOUSE" ? "Desactivar" : "Inactivar"} ${labels[type].singular}?`,
+              content,
+              okText: nextActive ? "Reactivar" : type === "WAREHOUSE" ? "Desactivar" : "Inactivar",
               cancelText: "Cancelar",
               okButtonProps: { danger: !nextActive },
               onOk: () => changeStatus.mutateAsync({ type, id: row.id, nextActive }),
             });
           }}
-        >{row.active === false ? "Reactivar" : "Inactivar"}</Button> : null}
+        >{row.active === false ? "Reactivar" : type === "WAREHOUSE" ? "Desactivar" : "Inactivar"}</Button> : null}
+        {type === "WAREHOUSE" ? <Button size="small" danger icon={<DeleteOutlined />} loading={deleteWarehouse.isPending} onClick={() => Modal.confirm({ title: `¿Eliminar ${row.name}?`, content: "Solo se elimina si nunca tuvo movimientos, stock ni documentos asociados.", okText: "Eliminar", cancelText: "Cancelar", okButtonProps: { danger: true }, onOk: () => deleteWarehouse.mutateAsync(row.id) })}>Eliminar</Button> : null}
       </Space>,
     }] : [];
     return <Table

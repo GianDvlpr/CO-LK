@@ -38,7 +38,7 @@ export const workbookSpecs: Record<ImportModule, ModuleSpec> = {
   inventory: {
     label: "Almacén", permission: "inventory.read", file: "almacen",
     sheets: [
-      { name: "Almacén", columns: ["codigo", "sigla", "nombre", "tipo_item", "proveedor_nombre", "codigo_producto_proveedor", "moneda", "precio_neto", "tasa_igv", "costo_total", "unidad_base", "modo_lote", "stock_minimo", "activo", "almacen_codigo", "stock_inicial", "costo_unitario_pen", "lote", "fecha_inicial", "observaciones"], required: ["nombre", "tipo_item", "unidad_base"], uniqueBy: [["codigo"], ["nombre", "unidad_base", "almacen_codigo", "lote"]], optionalHeaders: ["codigo_producto_proveedor", "precio_neto", "tasa_igv", "costo_total"], numeric: ["precio_neto", "tasa_igv", "stock_minimo", "stock_inicial", "costo_unitario_pen"] },
+      { name: "Almacén", columns: ["codigo", "sigla", "nombre", "tipo_item", "proveedor_nombre", "codigo_producto_proveedor", "moneda", "precio_neto", "tasa_igv", "costo_total", "unidad_base", "tipo_presentacion", "contenido_por_presentacion", "modo_lote", "stock_minimo", "activo", "almacen_codigo", "stock_inicial", "costo_unitario_pen", "lote", "fecha_inicial", "observaciones"], required: ["nombre", "tipo_item", "unidad_base"], uniqueBy: [["codigo"], ["nombre", "unidad_base", "almacen_codigo", "lote"]], optionalHeaders: ["codigo_producto_proveedor", "precio_neto", "tasa_igv", "costo_total", "tipo_presentacion", "contenido_por_presentacion"], numeric: ["precio_neto", "tasa_igv", "contenido_por_presentacion", "stock_minimo", "stock_inicial", "costo_unitario_pen"] },
     ],
   },
   "inventory-formulas": {
@@ -185,6 +185,8 @@ const columnDescriptions: Record<string, string> = {
 
 function describeColumn(sheet: string, column: string) {
   const contextual: Record<string, string> = {
+    "Almacén.tipo_presentacion": "Presentación habitual informativa del ítem, por ejemplo BOLSA, SACO o BOTELLA. Debe completarse junto con Contenido por presentación.",
+    "Almacén.contenido_por_presentacion": "Capacidad de la presentación habitual expresada en la unidad base. Ejemplo: 50 para una bolsa de 50 KG. No modifica el stock ni el kardex.",
     "Recetas.estado": "Estado de la receta, por ejemplo BORRADOR, ACTIVA o INACTIVA.",
     "Recetas.cantidad": "Cantidad del material necesaria para obtener el rendimiento indicado. Se interpreta en la unidad registrada para ese material (kg, L, und., etc.).",
     "Pedidos.estado": "Estado del pedido, por ejemplo BORRADOR, CONFIRMADO, EN_PROCESO, ATENDIDO o CANCELADO.",
@@ -348,7 +350,7 @@ export async function createWorkbook(module: ImportModule, data: WorkbookData = 
   instructions.columns = [{ width: 34 }, { width: 78 }, { width: 18 }, { width: 28 }];
   instructions.addRows([
     ["LK INNOVACION", `Formato de ${spec.label}`],
-    ["Versión", "1.9"],
+    ["Versión", "2.0"],
     ["Tipo de archivo", fileKind],
     ["Modo al importar", fileKind === "REPORT" ? "SOLO_NUEVOS: los registros existentes se omiten y nunca se actualizan." : "Un código vacío crea un registro; un código existente actualiza el registro correspondiente."],
     ["Uso", "No cambie los nombres de las hojas ni los encabezados. Complete una fila por registro y conserve los códigos tal como aparecen en el sistema."],
@@ -361,6 +363,7 @@ export async function createWorkbook(module: ImportModule, data: WorkbookData = 
       ["Coincidencia de proveedor", "El proveedor se busca por nombre ignorando mayúsculas, tildes y espacios repetidos. Si no existe o el nombre coincide con más de un proveedor, la fila se rechaza."],
       ["Insumos elaborados", "Usa tipo INSUMO_ELABORADO para resultados fabricados internamente. En ese caso proveedor y moneda son opcionales; luego define A + B → C en la plantilla Fórmulas de insumos."],
       ["Costo de referencia", "El código de producto del proveedor, el precio neto y el IGV son datos de referencia del ítem. El IGV es un porcentaje y el costo total se recalcula como precio neto × (1 + IGV/100)."],
+      ["Presentación habitual", "Tipo de presentación y Contenido por presentación son opcionales, pero deben completarse juntos. Permiten mostrar equivalencias como 3 bolsas completas + 20 KG remanentes; no alteran el stock base ni el kardex."],
     ] : []),
   ]);
   for (const sheet of spec.sheets) {
@@ -466,6 +469,16 @@ export async function createWorkbook(module: ImportModule, data: WorkbookData = 
           };
         }
       }
+      if (column === "tipo_presentacion" && sheetSpec.name === "Almacén") {
+        const lastRow = Math.max(1001, sheet.rowCount + 100);
+        for (let rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
+          sheet.getCell(rowNumber, index + 1).dataValidation = {
+            type: "list", allowBlank: true, formulae: ['"BOLSA,SACO,BOTELLA,CILINDRO,TAMBOR,BIDÓN,CAJA,PAQUETE"'], showInputMessage: true,
+            promptTitle: "Presentación habitual", prompt: "Selecciona una opción o escribe otro tipo de envase.",
+            showErrorMessage: false,
+          };
+        }
+      }
       if (column === "tipo_resultado" && sheetSpec.name === "Recetas") {
         const lastRow = Math.max(1001, sheet.rowCount + 100);
         for (let rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
@@ -563,6 +576,17 @@ export async function validateWorkbook(module: ImportModule, bytes: ArrayBuffer)
         for (const field of ["proveedor_nombre", "moneda"]) {
           const legacyReportReference = fileKind === "REPORT" && Boolean(record.codigo);
           if (!record[field] && !legacyReportReference) errors.push(workbookIssue({ rowNumber, sheet: sheetSpec.name, field, code: "REQUIRED_FIELD", message: `“${friendlyLabel(sheetSpec.name, field)}” es obligatorio salvo para Insumos elaborados.`, rawData: record }));
+        }
+      }
+      if (sheetSpec.name === "Almacén") {
+        const hasPresentationType = Boolean(record.tipo_presentacion.trim());
+        const hasPresentationContent = !isBlankNumericCell(record.contenido_por_presentacion);
+        if (hasPresentationType !== hasPresentationContent) {
+          const field = hasPresentationType ? "contenido_por_presentacion" : "tipo_presentacion";
+          errors.push(workbookIssue({ rowNumber, sheet: sheetSpec.name, field, code: "REQUIRED_FIELD", message: "Tipo de presentación y Contenido por presentación deben completarse juntos.", rawData: record }));
+        }
+        if (hasPresentationContent && isNumericCell(record.contenido_por_presentacion) && Number(record.contenido_por_presentacion) <= 0) {
+          errors.push(workbookIssue({ rowNumber, sheet: sheetSpec.name, field: "contenido_por_presentacion", code: "INVALID_NUMBER", message: "“Contenido por presentación” debe ser mayor que cero.", rawData: record }));
         }
       }
       for (const field of sheetSpec.numeric ?? []) {
