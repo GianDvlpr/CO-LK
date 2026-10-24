@@ -3,5 +3,5 @@ import { requirePagePermission } from "@/modules/auth/application/page-authoriza
 
 export default async function RecipesPage() {
   const user = await requirePagePermission("recipes.read");
-  return <RecipesWorkspace permissions={user.permissions} canCreate={user.permissions.includes("recipes.create")} canActivate={user.permissions.includes("recipes.activate")} />;
+  return <RecipesWorkspace permissions={user.permissions} canCreate={user.permissions.includes("recipes.create")} canActivate={user.permissions.includes("recipes.activate")} canUpdate={user.permissions.includes("recipes.update")} canArchive={user.permissions.includes("recipes.archive")} />;
 }

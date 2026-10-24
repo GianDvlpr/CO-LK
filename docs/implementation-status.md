@@ -46,6 +46,9 @@ Actualizado: 19/10/2026.
 - Módulo operativo de Recetas como fuente única de formulaciones, con borradores, versiones, rendimiento, ingredientes y destino Producción o Almacén.
 - Activación transaccional de la última versión con auditoría y outbox; crear o activar una receta no genera movimientos de inventario.
 - Las recetas con destino Producción abren una orden preseleccionada. Las recetas con destino Almacén descuentan ingredientes, registran kardex e ingresan el insumo elaborado con costo promedio y merma real.
+- Edición de recetas: los borradores se corrigen en su versión actual y una receta activa genera una versión nueva que se publica al activarla, sin interrumpir la versión vigente.
+- Recetas archivables y reactivables; la eliminación solo procede cuando no tienen órdenes de producción ni transformaciones asociadas.
+- Formato PDF A5 apaisado descargable por receta con su última versión, ingredientes y notas.
 - Flujo operativo de Producción: crear orden, reservar materiales, iniciar consumiendo inventario y completar ingresando producto terminado.
 - Vista Kanban de Producción con tarjetas arrastrables, filtros por texto y máquina, columnas de estado y transiciones reales que respetan permisos, reservas, consumos y cierre con cantidad producida.
 - Consumo de materias primas con costo promedio congelado y asignación FIFO automática de lotes; el costo real consumido se transfiere al producto terminado.
