@@ -18,8 +18,8 @@ const updateSchema = z.object({
   sectors: z.array(z.object({
     id: z.uuid(),
     layoutOrder: z.coerce.number().int().min(0).optional(),
-    layoutX: z.coerce.number().int().min(0).max(50000).optional(),
-    layoutY: z.coerce.number().int().min(0).max(50000).optional(),
+    layoutX: z.coerce.number().int().min(-50000).max(50000).optional(),
+    layoutY: z.coerce.number().int().min(-50000).max(50000).optional(),
     name: z.string().trim().min(1).max(150).optional(),
     description: z.string().trim().max(300).nullable().optional(),
     layoutWidth: z.coerce.number().int().min(1).max(3).optional(),

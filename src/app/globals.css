@@ -1996,6 +1996,26 @@ a {
   border: 1px solid var(--line);
   border-radius: 14px;
   background: color-mix(in srgb, var(--canvas) 88%, var(--surface));
+  --xy-background-color: var(--canvas);
+  --xy-background-pattern-dots-color-default: color-mix(in srgb, var(--line) 75%, transparent);
+  --xy-controls-button-background-color: var(--surface);
+  --xy-controls-button-background-color-hover: color-mix(in srgb, var(--surface) 88%, var(--line));
+  --xy-controls-button-color: var(--ink);
+  --xy-controls-button-color-hover: var(--ink);
+  --xy-controls-button-border-color: var(--line);
+  --xy-controls-box-shadow: none;
+  --xy-minimap-background-color: var(--canvas);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--ink) 16%, transparent);
+  --xy-minimap-mask-stroke-color: var(--line);
+  --xy-minimap-node-background-color: color-mix(in srgb, var(--muted) 55%, transparent);
+  --xy-minimap-node-stroke-color: var(--line);
+  --xy-attribution-background-color: transparent;
+  --xy-node-boxshadow-hover: 0 6px 16px color-mix(in srgb, var(--ink) 14%, transparent);
+  --xy-node-boxshadow-selected: 0 8px 20px color-mix(in srgb, var(--ink) 20%, transparent);
+}
+
+.warehouse-map .react-flow__attribution {
+  color: var(--muted);
 }
 
 .warehouse-map .react-flow__node {
@@ -2299,3 +2319,60 @@ a {
 
 
 .user-avatar-field { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-bottom: 16px; }
+
+.avatar-crop-viewport {
+  position: relative;
+  width: min(100%, 360px);
+  aspect-ratio: 1;
+  margin: 0 auto 18px;
+  overflow: hidden;
+  border-radius: 12px;
+  background-color: var(--canvas);
+  background-image:
+    linear-gradient(45deg, color-mix(in srgb, var(--line) 45%, transparent) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in srgb, var(--line) 45%, transparent) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--line) 45%, transparent) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--line) 45%, transparent) 75%);
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  background-size: 20px 20px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  outline: none;
+}
+
+.avatar-crop-viewport:active { cursor: grabbing; }
+.avatar-crop-viewport:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 35%, transparent); }
+
+.avatar-crop-viewport img {
+  position: absolute;
+  display: block;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+}
+
+.avatar-crop-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 3px solid #fff;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 45%), inset 0 0 32px rgb(0 0 0 / 24%);
+  pointer-events: none;
+}
+
+.avatar-crop-controls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.avatar-crop-controls .ant-slider { margin-inline: 0; }
+
+@media (max-width: 520px) {
+  .avatar-crop-controls { grid-template-columns: auto minmax(0, 1fr); }
+  .avatar-crop-controls .ant-btn { grid-column: 1 / -1; width: 100%; }
+}
