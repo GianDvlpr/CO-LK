@@ -2,21 +2,31 @@
 
 import { CheckOutlined, DownloadOutlined, InboxOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, DatePicker, List, Modal, Radio, Space, Tag, Typography, Upload } from "antd";
+import { Alert, Button, DatePicker, Modal, Radio, Space, Tag, Typography, Upload } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ImportIssueList, type ImportIssue } from "@/components/imports/import-issue-list";
 
 type ModuleKey = "purchases" | "inventory" | "inventory-formulas" | "recipes" | "products" | "orders";
-type Issue = { rowNumber: number; field?: string; code: string; message: string };
-type Preview = { jobId: string; status: string; totalRows: number; importMode: "ONLY_NEW" | "CREATE_UPDATE"; errors: Issue[]; warnings: Issue[]; preview: { sheet: string; rows: number }[] };
+type Preview = { jobId: string; status: string; totalRows: number; importMode: "ONLY_NEW" | "CREATE_UPDATE"; errors: ImportIssue[]; warnings: ImportIssue[]; preview: { sheet: string; rows: number }[] };
+
+class ImportRequestError extends Error {
+  constructor(message: string, public readonly issue?: ImportIssue) { super(message); }
+}
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   const text = await response.text();
-  let payload: { data?: T; error?: { message?: string } } | null = null;
+  let payload: { data?: T; error?: { code?: string; message?: string; fields?: Record<string, string> } } | null = null;
   try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
-  if (!response.ok) throw new Error(payload?.error?.message ?? `No se pudo completar la operación (HTTP ${response.status}).`);
+  if (!response.ok) {
+    const fields = payload?.error?.fields;
+    throw new ImportRequestError(payload?.error?.message ?? `No se pudo completar la operación (HTTP ${response.status}).`, fields ? {
+      rowNumber: Number(fields.rowNumber || 1), sheet: fields.sheet, field: fields.field, column: fields.column,
+      value: fields.value, code: payload?.error?.code ?? "IMPORT_ERROR", message: payload?.error?.message ?? "No se pudo completar la importación.", suggestion: fields.suggestion,
+    } : undefined);
+  }
   if (!payload) throw new Error("El servidor no devolvió una respuesta válida.");
   return payload.data as T;
 }
@@ -26,6 +36,7 @@ export function ModuleImportButton({ module, permissions }: { module: ModuleKey;
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File>();
   const [preview, setPreview] = useState<Preview>();
+  const [confirmIssue, setConfirmIssue] = useState<ImportIssue>();
   const [mode, setMode] = useState<"ONLY_NEW" | "CREATE_UPDATE">();
   const [period, setPeriod] = useState<[Dayjs, Dayjs]>([dayjs().startOf("month"), dayjs()]);
   const canPreview = permissions.includes("imports.preview");
@@ -35,8 +46,8 @@ export function ModuleImportButton({ module, permissions }: { module: ModuleKey;
   const warnings = preview ? (selectedMode === "CREATE_UPDATE" ? preview.warnings.filter((item) => item.code !== "EXISTING_RECORD_SKIPPED") : preview.warnings) : [];
   const validate = useMutation({
     mutationFn: async () => { const body = new FormData(); body.append("file", file!); return api<Preview>(`/api/v1/imports/${module}/preview`, { method: "POST", body }); },
-    onSuccess: (value) => { setPreview(value); setMode(value.importMode); toast[value.errors.length ? "warning" : "success"](value.errors.length ? "Corrige los errores antes de importar." : "Archivo validado correctamente."); },
-    onError: (error) => toast.error(error.message),
+    onSuccess: (value) => { setPreview(value); setMode(value.importMode); setConfirmIssue(undefined); toast[value.errors.length ? "warning" : "success"](value.errors.length ? "Corrige los errores antes de importar." : "Archivo validado correctamente."); },
+    onError: (error) => { if (error instanceof ImportRequestError) setConfirmIssue(error.issue); toast.error(error.message); },
   });
   const confirm = useMutation({
     mutationFn: async () => { const body = new FormData(); body.append("file", file!); body.append("jobId", preview!.jobId); body.append("mode", selectedMode); return api<{ successRows: number; skippedRows: number }>(`/api/v1/imports/${module}/confirm`, { method: "POST", body }); },
@@ -54,7 +65,7 @@ export function ModuleImportButton({ module, permissions }: { module: ModuleKey;
           <DatePicker.RangePicker value={period} allowClear={false} format="DD/MM/YYYY" onChange={(value) => { if (value?.[0] && value[1]) setPeriod([value[0], value[1]]); }} />
           <Button icon={<DownloadOutlined />} href={`/api/v1/exports/${module}?mode=report&${reportQuery}`}>Descargar reporte</Button>
         </Space>
-        <Upload.Dragger accept=".xlsx" maxCount={1} beforeUpload={(selected) => { setFile(selected); setPreview(undefined); setMode(undefined); return false; }} onRemove={() => { setFile(undefined); setPreview(undefined); setMode(undefined); }}>
+        <Upload.Dragger accept=".xlsx" maxCount={1} beforeUpload={(selected) => { setFile(selected); setPreview(undefined); setMode(undefined); setConfirmIssue(undefined); return false; }} onRemove={() => { setFile(undefined); setPreview(undefined); setMode(undefined); setConfirmIssue(undefined); }}>
           <p className="ant-upload-drag-icon"><InboxOutlined /></p><p className="ant-upload-text">Selecciona o arrastra el archivo .xlsx</p><p className="ant-upload-hint">Máximo 5 MB y 1,000 filas. No cambies los nombres de hojas o columnas.</p>
         </Upload.Dragger>
         <Button type="primary" block disabled={!file} loading={validate.isPending} onClick={() => validate.mutate()}>Validar archivo</Button>
@@ -66,8 +77,9 @@ export function ModuleImportButton({ module, permissions }: { module: ModuleKey;
           </div> : null}
           {!preview.errors.length && selectedMode === "CREATE_UPDATE" && canUpdateExisting ? <Alert type="warning" showIcon message="Se actualizarán los campos modificados de los registros existentes." description="Si el archivo es antiguo, podrías sobrescribir datos más recientes. Las filas sin código crean registros nuevos." /> : null}
           {!preview.errors.length && selectedMode === "CREATE_UPDATE" && !canUpdateExisting ? <Alert type="warning" showIcon message={module === "purchases" ? "Compras no actualiza registros existentes." : "Pedidos no actualiza registros existentes."} description="Un código ya registrado bloqueará la carga completa." /> : null}
-          {warnings.length ? <List size="small" bordered header="Registros que se omitirán" dataSource={warnings} renderItem={(item) => <List.Item>Fila {item.rowNumber}: {item.message}</List.Item>} /> : null}
-          {preview.errors.length ? <List size="small" bordered header="Errores" dataSource={preview.errors} renderItem={(item) => <List.Item><Typography.Text type="danger">Fila {item.rowNumber}{item.field ? ` · ${item.field}` : ""}: {item.message}</Typography.Text></List.Item>} /> : null}
+          {warnings.length ? <ImportIssueList issues={warnings} title="Registros que se omitirán" tone="warning" /> : null}
+          {preview.errors.length ? <ImportIssueList issues={preview.errors} title="Detalle de errores" /> : null}
+          {confirmIssue ? <ImportIssueList issues={[confirmIssue]} title="La importación no pudo completarse" /> : null}
           {!preview.errors.length && preview.status === "PENDING" && canConfirm ? <Button type="primary" icon={<CheckOutlined />} loading={confirm.isPending} onClick={() => Modal.confirm({ title: "Confirmar carga masiva", content: selectedMode === "ONLY_NEW" ? "Se agregarán únicamente registros nuevos; los existentes se omitirán." : canUpdateExisting ? "Se actualizarán los registros existentes con los datos del archivo y se crearán las filas nuevas." : "La carga se ejecutará en una sola transacción; un código existente bloqueará la importación.", okText: "Importar", cancelText: "Cancelar", onOk: () => confirm.mutateAsync() })}>Confirmar importación</Button> : null}
         </> : null}
       </Space>

@@ -5,6 +5,17 @@ export const importModules = ["purchases", "inventory", "inventory-formulas", "r
 export type ImportModule = (typeof importModules)[number];
 export type WorkbookData = Record<string, (string | number | Date | null | undefined)[][]>;
 export type ParsedWorkbookRow = { rowNumber: number; values: Record<string, string> };
+export type WorkbookIssue = {
+  rowNumber: number;
+  sheet?: string;
+  field?: string;
+  column?: string;
+  value?: string;
+  code: string;
+  message: string;
+  suggestion?: string;
+  rawData?: Record<string, string>;
+};
 export type WorkbookFileKind = "TEMPLATE" | "REPORT";
 export type WorkbookOptions = {
   reportPeriod?: { from: string; to: string };
@@ -269,7 +280,7 @@ const friendlyLabels: Record<string, string> = {
   precio_neto_unitario: "Precio unitario sin IGV",
 };
 
-function friendlyLabel(sheet: string, column: string) {
+export function workbookColumnLabel(sheet: string, column: string) {
   const contextual: Record<string, string> = {
     "MovimientosIniciales.fecha": "Fecha del movimiento",
     "MovimientosIniciales.cantidad": "Cantidad inicial",
@@ -278,6 +289,42 @@ function friendlyLabel(sheet: string, column: string) {
     "DetallePedido.cantidad": "Cantidad solicitada",
   };
   return contextual[`${sheet}.${column}`] ?? friendlyLabels[column] ?? column;
+}
+
+const friendlyLabel = workbookColumnLabel;
+
+function issueSuggestion(code: string) {
+  const suggestions: Record<string, string> = {
+    MISSING_SHEET: "Descarga la plantilla vigente y conserva el nombre de la hoja.",
+    UNKNOWN_HEADER: "Usa el encabezado de la plantilla sin cambiar su nombre.",
+    DUPLICATE_HEADER: "Deja una sola columna con ese encabezado.",
+    MISSING_HEADER: "Agrega la columna faltante o descarga una plantilla nueva.",
+    REQUIRED_FIELD: "Completa esta celda antes de volver a validar.",
+    INVALID_NUMBER: "Ingresa solo un número; no incluyas texto ni símbolos de moneda.",
+    DUPLICATE_CONFLICT: "Conserva una sola fila por código o clave, o iguala sus datos.",
+    EMPTY_FILE: "Agrega al menos una fila de datos debajo de los encabezados.",
+    ROW_LIMIT_EXCEEDED: "Divide la carga en archivos de hasta 1,000 filas.",
+    DUPLICATE_IDENTICAL_SKIPPED: "No necesitas corregirla; la fila repetida será omitida.",
+  };
+  return suggestions[code];
+}
+
+function displayIssueValue(rawData: Record<string, string> | undefined, field: string | undefined) {
+  if (!rawData || !field) return undefined;
+  const fields = field.split(",").map((item) => item.trim()).filter(Boolean);
+  if (!fields.length) return undefined;
+  return fields.map((item) => rawData[item] ?? "").join(" | ").slice(0, 240);
+}
+
+function workbookIssue(issue: WorkbookIssue): WorkbookIssue {
+  return {
+    ...issue,
+    column: issue.column ?? (issue.sheet && issue.field
+      ? issue.field.split(",").map((field) => workbookColumnLabel(issue.sheet!, field.trim())).join(" + ")
+      : undefined),
+    value: issue.value ?? displayIssueValue(issue.rawData, issue.field),
+    suggestion: issue.suggestion ?? issueSuggestion(issue.code),
+  };
 }
 
 function normalizeHeader(value: string) {
@@ -454,8 +501,8 @@ export async function validateWorkbook(module: ImportModule, bytes: ArrayBuffer)
   const spec = workbookSpecs[module];
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(Buffer.from(bytes) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
-  const errors: { rowNumber: number; field?: string; code: string; message: string; rawData?: Record<string, string> }[] = [];
-  const warnings: { rowNumber: number; field?: string; code: string; message: string; rawData?: Record<string, string> }[] = [];
+  const errors: WorkbookIssue[] = [];
+  const warnings: WorkbookIssue[] = [];
   const instructionSheet = workbook.getWorksheet("Instrucciones");
   let fileKind: WorkbookFileKind = "TEMPLATE";
   if (instructionSheet) for (let rowNumber = 1; rowNumber <= instructionSheet.rowCount; rowNumber += 1) {
@@ -469,7 +516,7 @@ export async function validateWorkbook(module: ImportModule, bytes: ArrayBuffer)
   for (const sheetSpec of spec.sheets) {
     const sheet = workbook.getWorksheet(sheetSpec.name);
     if (!sheet) {
-      errors.push({ rowNumber: 1, code: "MISSING_SHEET", message: `Falta la hoja ${sheetSpec.name}.` });
+      errors.push(workbookIssue({ rowNumber: 1, sheet: sheetSpec.name, code: "MISSING_SHEET", message: `Falta la hoja “${sheetSpec.name}”.` }));
       continue;
     }
     const headerRow = sheet.getRow(1);
@@ -482,17 +529,17 @@ export async function validateWorkbook(module: ImportModule, bytes: ArrayBuffer)
       const canonical = resolveHeader(sheetSpec.name, sheetSpec.columns, rawHeader);
       if (!canonical) {
         if (normalizedHeader === "accion") continue;
-        errors.push({ rowNumber: 1, code: "UNKNOWN_HEADER", message: `${sheetSpec.name}: la columna “${rawHeader}” no es reconocida.` });
+        errors.push(workbookIssue({ rowNumber: 1, sheet: sheetSpec.name, column: rawHeader, value: rawHeader, code: "UNKNOWN_HEADER", message: `La columna “${rawHeader}” no pertenece a la plantilla.` }));
         continue;
       }
       if (positions.has(canonical)) {
-        errors.push({ rowNumber: 1, field: canonical, code: "DUPLICATE_HEADER", message: `${sheetSpec.name}: la columna “${friendlyLabel(sheetSpec.name, canonical)}” está repetida.` });
+        errors.push(workbookIssue({ rowNumber: 1, sheet: sheetSpec.name, field: canonical, code: "DUPLICATE_HEADER", message: `La columna “${friendlyLabel(sheetSpec.name, canonical)}” está repetida.` }));
         continue;
       }
       positions.set(canonical, index);
     }
     for (const column of sheetSpec.columns) if (!positions.has(column) && !sheetSpec.optionalHeaders?.includes(column)) {
-      errors.push({ rowNumber: 1, field: column, code: "MISSING_HEADER", message: `${sheetSpec.name}: falta la columna “${friendlyLabel(sheetSpec.name, column)}”.` });
+      errors.push(workbookIssue({ rowNumber: 1, sheet: sheetSpec.name, field: column, code: "MISSING_HEADER", message: `Falta la columna “${friendlyLabel(sheetSpec.name, column)}”.` }));
     }
     const sample: Record<string, string>[] = [];
     const rows: ParsedWorkbookRow[] = [];
@@ -507,20 +554,20 @@ export async function validateWorkbook(module: ImportModule, bytes: ArrayBuffer)
       const required = sheetSpec.required;
       for (const field of required) {
         const legacyReportReference = fileKind === "REPORT" && sheetSpec.name === "Almacén" && Boolean(record.codigo) && ["proveedor_nombre", "moneda"].includes(field);
-        if (!record[field] && !legacyReportReference) errors.push({ rowNumber, field, code: "REQUIRED_FIELD", message: `${sheetSpec.name}: “${friendlyLabel(sheetSpec.name, field)}” es obligatorio.`, rawData: record });
+        if (!record[field] && !legacyReportReference) errors.push(workbookIssue({ rowNumber, sheet: sheetSpec.name, field, code: "REQUIRED_FIELD", message: `“${friendlyLabel(sheetSpec.name, field)}” es obligatorio.`, rawData: record }));
       }
       if (sheetSpec.name === "Almacén" && Number(record.stock_inicial || 0) > 0) {
-        for (const field of ["costo_unitario_pen", "fecha_inicial"]) if (!record[field]) errors.push({ rowNumber, field, code: "REQUIRED_FIELD", message: `${sheetSpec.name}: “${friendlyLabel(sheetSpec.name, field)}” es obligatorio cuando existe stock inicial.`, rawData: record });
+        for (const field of ["costo_unitario_pen", "fecha_inicial"]) if (!record[field]) errors.push(workbookIssue({ rowNumber, sheet: sheetSpec.name, field, code: "REQUIRED_FIELD", message: `“${friendlyLabel(sheetSpec.name, field)}” es obligatorio cuando existe stock inicial.`, rawData: record }));
       }
       if (sheetSpec.name === "Almacén" && record.tipo_item.trim().toUpperCase() !== "INSUMO_ELABORADO") {
         for (const field of ["proveedor_nombre", "moneda"]) {
           const legacyReportReference = fileKind === "REPORT" && Boolean(record.codigo);
-          if (!record[field] && !legacyReportReference) errors.push({ rowNumber, field, code: "REQUIRED_FIELD", message: `${sheetSpec.name}: “${friendlyLabel(sheetSpec.name, field)}” es obligatorio salvo para Insumos elaborados.`, rawData: record });
+          if (!record[field] && !legacyReportReference) errors.push(workbookIssue({ rowNumber, sheet: sheetSpec.name, field, code: "REQUIRED_FIELD", message: `“${friendlyLabel(sheetSpec.name, field)}” es obligatorio salvo para Insumos elaborados.`, rawData: record }));
         }
       }
       for (const field of sheetSpec.numeric ?? []) {
         if (!isBlankNumericCell(record[field]) && !isNumericCell(record[field])) {
-          errors.push({ rowNumber, field, code: "INVALID_NUMBER", message: `${sheetSpec.name}: “${friendlyLabel(sheetSpec.name, field)}” debe ser numérico.`, rawData: record });
+          errors.push(workbookIssue({ rowNumber, sheet: sheetSpec.name, field, code: "INVALID_NUMBER", message: `“${friendlyLabel(sheetSpec.name, field)}” debe ser numérico.`, rawData: record }));
         }
       }
       let identicalDuplicate = false;
@@ -531,8 +578,8 @@ export async function validateWorkbook(module: ImportModule, bytes: ArrayBuffer)
         const first = uniqueValues[uniqueIndex].get(key);
         if (first?.signature === signature) {
           identicalDuplicate = true;
-          warnings.push({ rowNumber, field: fields.join(", "), code: "DUPLICATE_IDENTICAL_SKIPPED", message: `${sheetSpec.name}: fila idéntica omitida; ya aparece en la fila ${first.rowNumber}.`, rawData: record });
-        } else if (first) errors.push({ rowNumber, field: fields.join(", "), code: "DUPLICATE_CONFLICT", message: `${sheetSpec.name}: la clave ${fields.map((field) => friendlyLabel(sheetSpec.name, field)).join(" + ")} se repite con datos diferentes (primera aparición en la fila ${first.rowNumber}).`, rawData: record });
+          warnings.push(workbookIssue({ rowNumber, sheet: sheetSpec.name, field: fields.join(", "), code: "DUPLICATE_IDENTICAL_SKIPPED", message: `Fila idéntica omitida; ya aparece en la fila ${first.rowNumber}.`, rawData: record }));
+        } else if (first) errors.push(workbookIssue({ rowNumber, sheet: sheetSpec.name, field: fields.join(", "), code: "DUPLICATE_CONFLICT", message: `La clave ${fields.map((field) => friendlyLabel(sheetSpec.name, field)).join(" + ")} se repite con datos diferentes (primera aparición en la fila ${first.rowNumber}).`, rawData: record }));
         else uniqueValues[uniqueIndex].set(key, { rowNumber, signature });
       });
       if (!identicalDuplicate) rows.push({ rowNumber, values: record });
@@ -541,7 +588,7 @@ export async function validateWorkbook(module: ImportModule, bytes: ArrayBuffer)
     preview.push({ sheet: sheetSpec.name, rows: rowCount, sample });
     data[sheetSpec.name] = rows;
   }
-  if (totalRows === 0) errors.push({ rowNumber: 1, code: "EMPTY_FILE", message: "El archivo no contiene filas para procesar." });
-  if (totalRows > 1_000) errors.push({ rowNumber: 1, code: "ROW_LIMIT_EXCEEDED", message: "El archivo supera el máximo de 1,000 filas." });
+  if (totalRows === 0) errors.push(workbookIssue({ rowNumber: 1, code: "EMPTY_FILE", message: "El archivo no contiene filas para procesar." }));
+  if (totalRows > 1_000) errors.push(workbookIssue({ rowNumber: 1, code: "ROW_LIMIT_EXCEEDED", message: "El archivo supera el máximo de 1,000 filas." }));
   return { totalRows, errors: errors.slice(0, 200), warnings: warnings.slice(0, 200), preview, data, importMode: fileKind === "REPORT" ? "ONLY_NEW" as const : "CREATE_UPDATE" as const };
 }

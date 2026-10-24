@@ -78,7 +78,7 @@ Actualizado: 19/10/2026.
 - Los reportes se reimportan en modo `ONLY_NEW`: agregan únicamente registros nuevos, omiten existentes sin sobrescribirlos e informan ambos conteos.
 - Compras, Almacén, Recetas, Productos y Pedidos exponen plantilla, reporte por rango, validación y confirmación directamente en la vista del módulo.
 - Validación previa de cargas masivas con control de formato, tamaño máximo de 5 MB, hojas, encabezados, campos obligatorios, muestra de resultados e historial por empresa.
-- Cada validación crea un `ImportJob`, conserva hasta 200 errores detallados y registra la operación en auditoría sin modificar datos de negocio.
+- Cada validación crea un `ImportJob`, conserva hasta 200 errores detallados y registra la operación en auditoría sin modificar datos de negocio. La interfaz identifica hoja, fila, nombre amigable de la columna, valor recibido, motivo y sugerencia de corrección; los errores de referencia detectados al confirmar usan el mismo formato.
 - Confirmación transaccional e idempotente de Excel para Compras, Almacén, Recetas, Productos y Pedidos; cualquier error revierte el archivo completo.
 - La validación previa rechaza valores no numéricos en campos numéricos y trata `-`, `—` y `N/A` como celdas vacías.
 - Las rutas de validación y confirmación de importaciones responden siempre JSON; los errores no controlados se registran en el servidor y devuelven un mensaje estable en lugar de un 500 vacío.

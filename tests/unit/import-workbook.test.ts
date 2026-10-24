@@ -253,8 +253,8 @@ describe("import workbooks", () => {
     const result = await validateWorkbook("inventory", bytes as ArrayBuffer);
 
     expect(result.errors).toEqual(expect.arrayContaining([
-      expect.objectContaining({ field: "precio_neto", code: "INVALID_NUMBER" }),
-      expect.objectContaining({ field: "stock_minimo", code: "INVALID_NUMBER" }),
+      expect.objectContaining({ sheet: "Almacén", field: "precio_neto", column: "Precio neto", value: "abc", code: "INVALID_NUMBER" }),
+      expect.objectContaining({ sheet: "Almacén", field: "stock_minimo", column: "Stock mínimo", value: "diez", code: "INVALID_NUMBER" }),
     ]));
     expect(result.errors.some((error) => error.field === "stock_inicial" && error.code === "INVALID_NUMBER")).toBe(false);
   });
@@ -266,8 +266,25 @@ describe("import workbooks", () => {
     const result = await validateWorkbook("purchases", bytes as ArrayBuffer);
 
     expect(result.errors).toEqual(expect.arrayContaining([
-      expect.objectContaining({ field: "precio_neto_unidad_base", code: "INVALID_NUMBER" }),
+      expect.objectContaining({ sheet: "Compras", field: "precio_neto_unidad_base", column: "Precio sin IGV por unidad", value: "abc", code: "INVALID_NUMBER", suggestion: expect.stringContaining("número") }),
     ]));
+  });
+
+  it("detalla la columna y la corrección sugerida cuando falta un dato obligatorio", async () => {
+    const bytes = await createWorkbook("orders", {
+      Pedidos: [["PEDIDO-1", null, null, "2026-10-01", null, "PEN", 1, "BORRADOR", null, 1, "SKU-01", 2, 10]],
+    });
+    const result = await validateWorkbook("orders", bytes as ArrayBuffer);
+    const error = result.errors.find((item) => item.field === "cliente_codigo");
+
+    expect(error).toEqual(expect.objectContaining({
+      sheet: "Pedidos",
+      rowNumber: 2,
+      column: "Código de cliente",
+      value: "",
+      code: "REQUIRED_FIELD",
+      suggestion: "Completa esta celda antes de volver a validar.",
+    }));
   });
 
   it("permite varios lotes distintos para una misma línea de compra", async () => {

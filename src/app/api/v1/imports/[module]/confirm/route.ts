@@ -7,9 +7,42 @@ import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { getRequestIp, getRequestUserAgent } from "@/modules/auth/application/request-metadata";
 import { applyImport, ImportApplicationError } from "@/modules/imports/application/confirm-import";
-import { isImportModule, validateWorkbook } from "@/modules/imports/application/workbook";
+import { isImportModule, validateWorkbook, workbookColumnLabel, type ParsedWorkbookRow, type WorkbookIssue } from "@/modules/imports/application/workbook";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+function issueFields(issue: WorkbookIssue) {
+  return Object.fromEntries(Object.entries({
+    rowNumber: String(issue.rowNumber), sheet: issue.sheet, field: issue.field, column: issue.column,
+    value: issue.value, suggestion: issue.suggestion,
+  }).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+}
+
+function findSourceRow(data: Record<string, ParsedWorkbookRow[]>, rowNumber: number) {
+  for (const [sheet, rows] of Object.entries(data)) {
+    const row = rows.find((item) => item.rowNumber === rowNumber);
+    if (row) return { sheet, row };
+  }
+  return undefined;
+}
+
+function applicationIssueFields(data: Record<string, ParsedWorkbookRow[]>, error: ImportApplicationError) {
+  const source = findSourceRow(data, error.rowNumber);
+  const fields = error.field?.split(",").map((field) => field.trim()).filter(Boolean) ?? [];
+  const suggestion = error.code === "INVALID_REFERENCE"
+    ? "Verifica que el código o nombre exista y esté activo en el catálogo correspondiente."
+    : error.code === "INVALID_DATE" ? "Usa una fecha válida, preferentemente en formato AAAA-MM-DD."
+      : error.code === "INVALID_NUMBER" ? "Ingresa solo un número válido y revisa que sea mayor que cero cuando corresponda."
+        : "Corrige el dato indicado y vuelve a validar el archivo.";
+  return Object.fromEntries(Object.entries({
+    rowNumber: String(error.rowNumber),
+    sheet: source?.sheet,
+    field: error.field,
+    column: source && fields.length ? fields.map((field) => workbookColumnLabel(source.sheet, field)).join(" + ") : undefined,
+    value: source && fields.length ? fields.map((field) => source.row.values[field] ?? "").join(" | ") : undefined,
+    suggestion,
+  }).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+}
 
 export async function POST(request: Request, context: { params: Promise<{ module: string }> }) {
   try { requireSameOrigin(request); } catch (error) { if (error instanceof AuthError) return apiError(error.code, error.message, error.status); throw error; }
@@ -25,7 +58,10 @@ export async function POST(request: Request, context: { params: Promise<{ module
   const bytes = await file.arrayBuffer();
   const parsed = await validateWorkbook(module, bytes).catch(() => null);
   if (!parsed) return apiError("INVALID_WORKBOOK", "El archivo no es un libro Excel válido o está dañado.", 422);
-  if (parsed.errors.length) return apiError("IMPORT_HAS_ERRORS", "El archivo contiene errores y no puede confirmarse.", 422);
+  if (parsed.errors.length) {
+    const first = parsed.errors[0];
+    return apiError(first.code, first.message, 422, issueFields(first));
+  }
   const mode: "ONLY_NEW" | "CREATE_UPDATE" = requestedMode === "ONLY_NEW" || requestedMode === "CREATE_UPDATE" ? requestedMode : parsed.importMode;
   const digest = createHash("sha256").update(Buffer.from(bytes)).digest("hex");
   const job = await prisma.importJob.findFirst({ where: { id: jobId, companyId: user.companyId, module }, include: { errors: true } });
@@ -54,6 +90,6 @@ export async function POST(request: Request, context: { params: Promise<{ module
     }
     const marked = await prisma.importJob.updateMany({ where: { id: job.id, status: { in: ["PENDING", "PROCESSING"] } }, data: { status: "FAILED", successRows: 0, errorRows: 1, finishedAt: new Date() } });
     if (marked.count) await prisma.importError.create({ data: { importId: job.id, rowNumber: known.rowNumber, field: known.field, code: known.code, message: known.message } });
-    return apiError(known.code, known.message, known.code === "IMPORT_ALREADY_PROCESSED" ? 409 : 422);
+    return apiError(known.code, known.message, known.code === "IMPORT_ALREADY_PROCESSED" ? 409 : 422, applicationIssueFields(parsed.data, known));
   }
 }
