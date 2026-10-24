@@ -4,6 +4,7 @@ import { apiError, apiSuccess } from "@/lib/http/api-response";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
+import { canSeeUser } from "@/modules/users/domain/privileged-user-policy";
 
 const schema = z.object({ status: z.enum(["ACTIVE", "INACTIVE"]) });
 
@@ -15,10 +16,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const actor = await requirePermission("users.deactivate");
     const { id } = await context.params;
     if (id === actor.id) return apiError("USER_SELF_STATUS", "No puedes desactivar tu propia cuenta.", 422);
-    const target = await prisma.user.findFirst({ where: { id, companyId: actor.companyId } });
-    if (!target) return apiError("USER_NOT_FOUND", "El usuario no existe.", 404);
+    const target = await prisma.user.findFirst({ where: { id, companyId: actor.companyId }, include: { userRoles: { include: { role: { select: { code: true } } } } } });
+    if (!target || !canSeeUser(actor.roles, target.userRoles.map((entry) => entry.role.code))) return apiError("USER_NOT_FOUND", "El usuario no existe.", 404);
     const result = await prisma.$transaction(async (tx) => {
-      const updated = await tx.user.update({ where: { id }, data: { status: parsed.data.status } });
+      const updated = await tx.user.update({ where: { id }, data: { status: parsed.data.status }, select: { id: true, username: true, name: true, avatarUrl: true, status: true, mustChangePassword: true } });
       if (parsed.data.status !== "ACTIVE") {
         await tx.session.updateMany({
           where: { userId: id, endedAt: null },

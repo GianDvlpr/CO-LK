@@ -27,6 +27,7 @@ export type AuthenticatedUser = {
   username: string;
   email: string;
   name: string;
+  avatarUrl: string | null;
   mustChangePassword: boolean;
   roles: string[];
   permissions: string[];
@@ -42,6 +43,7 @@ type SessionUserRow = {
   username: string;
   email: string;
   name: string;
+  avatarUrl: string | null;
   mustChangePassword: boolean;
   status: string;
   roles: string[];
@@ -102,6 +104,7 @@ async function loadCurrentUser(): Promise<AuthenticatedUser | null> {
       u.username,
       u.email,
       u.name,
+      u.avatar_url AS "avatarUrl",
       u.must_change_password AS "mustChangePassword",
       u.status::text AS status,
       COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), ARRAY[]::text[]) AS roles,
@@ -148,6 +151,7 @@ async function loadCurrentUser(): Promise<AuthenticatedUser | null> {
     username: session.username,
     email: session.email,
     name: session.name,
+    avatarUrl: session.avatarUrl ?? null,
     mustChangePassword: session.mustChangePassword,
     roles: session.roles,
     permissions: session.permissions,

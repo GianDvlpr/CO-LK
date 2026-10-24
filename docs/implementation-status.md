@@ -67,6 +67,7 @@ Actualizado: 19/10/2026.
 - Maquinaria rediseñada con indicadores compactos, búsqueda, filtros por tipo/estado, vista de tarjetas o tabla, paginación, edición, historial de mantenimiento y fichas versionadas de parámetros por estación, canal y zona térmica, descargables en PDF A4.
 - Módulo operativo de Usuarios con alta, asignación de múltiples roles, contraseña temporal mínima de 6 caracteres y cambio obligatorio en el primer ingreso.
 - Activación y desactivación segura de usuarios; al desactivar una cuenta se revocan de inmediato todas sus sesiones y se registra la operación en auditoría.
+- Foto de perfil opcional por usuario en Cloudinary, gestionada con `users.update`, visible en el módulo Usuarios y en la barra superior; las respuestas de usuarios ya no exponen el hash de contraseña.
 - Módulo operativo de Roles y Permisos con creación de roles personalizados y selección de permisos atómicos agrupados por módulo.
 - Módulo de Auditoría reservado inicialmente a SUPERADMIN, con filtros por fechas, usuario, módulo y acción, detalle antes/después, IP y navegador cuando están disponibles, y exportación Excel con ocultamiento de secretos.
 - Registro de inicios/cierres de sesión, ingresos a módulos con deduplicación, operaciones de negocio ya auditadas, cargas masivas y descargas de plantillas, reportes y órdenes de producción.

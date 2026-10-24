@@ -19,8 +19,11 @@ Este documento resume el comportamiento que no debe cambiarse accidentalmente. A
 - Contraseña mínima: 6 caracteres. Las cuentas nuevas o restablecidas deben cambiar la contraseña temporal.
 - Las contraseñas se almacenan con Argon2 y nunca pueden verse ni recuperarse.
 - `SUPERADMIN` tiene todos los permisos. `ADMIN` no administra usuarios, roles ni sesiones.
+- Un usuario sin el rol `SUPERADMIN` no puede ver cuentas superadministradoras en el módulo Usuarios, recibir el rol `SUPERADMIN` entre las opciones disponibles, ni consultar o modificar esas cuentas mediante la API.
 - Un superadministrador puede restablecer la contraseña de otro usuario, pero no la propia mediante ese flujo.
 - Desactivar un usuario revoca sus sesiones activas.
+- Cada usuario puede tener una foto de perfil opcional, almacenada en Cloudinary y gestionada por quien tenga `users.update`; se muestra en la barra superior y en el módulo Usuarios.
+- Las respuestas de usuarios nunca incluyen el hash de contraseña.
 - Todas las sesiones vencen a las 8 horas; el usuario debe autenticarse nuevamente y no existe “mantener sesión”.
 - La vista Sesiones muestra inicio, IP disponible, agente, última actividad, duración, cierre y estado; un usuario autorizado puede revocar otra sesión.
 

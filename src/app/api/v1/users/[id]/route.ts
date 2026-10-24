@@ -5,6 +5,7 @@ import { apiError, apiSuccess } from "@/lib/http/api-response";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
+import { canAssignRoles, canSeeUser } from "@/modules/users/domain/privileged-user-policy";
 
 const schema = z.object({ username: z.string().trim().min(3).max(50).regex(/^[a-zA-Z0-9._-]+$/), name: z.string().trim().min(1).max(150), roleIds: z.array(z.uuid()).min(1) });
 
@@ -15,13 +16,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const parsed = schema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return apiError("VALIDATION_ERROR", "El usuario contiene datos inválidos.", 400);
     const { id } = await context.params;
-    const target = await prisma.user.findFirst({ where: { id, companyId: actor.companyId }, include: { userRoles: true } });
-    if (!target) return apiError("USER_NOT_FOUND", "El usuario no existe.", 404);
+    const target = await prisma.user.findFirst({ where: { id, companyId: actor.companyId }, include: { userRoles: { include: { role: { select: { code: true } } } } } });
+    if (!target || !canSeeUser(actor.roles, target.userRoles.map((entry) => entry.role.code))) return apiError("USER_NOT_FOUND", "El usuario no existe.", 404);
     const roles = await prisma.role.findMany({ where: { companyId: actor.companyId, id: { in: parsed.data.roleIds } } });
     if (roles.length !== new Set(parsed.data.roleIds).size) return apiError("USER_INVALID_ROLES", "Uno o más roles no son válidos.", 422);
+    if (!canAssignRoles(actor.roles, roles.map((role) => role.code))) return apiError("USER_ROLE_NOT_ALLOWED", "No tienes autorización para asignar el rol de superadministrador.", 403);
     const username = parsed.data.username.toLowerCase();
     const updated = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.update({ where: { id }, data: { username, email: `${username}@internal.lkinnovacion`, name: parsed.data.name } });
+      const user = await tx.user.update({ where: { id }, data: { username, email: `${username}@internal.lkinnovacion`, name: parsed.data.name }, select: { id: true, username: true, name: true, avatarUrl: true, status: true, mustChangePassword: true } });
       await tx.userRole.deleteMany({ where: { userId: id } });
       await tx.userRole.createMany({ data: roles.map((role) => ({ userId: id, roleId: role.id })) });
       await tx.auditLog.create({ data: { companyId: actor.companyId, userId: actor.id, entity: "User", entityId: id, action: "UPDATE", afterData: { username, name: parsed.data.name, roles: roles.map((role) => role.code) } } });

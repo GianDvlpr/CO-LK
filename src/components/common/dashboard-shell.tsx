@@ -186,7 +186,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
             >
               <Button type="text" className="user-menu-trigger" aria-label={`Cuenta de ${user.name}`}>
                 <span className="user-trigger-content">
-                  <Avatar size="small" style={{ background: "#1d6f55" }}>
+                  <Avatar size="small" src={user.avatarUrl ?? undefined} style={{ background: "#1d6f55" }}>
                     {user.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
                   </Avatar>
                   <span className="desktop-only user-identity"><strong>{user.name}</strong><small>@{user.username}</small></span>

@@ -213,6 +213,8 @@ model User {
   mustChangePassword  Boolean              @default(true) @map("must_change_password")
   name                String
   status              UserStatus           @default(ACTIVE)
+  avatarUrl           String?              @map("avatar_url")
+  avatarPublicId      String?              @map("avatar_public_id")
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")
   company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)

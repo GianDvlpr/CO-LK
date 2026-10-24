@@ -2321,3 +2321,5 @@ a {
   }
 }
 
+
+.user-avatar-field { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-bottom: 16px; }

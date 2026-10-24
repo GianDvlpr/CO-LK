@@ -1,10 +1,11 @@
 "use client";
 
-import { EditOutlined, KeyOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Form, Input, Modal, Select, Space, Tag, Tooltip, Typography } from "antd";
+import { Alert, Avatar, Button, Card, Empty, Form, Input, Modal, Select, Space, Tag, Tooltip, Typography, Upload } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
@@ -16,6 +17,7 @@ type User = {
   id: string;
   username: string;
   name: string;
+  avatarUrl?: string | null;
   status: "ACTIVE" | "INACTIVE";
   mustChangePassword: boolean;
   createdAt: string;
@@ -31,8 +33,38 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   return payload.data;
 }
 
-export function UsersWorkspace({ currentUserId, canCreate, canUpdate, canDeactivate, canResetPassword }: { currentUserId: string; canCreate: boolean; canUpdate: boolean; canDeactivate: boolean; canResetPassword: boolean }) {
+function initialsOf(name: string) {
+  return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+}
+
+function UserAvatarField({ user, cloudinaryConfigured, uploading, removing, onUpload, onRemove }: { user: User; cloudinaryConfigured: boolean; uploading: boolean; removing: boolean; onUpload: (file: File) => Promise<unknown>; onRemove: () => Promise<unknown> }) {
+  return <div className="user-avatar-field">
+    <Avatar size={64} src={user.avatarUrl ?? undefined} style={{ background: "#1d6f55", flexShrink: 0 }}>{initialsOf(user.name)}</Avatar>
+    <Space wrap direction="vertical">
+      <Space wrap>
+        <Upload
+          accept="image/jpeg,image/png,image/webp"
+          showUploadList={false}
+          disabled={!cloudinaryConfigured || uploading}
+          beforeUpload={(file) => {
+            if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { toast.error("Solo se permiten imágenes JPEG, PNG o WebP."); return Upload.LIST_IGNORE; }
+            if (file.size > 5 * 1024 * 1024) { toast.error("La imagen no puede superar 5 MB."); return Upload.LIST_IGNORE; }
+            void onUpload(file as File);
+            return false;
+          }}
+        >
+          <Button icon={<UploadOutlined />} loading={uploading} disabled={!cloudinaryConfigured}>Cambiar foto</Button>
+        </Upload>
+        {user.avatarUrl ? <Button danger icon={<DeleteOutlined />} loading={removing} onClick={() => Modal.confirm({ title: "¿Quitar la foto de perfil?", okText: "Quitar", cancelText: "Cancelar", okButtonProps: { danger: true }, onOk: () => onRemove() })}>Quitar foto</Button> : null}
+      </Space>
+      <Typography.Text type="secondary">{cloudinaryConfigured ? "JPEG, PNG o WebP · máximo 5 MB." : "Cloudinary no está configurado; no se pueden subir fotos."}</Typography.Text>
+    </Space>
+  </div>;
+}
+
+export function UsersWorkspace({ currentUserId, canCreate, canUpdate, canDeactivate, canResetPassword, cloudinaryConfigured }: { currentUserId: string; canCreate: boolean; canUpdate: boolean; canDeactivate: boolean; canResetPassword: boolean; cloudinaryConfigured: boolean }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<User>();
@@ -61,9 +93,12 @@ export function UsersWorkspace({ currentUserId, canCreate, canUpdate, canDeactiv
   });
   const update = useMutation({ mutationFn: (values: UserForm) => api(`/api/v1/users/${editing?.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(values) }), onSuccess: async () => { toast.success("Usuario actualizado."); setOpen(false); setEditing(undefined); form.resetFields(); await queryClient.invalidateQueries({ queryKey: ["users"] }); }, onError: (error) => toast.error(error.message) });
   const resetPassword = useMutation({ mutationFn: (values: ResetPasswordForm) => api(`/api/v1/users/${resetting?.id}/reset-password`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(values) }), onSuccess: async () => { toast.success("Contraseña restablecida. El usuario deberá cambiarla al ingresar."); setResetting(undefined); resetForm.resetFields(); await queryClient.invalidateQueries({ queryKey: ["users"] }); }, onError: (error) => toast.error(error.message) });
+  const uploadAvatar = useMutation({ mutationFn: ({ id, file }: { id: string; file: File }) => { const form = new FormData(); form.append("file", file); return api(`/api/v1/users/${id}/avatar`, { method: "POST", body: form }); }, onSuccess: async (_, variables) => { toast.success("Foto de perfil actualizada."); await queryClient.invalidateQueries({ queryKey: ["users"] }); if (variables.id === currentUserId) router.refresh(); }, onError: (error) => toast.error(error.message) });
+  const removeAvatar = useMutation({ mutationFn: (id: string) => api(`/api/v1/users/${id}/avatar`, { method: "DELETE" }), onSuccess: async (_, id) => { toast.success("Foto eliminada."); await queryClient.invalidateQueries({ queryKey: ["users"] }); if (id === currentUserId) router.refresh(); }, onError: (error) => toast.error(error.message) });
+  const editingUser = users.data?.items.find((user) => user.id === editing?.id) ?? editing;
 
   const columns: ColumnsType<User> = [
-    { title: "Usuario", width: 240, render: (_, row) => <><strong>{row.name}</strong><br /><Typography.Text type="secondary">@{row.username}</Typography.Text></> },
+    { title: "Usuario", width: 280, render: (_, row) => <Space align="center"><Avatar src={row.avatarUrl ?? undefined} style={{ background: "#1d6f55", flexShrink: 0 }}>{initialsOf(row.name)}</Avatar><span><strong>{row.name}</strong><br /><Typography.Text type="secondary">@{row.username}</Typography.Text></span></Space> },
     { title: "Roles", width: 230, render: (_, row) => <Space size={[4, 4]} wrap>{row.userRoles.map(({ role }) => <Tag color={role.code === "SUPERADMIN" ? "purple" : role.code === "ADMIN" ? "blue" : "default"} key={role.id}>{role.name}</Tag>)}</Space> },
     { title: "Contraseña", width: 170, render: (_, row) => row.mustChangePassword ? <Tag color="gold">Cambio pendiente</Tag> : <Tag color="green">Actualizada</Tag> },
     { title: "Creado", dataIndex: "createdAt", width: 120, render: (value) => dayjs(value).format("DD/MM/YYYY") },
@@ -76,6 +111,7 @@ export function UsersWorkspace({ currentUserId, canCreate, canUpdate, canDeactiv
     <Card className="section-card" title="Usuarios registrados" extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(undefined); form.resetFields(); setOpen(true); }}>Nuevo usuario</Button> : null}>{users.error ? <Alert type="error" showIcon message={users.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={users.isLoading} columns={columns} dataSource={filteredUsers} scroll={{ x: 1240 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay usuarios registrados" /> }} /></Card>
     <Modal title={editing ? "Editar usuario" : "Nuevo usuario"} open={open} onCancel={() => { setOpen(false); setEditing(undefined); }} onOk={() => form.submit()} okText={editing ? "Guardar cambios" : "Crear usuario"} confirmLoading={create.isPending || update.isPending} width={720} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={(values) => editing ? update.mutate(values) : create.mutate(values)}>
+        {editingUser ? <UserAvatarField user={editingUser} cloudinaryConfigured={cloudinaryConfigured} uploading={uploadAvatar.isPending} removing={removeAvatar.isPending} onUpload={(file) => uploadAvatar.mutateAsync({ id: editingUser.id, file })} onRemove={() => removeAvatar.mutateAsync(editingUser.id)} /> : null}
         <div className="modal-form-grid modal-form-grid-2"><Form.Item name="name" label="Nombre completo" rules={[{ required: true, message: "Ingresa el nombre." }]}><Input /></Form.Item><Form.Item name="username" label="Usuario" rules={[{ required: true, message: "Ingresa el usuario." }, { min: 3 }, { pattern: /^[a-zA-Z0-9._-]+$/, message: "Usa letras, números, punto, guion o guion bajo." }]}><Input autoComplete="off" /></Form.Item>{!editing ? <Form.Item name="password" label="Contraseña temporal" rules={[{ required: true, message: "Ingresa la contraseña." }, { min: 6, message: "Debe tener al menos 6 caracteres." }]}><Input.Password autoComplete="new-password" /></Form.Item> : null}<Form.Item className={!editing ? undefined : "form-span-all"} name="roleIds" label="Roles" rules={[{ required: true, message: "Selecciona al menos un rol." }]}><Select mode="multiple" placeholder="Selecciona uno o más roles" options={users.data?.roles.map((role) => ({ value: role.id, label: `${role.code} · ${role.name}` }))} /></Form.Item></div>
         {!editing ? <Alert type="warning" showIcon message="El usuario deberá establecer una nueva contraseña después de su primer inicio de sesión." /> : null}
       </Form>
