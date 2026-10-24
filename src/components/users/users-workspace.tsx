@@ -6,11 +6,12 @@ import { Alert, Avatar, Button, Card, Empty, Form, Input, Modal, Select, Space, 
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 import { TableSearch, matchesSearch } from "@/components/common/table-search";
+import { AvatarCropModal } from "@/components/users/avatar-crop-modal";
 
 type Role = { id: string; code: string; name: string };
 type User = {
@@ -38,28 +39,33 @@ function initialsOf(name: string) {
 }
 
 function UserAvatarField({ user, cloudinaryConfigured, uploading, removing, onUpload, onRemove }: { user: User; cloudinaryConfigured: boolean; uploading: boolean; removing: boolean; onUpload: (file: File) => Promise<unknown>; onRemove: () => Promise<unknown> }) {
-  return <div className="user-avatar-field">
-    <Avatar size={64} src={user.avatarUrl ?? undefined} style={{ background: "#1d6f55", flexShrink: 0 }}>{initialsOf(user.name)}</Avatar>
-    <Space wrap direction="vertical">
-      <Space wrap>
-        <Upload
-          accept="image/jpeg,image/png,image/webp"
-          showUploadList={false}
-          disabled={!cloudinaryConfigured || uploading}
-          beforeUpload={(file) => {
-            if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { toast.error("Solo se permiten imágenes JPEG, PNG o WebP."); return Upload.LIST_IGNORE; }
-            if (file.size > 5 * 1024 * 1024) { toast.error("La imagen no puede superar 5 MB."); return Upload.LIST_IGNORE; }
-            void onUpload(file as File);
-            return false;
-          }}
-        >
-          <Button icon={<UploadOutlined />} loading={uploading} disabled={!cloudinaryConfigured}>Cambiar foto</Button>
-        </Upload>
-        {user.avatarUrl ? <Button danger icon={<DeleteOutlined />} loading={removing} onClick={() => Modal.confirm({ title: "¿Quitar la foto de perfil?", okText: "Quitar", cancelText: "Cancelar", okButtonProps: { danger: true }, onOk: () => onRemove() })}>Quitar foto</Button> : null}
+  const [cropSelection, setCropSelection] = useState<{ file: File; sourceUrl: string }>();
+  useEffect(() => () => { if (cropSelection) URL.revokeObjectURL(cropSelection.sourceUrl); }, [cropSelection]);
+  return <>
+    <div className="user-avatar-field">
+      <Avatar size={64} src={user.avatarUrl ?? undefined} style={{ background: "#1d6f55", flexShrink: 0 }}>{initialsOf(user.name)}</Avatar>
+      <Space wrap direction="vertical">
+        <Space wrap>
+          <Upload
+            accept="image/jpeg,image/png,image/webp"
+            showUploadList={false}
+            disabled={!cloudinaryConfigured || uploading}
+            beforeUpload={(file) => {
+              if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { toast.error("Solo se permiten imágenes JPEG, PNG o WebP."); return Upload.LIST_IGNORE; }
+              if (file.size > 5 * 1024 * 1024) { toast.error("La imagen no puede superar 5 MB."); return Upload.LIST_IGNORE; }
+              setCropSelection({ file: file as File, sourceUrl: URL.createObjectURL(file as File) });
+              return false;
+            }}
+          >
+            <Button icon={<UploadOutlined />} loading={uploading} disabled={!cloudinaryConfigured}>Cambiar foto</Button>
+          </Upload>
+          {user.avatarUrl ? <Button danger icon={<DeleteOutlined />} loading={removing} onClick={() => Modal.confirm({ title: "¿Quitar la foto de perfil?", okText: "Quitar", cancelText: "Cancelar", okButtonProps: { danger: true }, onOk: () => onRemove() })}>Quitar foto</Button> : null}
+        </Space>
+        <Typography.Text type="secondary">{cloudinaryConfigured ? "JPEG, PNG o WebP · máximo 5 MB. Podrás mover y recortar la imagen antes de guardarla." : "Cloudinary no está configurado; no se pueden subir fotos."}</Typography.Text>
       </Space>
-      <Typography.Text type="secondary">{cloudinaryConfigured ? "JPEG, PNG o WebP · máximo 5 MB." : "Cloudinary no está configurado; no se pueden subir fotos."}</Typography.Text>
-    </Space>
-  </div>;
+    </div>
+    {cropSelection ? <AvatarCropModal file={cropSelection.file} sourceUrl={cropSelection.sourceUrl} open saving={uploading} onCancel={() => { if (!uploading) setCropSelection(undefined); }} onConfirm={async (file) => { await onUpload(file); setCropSelection(undefined); }} /> : null}
+  </>;
 }
 
 export function UsersWorkspace({ currentUserId, canCreate, canUpdate, canDeactivate, canResetPassword, cloudinaryConfigured }: { currentUserId: string; canCreate: boolean; canUpdate: boolean; canDeactivate: boolean; canResetPassword: boolean; cloudinaryConfigured: boolean }) {

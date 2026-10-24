@@ -95,6 +95,7 @@ Actualizado: 19/10/2026.
 - Las tablas de los módulos muestran 8 registros por página por defecto, con selector de tamaño; el kardex conserva 30. En escritorio las cabeceras permanecen fijas bajo la barra superior al desplazarse.
 - Las tablas principales incluyen búsqueda por texto y los selectores de datos maestros permiten escribir para filtrar. El tipo de presentación de Compras usa una lista estándar (SACO, BOLSA, BOTELLA, CAJA, BIDÓN, CILINDRO, ROLLO, FARDO).
 - La carga masiva permite elegir entre “Solo nuevos” y “Crear o actualizar” después de validar; en modo actualización se aplican los campos modificados de Almacén, Productos y Recetas, mientras Compras y Pedidos siguen sin sobrescribir registros existentes.
+- Las fotos de perfil permiten recorte cuadrado previo con arrastre, teclado y zoom; el archivo resultante se optimiza a 512 × 512 px antes de enviarse a Cloudinary.
 - Las materias primas admiten una imagen de referencia en Cloudinary, administrable desde el modal de Almacén con el permiso `inventory.image_manage`.
 - El ítem registra su sector/almacén de referencia: obligatorio para materia prima, visible en la tabla y en Excel, y preseleccionado al registrar el saldo inicial.
 - Las compras registradas permiten enviar la solicitud al proveedor por WhatsApp con materiales, códigos, presentaciones, cantidades y la imagen del material cuando existe.
