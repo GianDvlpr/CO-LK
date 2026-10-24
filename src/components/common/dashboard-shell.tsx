@@ -39,6 +39,7 @@ import type { AuthenticatedUser } from "@/modules/auth/application/session-servi
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { ExchangeRateIndicator } from "@/components/exchange-rates/exchange-rate-indicator";
+import { BrandIdentity } from "@/components/common/brand-identity";
 
 const { Header, Sider, Content } = Layout;
 
@@ -133,13 +134,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
         trigger={null}
         onBreakpoint={setCollapsed}
       >
-        <div className="brand">
-          <span className="brand-mark">LK</span>
-          <span className="brand-copy">
-            <strong>LK INNOVACION</strong>
-            <span>Operaciones</span>
-          </span>
-        </div>
+        <BrandIdentity priority />
         <Menu
           className="app-menu"
           mode="inline"

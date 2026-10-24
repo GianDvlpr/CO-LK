@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/common/theme-toggle";
+import { BrandIdentity } from "@/components/common/brand-identity";
 
 type Values = { currentPassword: string; newPassword: string; confirmation: string };
 
@@ -37,6 +38,7 @@ export function ChangePasswordCard() {
 
   return (
     <div className="login-card">
+      <div className="login-mobile-brand"><BrandIdentity subtitle="Gestión operativa" priority /></div>
       <div className="login-theme-toggle"><ThemeToggle /></div>
       <span className="header-kicker">Primer acceso</span>
       <h2>Cambia tu contraseña</h2>

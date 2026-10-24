@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/common/theme-toggle";
+import { BrandIdentity } from "@/components/common/brand-identity";
 
 type LoginValues = {
   username: string;
@@ -40,6 +41,7 @@ export function LoginCard() {
 
   return (
     <div className="login-card">
+      <div className="login-mobile-brand"><BrandIdentity subtitle="Gestión operativa" priority /></div>
       <div className="login-theme-toggle"><ThemeToggle /></div>
       <span className="header-kicker">Acceso seguro</span>
       <h2>Bienvenido</h2>

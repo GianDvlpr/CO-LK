@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { LoginCard } from "@/components/auth/login-card";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { getCurrentUser } from "@/modules/auth/application/session-service";
+import { BrandIdentity } from "@/components/common/brand-identity";
 
 export const metadata: Metadata = { title: "Iniciar sesión" };
 export const dynamic = "force-dynamic";
@@ -17,13 +18,7 @@ export default async function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-visual">
-        <div className="brand" style={{ padding: 0 }}>
-          <span className="brand-mark">LK</span>
-          <span className="brand-copy">
-            <strong>LK INNOVACION</strong>
-            <span>Gestión operativa</span>
-          </span>
-        </div>
+        <BrandIdentity subtitle="Gestión operativa" priority />
         <div className="login-message">
           <h1>Del insumo al producto terminado.</h1>
           <p>

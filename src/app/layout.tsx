@@ -9,6 +9,11 @@ export const metadata: Metadata = {
     template: `%s | ${appConfig.name}`,
   },
   description: appConfig.description,
+  icons: {
+    icon: [{ url: "/brand/lk-logo.jpeg", type: "image/jpeg" }],
+    shortcut: "/brand/lk-logo.jpeg",
+    apple: "/brand/lk-logo.jpeg",
+  },
 };
 
 export default function RootLayout({
