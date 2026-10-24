@@ -275,7 +275,7 @@ async function importRecipes(tx: Prisma.TransactionClient, data: ImportData, com
       if (createsInventoryFormulaCycle(edges, outputItem.id, ingredients.map((ingredient) => ingredient.itemId))) throw new ImportApplicationError("CYCLIC_RECIPE", "La receta generaría un ciclo entre insumos elaborados.", row.rowNumber);
     }
     const recipe = existing
-      ? await tx.recipe.update({ where: { id: existing.id }, data: { productId: product?.id ?? null, outputItemId: outputItem?.id ?? null, name: code, status: "DRAFT" } })
+      ? await tx.recipe.update({ where: { id: existing.id }, data: { productId: product?.id ?? null, outputItemId: outputItem?.id ?? null } })
       : await tx.recipe.create({ data: { companyId, productId: product?.id, outputItemId: outputItem?.id, code, name: code, status: "DRAFT" } });
     await tx.recipeVersion.create({ data: { recipeId: recipe.id, version, yieldQuantity: yieldQuantity.toString(), notes: `Importación de versión ${requestedVersion}`, ingredients: { create: ingredients } } });
     created(result);

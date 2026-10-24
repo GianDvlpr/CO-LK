@@ -140,6 +140,8 @@ El kardex es inmutable. Correcciones contables deben realizarse mediante movimie
 - La receta no contiene merma teórica ni porcentaje de merma.
 - La merma real se declara al ejecutar el destino. Una merma física recuperable puede ser ingrediente si existe como ítem `WASTE` en Almacén.
 - Editar no sobrescribe la versión activa: un borrador se corrige en su versión actual; una receta activa genera una versión nueva que se publica al activarla.
+- Un ingrediente desactivado después de guardar la receta se conserva en su versión; solo los ingredientes nuevos deben estar activos.
+- Agregar una versión por edición o importación no cambia el estado de la receta.
 - Una receta archivada deja de ofrecerse a Producción y Almacén y puede reactivarse; solo se elimina si nunca se usó en órdenes de producción o transformaciones.
 - La receta se descarga como PDF A5 apaisado generado por el servidor con su última versión, ingredientes y notas.
 

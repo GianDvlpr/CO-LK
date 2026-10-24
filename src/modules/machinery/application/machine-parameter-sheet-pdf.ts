@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { sanitizeWinAnsi } from "@/lib/pdf/winansi";
 
 const A4_PORTRAIT: [number, number] = [595.28, 841.89];
 const navy = rgb(25 / 255, 56 / 255, 76 / 255);
@@ -29,8 +30,9 @@ export type MachineParameterSheetDocumentData = {
 };
 
 function fitText(font: PDFFont, text: string, size: number, maxWidth: number) {
-  if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
-  let value = text;
+  const safe = sanitizeWinAnsi(text);
+  if (font.widthOfTextAtSize(safe, size) <= maxWidth) return safe;
+  let value = safe;
   while (value.length > 1 && font.widthOfTextAtSize(`${value}…`, size) > maxWidth) value = value.slice(0, -1);
   return `${value}…`;
 }
@@ -38,7 +40,7 @@ function fitText(font: PDFFont, text: string, size: number, maxWidth: number) {
 function wrapText(font: PDFFont, text: string, size: number, maxWidth: number) {
   const lines: string[] = [];
   let current = "";
-  for (const word of text.split(/\s+/).filter(Boolean)) {
+  for (const word of sanitizeWinAnsi(text).split(/\s+/).filter(Boolean)) {
     const probe = current ? `${current} ${word}` : word;
     if (font.widthOfTextAtSize(probe, size) <= maxWidth) current = probe;
     else { if (current) lines.push(current); current = word; }

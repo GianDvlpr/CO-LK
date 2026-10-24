@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { sanitizeWinAnsi } from "@/lib/pdf/winansi";
 import {
   componentNames, componentRows, formatDate, productionTurns, programEntries, salesOrderReferences, skuPattern,
   type ProductionOrderDocumentData,
@@ -12,8 +13,9 @@ const white = rgb(1, 1, 1);
 const grid = rgb(113 / 255, 135 / 255, 149 / 255);
 
 function fitText(font: PDFFont, text: string, size: number, maxWidth: number) {
-  if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
-  let value = text;
+  const safe = sanitizeWinAnsi(text);
+  if (font.widthOfTextAtSize(safe, size) <= maxWidth) return safe;
+  let value = safe;
   while (value.length > 1 && font.widthOfTextAtSize(`${value}…`, size) > maxWidth) value = value.slice(0, -1);
   return `${value}…`;
 }

@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { sanitizeWinAnsi } from "@/lib/pdf/winansi";
 
 const A5_LANDSCAPE: [number, number] = [595.28, 419.53];
 const navy = rgb(23 / 255, 56 / 255, 77 / 255);
@@ -36,8 +37,9 @@ export type PickPackDocumentData = {
 const date = new Intl.DateTimeFormat("es-PE", { dateStyle: "short" });
 
 function fitText(font: PDFFont, text: string, size: number, maxWidth: number) {
-  if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
-  let value = text;
+  const safe = sanitizeWinAnsi(text);
+  if (font.widthOfTextAtSize(safe, size) <= maxWidth) return safe;
+  let value = safe;
   while (value.length > 1 && font.widthOfTextAtSize(`${value}…`, size) > maxWidth) value = value.slice(0, -1);
   return `${value}…`;
 }

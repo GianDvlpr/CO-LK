@@ -19,6 +19,7 @@ const updateSchema = z.object({
 function known(error: unknown) {
   if (error instanceof AuthError) return apiError(error.code, error.message, error.status);
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return apiError("RECIPE_DUPLICATE", "Una materia prima está repetida en la receta.", 409);
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") return apiError("RECIPE_IN_USE", "La receta ya se usó en órdenes de producción o transformaciones; archívala en lugar de eliminarla.", 409);
   return null;
 }
 
@@ -59,8 +60,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
       if (input.ingredients) {
         const itemIds = input.ingredients.map((ingredient) => ingredient.itemId);
-        const items = await tx.inventoryItem.findMany({ where: { id: { in: itemIds }, companyId: user.companyId, active: true, type: { in: ["RAW_MATERIAL", "INTERMEDIATE", "WASTE"] } }, select: { id: true } });
-        if (items.length !== itemIds.length) throw new Error("RECIPE_INVALID_REFERENCE");
+        const previousIds = new Set(latest.ingredients.map((ingredient) => ingredient.itemId));
+        const newItemIds = itemIds.filter((itemId) => !previousIds.has(itemId));
+        if (newItemIds.length) {
+          const items = await tx.inventoryItem.findMany({ where: { id: { in: newItemIds }, companyId: user.companyId, active: true, type: { in: ["RAW_MATERIAL", "INTERMEDIATE", "WASTE"] } }, select: { id: true } });
+          if (items.length !== newItemIds.length) throw new Error("RECIPE_INVALID_REFERENCE");
+        }
         if (recipe.outputItemId) {
           const others = await tx.recipe.findMany({ where: { companyId: user.companyId, outputItemId: { not: null }, id: { not: recipe.id } }, select: { outputItemId: true, versions: { orderBy: { version: "desc" }, take: 1, select: { ingredients: { select: { itemId: true } } } } } });
           const edges = others.flatMap((other) => other.outputItemId ? [{ outputItemId: other.outputItemId, ingredientItemIds: (other.versions[0]?.ingredients ?? []).map((ingredient) => ingredient.itemId) }] : []);
@@ -101,18 +106,22 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   try {
     const user = await requirePermission("recipes.archive");
     const { id } = await context.params;
-    const recipe = await prisma.recipe.findFirst({ where: { id, companyId: user.companyId }, select: { id: true, code: true, name: true } });
-    if (!recipe) return apiError("RECIPE_NOT_FOUND", "La receta no existe.", 404);
-    const [productionReferences, transformationReferences] = await prisma.$transaction([
-      prisma.productionOrder.count({ where: { companyId: user.companyId, OR: [{ recipeVersion: { recipeId: id } }, { secondaryRecipeVersion: { recipeId: id } }] } }),
-      prisma.inventoryTransformation.count({ where: { companyId: user.companyId, recipeVersion: { recipeId: id } } }),
-    ]);
-    if (productionReferences + transformationReferences > 0) return apiError("RECIPE_IN_USE", "La receta ya se usó en órdenes de producción o transformaciones; archívala en lugar de eliminarla.", 409);
-    await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM recipes WHERE id = ${id}::uuid FOR UPDATE`;
+      const recipe = await tx.recipe.findFirst({ where: { id, companyId: user.companyId }, select: { id: true, code: true, name: true } });
+      if (!recipe) return "missing" as const;
+      const [productionReferences, transformationReferences] = await Promise.all([
+        tx.productionOrder.count({ where: { companyId: user.companyId, OR: [{ recipeVersion: { recipeId: id } }, { secondaryRecipeVersion: { recipeId: id } }] } }),
+        tx.inventoryTransformation.count({ where: { companyId: user.companyId, recipeVersion: { recipeId: id } } }),
+      ]);
+      if (productionReferences + transformationReferences > 0) return "in-use" as const;
       await tx.recipe.delete({ where: { id } });
       await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module: "recipes", entity: "Recipe", entityId: id, action: "DELETE", beforeData: { code: recipe.code, name: recipe.name } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "recipe.deleted.v1", aggregateId: id, payload: { recipeId: id, code: recipe.code } } });
-    });
+      return "deleted" as const;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    if (result === "missing") return apiError("RECIPE_NOT_FOUND", "La receta no existe.", 404);
+    if (result === "in-use") return apiError("RECIPE_IN_USE", "La receta ya se usó en órdenes de producción o transformaciones; archívala en lugar de eliminarla.", 409);
     return apiSuccess({ id });
   } catch (error) {
     const response = known(error); if (response) return response; throw error;

@@ -49,6 +49,8 @@ Actualizado: 19/10/2026.
 - Edición de recetas: los borradores se corrigen en su versión actual y una receta activa genera una versión nueva que se publica al activarla, sin interrumpir la versión vigente.
 - Recetas archivables y reactivables; la eliminación solo procede cuando no tienen órdenes de producción ni transformaciones asociadas.
 - Formato PDF A5 apaisado descargable por receta con su última versión, ingredientes y notas.
+- Enviar a Producción y Almacén usa siempre la versión activa de la receta; los PDFs sanitizan caracteres fuera de WinAnsi para no fallar al descargarse.
+- La edición tolera ingredientes desactivados sin cambios y la importación de una nueva versión conserva el estado y el nombre de la receta.
 - Flujo operativo de Producción: crear orden, reservar materiales, iniciar consumiendo inventario y completar ingresando producto terminado.
 - Vista Kanban de Producción con tarjetas arrastrables, filtros por texto y máquina, columnas de estado y transiciones reales que respetan permisos, reservas, consumos y cierre con cantidad producida.
 - Consumo de materias primas con costo promedio congelado y asignación FIFO automática de lotes; el costo real consumido se transfiere al producto terminado.

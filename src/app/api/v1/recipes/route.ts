@@ -24,7 +24,7 @@ function knownError(error: unknown) {
 export async function GET() {
   try {
     const user = await requirePermission("recipes.read");
-    const items = await prisma.recipe.findMany({ where: { companyId: user.companyId }, orderBy: { updatedAt: "desc" }, include: { product: { select: { id: true, code: true, name: true } }, outputItem: { select: { id: true, code: true, name: true, type: true, lotTrackingMode: true, unit: { select: { symbol: true } } } }, versions: { orderBy: { version: "desc" }, include: { ingredients: { include: { item: { select: { id: true, code: true, name: true, unit: { select: { symbol: true } } } } } } } } } });
+    const items = await prisma.recipe.findMany({ where: { companyId: user.companyId }, orderBy: { updatedAt: "desc" }, include: { product: { select: { id: true, code: true, name: true } }, outputItem: { select: { id: true, code: true, name: true, type: true, lotTrackingMode: true, unit: { select: { symbol: true } } } }, versions: { orderBy: { version: "desc" }, include: { ingredients: { include: { item: { select: { id: true, code: true, name: true, active: true, unit: { select: { symbol: true } } } } } } } } } });
     return apiSuccess({ items });
   } catch (error) { const response = knownError(error); if (response) return response; throw error; }
 }

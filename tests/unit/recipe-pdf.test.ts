@@ -50,6 +50,17 @@ describe("receta A5", () => {
     expect(document.getPageCount()).toBeGreaterThan(1);
   });
 
+  it("tolera caracteres fuera de WinAnsi en textos libres", async () => {
+    const pdf = await buildRecipePdf({
+      ...recipe,
+      name: "Suela ≥ 45 ✓ 中文",
+      versions: [{ ...recipe.versions[0], notes: "Observación ✓ → revisar" }],
+    });
+    expect(new TextDecoder().decode(pdf.slice(0, 4))).toBe("%PDF");
+    const document = await PDFDocument.load(pdf);
+    expect(document.getPageCount()).toBe(1);
+  });
+
   it("genera una receta de almacén sin producto final", async () => {
     const inventoryRecipe: RecipeDocumentData = {
       ...recipe,
