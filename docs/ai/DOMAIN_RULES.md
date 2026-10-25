@@ -1,6 +1,6 @@
 # Reglas vigentes del negocio
 
-Actualizado: 24/10/2026.
+Actualizado: 25/10/2026.
 
 Este documento resume el comportamiento que no debe cambiarse accidentalmente. Ante duda, confirmar la implementación en el esquema, los servicios y las pruebas.
 
@@ -248,6 +248,7 @@ PENDING → PICKING → PACKING → READY → DISPATCHED
 - Las imágenes se almacenan en Cloudinary y su pertenencia a la pizarra se valida en servidor.
 - Cada guardado incrementa la revisión. Si otra persona guardó primero, el servidor devuelve conflicto y obliga a recargar para no sobrescribir cambios silenciosamente.
 - Las modificaciones y la gestión de imágenes quedan registradas en Auditoría; Pusher solo comunica la actualización y PostgreSQL conserva el documento real.
+- La exportación PNG se genera en el navegador con todos los elementos del documento, independientemente de la zona visible y del nivel de zoom, y registra la descarga en Auditoría.
 
 ## 13. Excel
 

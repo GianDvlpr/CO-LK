@@ -2438,12 +2438,34 @@ a {
   min-height: 520px;
   overflow: hidden;
   background: color-mix(in srgb, var(--canvas) 74%, var(--surface));
+  --xy-background-color: color-mix(in srgb, var(--canvas) 74%, var(--surface));
+  --xy-background-pattern-color: color-mix(in srgb, var(--muted) 42%, transparent);
+  --xy-minimap-background-color: var(--surface);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--canvas) 70%, transparent);
+  --xy-minimap-mask-stroke-color: var(--line);
+  --xy-minimap-node-stroke-color: color-mix(in srgb, var(--ink) 28%, transparent);
+  --xy-controls-button-background-color: var(--surface);
+  --xy-controls-button-background-color-hover: var(--brand-soft);
+  --xy-controls-button-color: var(--ink);
+  --xy-controls-button-color-hover: var(--brand-dark);
+  --xy-controls-button-border-color: var(--line);
+  --xy-controls-box-shadow: 0 4px 16px rgb(15 23 42 / 14%);
 }
 
 .whiteboard-surface.is-drawing { cursor: crosshair; }
 .whiteboard-surface .react-flow__attribution { display: none; }
 .whiteboard-surface .react-flow__node { border-radius: 10px; }
 .whiteboard-surface .react-flow__node-board { border: 0; background: transparent; }
+.whiteboard-surface .react-flow__controls,
+.whiteboard-surface .react-flow__minimap {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.whiteboard-surface .react-flow__controls-button { color: var(--ink); }
+.whiteboard-surface .react-flow__controls-button:hover { background: var(--brand-soft); color: var(--brand-dark); }
+.whiteboard-surface .react-flow__controls-button svg { fill: currentColor; }
 
 .whiteboard-node {
   width: 100%;

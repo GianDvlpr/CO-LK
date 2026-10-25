@@ -1,6 +1,6 @@
 # Estado de implementación
 
-Actualizado: 24/10/2026.
+Actualizado: 25/10/2026.
 
 ## Completado
 
@@ -66,7 +66,7 @@ Actualizado: 24/10/2026.
 - Formato descargable en PDF A5 apaisado generado por el servidor, sin firmas, con cabecera, detalle de productos, verificación, incidencias, paquetes y observaciones.
 - Despacho valorizado de las cantidades realmente empacadas, liberación de diferencias reservadas, actualización del kardex, auditoría y notificaciones Pusher.
 - Calendario operativo integrado con pedidos, producción, Pick & Pack, mantenimientos y eventos manuales; incluye agenda móvil, tablero arrastrable de tareas, filtros, vencimientos y recordatorios Pusher.
-- Pizarra compartida por empresa con notas adhesivas, dibujo libre compatible con mouse y tacto, imágenes cargadas, arrastradas o pegadas desde el portapapeles, movimiento, redimensionado, zoom, guardado persistente, auditoría y control de revisión concurrente.
+- Pizarra compartida por empresa con notas adhesivas, dibujo libre compatible con mouse y tacto, imágenes cargadas, arrastradas o pegadas desde el portapapeles, movimiento, redimensionado, zoom, controles adaptados al tema, exportación PNG completa, guardado persistente, auditoría y control de revisión concurrente.
 - Maquinaria rediseñada con indicadores compactos, búsqueda, filtros por tipo/estado, vista de tarjetas o tabla, paginación, edición, historial de mantenimiento y fichas versionadas de parámetros por estación, canal y zona térmica, descargables en PDF A4.
 - Módulo operativo de Usuarios con alta, asignación de múltiples roles, contraseña temporal mínima de 6 caracteres y cambio obligatorio en el primer ingreso.
 - Activación y desactivación segura de usuarios; al desactivar una cuenta se revocan de inmediato todas sus sesiones y se registra la operación en auditoría.

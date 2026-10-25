@@ -3,7 +3,8 @@
 import {
   ClearOutlined,
   DeleteOutlined,
-  EditOutlined,
+  DownloadOutlined,
+  DragOutlined,
   HighlightOutlined,
   PictureOutlined,
   ReloadOutlined,
@@ -28,7 +29,9 @@ import Image from "next/image";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
+import { downloadWhiteboardPng } from "@/components/whiteboard/whiteboard-export";
 import type { WhiteboardContent, WhiteboardElement } from "@/modules/whiteboard/domain/whiteboard-schema";
+import { useUiStore } from "@/stores/ui-store";
 
 type WhiteboardAsset = { id: string; secureUrl: string; fileName: string; mimeType: string; sizeBytes: number; width?: number | null; height?: number | null };
 type WhiteboardResponse = { id: string | null; revision: number; content: WhiteboardContent; assets: WhiteboardAsset[]; updatedAt: string | null; updatedBy: { name: string; username: string } | null };
@@ -97,11 +100,13 @@ const nodeTypes = { board: BoardNodeView };
 
 export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canManage: boolean; cloudinaryConfigured: boolean }) {
   const queryClient = useQueryClient();
+  const themeMode = useUiStore((state) => state.themeMode);
   const query = useQuery({ queryKey: ["whiteboard"], queryFn: () => api<WhiteboardResponse>("/api/v1/whiteboard") });
   const [elements, setElements] = useState<WhiteboardElement[]>([]);
   const [assets, setAssets] = useState<WhiteboardAsset[]>([]);
   const [revision, setRevision] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [tool, setTool] = useState<Tool>("select");
   const [drawColor, setDrawColor] = useState("#1f2937");
   const [noteColor, setNoteColor] = useState("#fff3a3");
@@ -317,6 +322,19 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
     },
   });
 
+  const exportBoard = async () => {
+    setExporting(true);
+    try {
+      await downloadWhiteboardPng(elementsRef.current, assetsRef.current);
+      await api("/api/v1/whiteboard/export", { method: "POST" }).catch(() => undefined);
+      toast.success("Pizarra exportada como imagen PNG.");
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const lastUpdated = query.data?.updatedAt ? `Actualizada ${dayjs(query.data.updatedAt).format("DD/MM/YYYY HH:mm")} por ${query.data.updatedBy?.name ?? "el equipo"}` : "Pizarra nueva";
 
   return <div className="whiteboard-workspace">
@@ -334,7 +352,9 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
     <section className="whiteboard-panel">
       <div className="whiteboard-toolbar" role="toolbar" aria-label="Herramientas de pizarra">
         <Space wrap size={8}>
-          <Button type={tool === "select" ? "primary" : "default"} icon={<EditOutlined />} disabled={!canManage} onClick={() => setTool("select")}>Seleccionar</Button>
+          <Tooltip title="Seleccionar, mover y navegar por la pizarra">
+            <Button shape="circle" type={tool === "select" ? "primary" : "default"} icon={<DragOutlined />} disabled={!canManage} aria-label="Seleccionar, mover y navegar" onClick={() => setTool("select")} />
+          </Tooltip>
           <Button type={tool === "draw" ? "primary" : "default"} icon={<HighlightOutlined />} disabled={!canManage} onClick={() => setTool("draw")}>Dibujar</Button>
           <Button icon={<span className="whiteboard-note-icon" style={{ background: noteColor }} />} disabled={!canManage} onClick={addNote}>Nueva nota</Button>
           <Upload accept="image/jpeg,image/png,image/webp" showUploadList={false} disabled={!canManage || !cloudinaryConfigured || saving} beforeUpload={(file) => { void uploadImage(file as File); return Upload.LIST_IGNORE; }}>
@@ -345,6 +365,7 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
           <label className="whiteboard-color-control">Nota <input type="color" value={noteColor} disabled={!canManage} onChange={(event) => setNoteColor(event.target.value)} /></label>
         </Space>
         <Space wrap size={8}>
+          <Button icon={<DownloadOutlined />} loading={exporting} disabled={!elements.length} onClick={() => void exportBoard()}>Exportar PNG</Button>
           {selectedId && canManage ? <Button danger icon={<DeleteOutlined />} onClick={() => removeElement(selectedId)}>Eliminar selección</Button> : null}
           {elements.length && canManage ? <Button danger icon={<ClearOutlined />} onClick={clearBoard}>Limpiar</Button> : null}
         </Space>
@@ -365,6 +386,7 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
         {query.isError ? <div className="whiteboard-state"><Alert type="error" showIcon message="No se pudo cargar la pizarra" action={<Button onClick={() => query.refetch()}>Reintentar</Button>} /></div> : query.isLoading ? <div className="whiteboard-state">Cargando pizarra…</div> : !elements.length && !canManage ? <div className="whiteboard-state"><Empty description="La pizarra todavía está vacía" /></div> : null}
         <BoardActionsContext.Provider value={actions}>
           <ReactFlow<BoardNode, Edge>
+            colorMode={themeMode}
             nodes={nodes}
             edges={[]}
             nodeTypes={nodeTypes}
