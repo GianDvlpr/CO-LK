@@ -1,6 +1,6 @@
 # Contexto técnico para continuar LK INNOVACION
 
-Actualizado: 19/10/2026.
+Actualizado: 24/10/2026.
 
 ## 1. Qué es el sistema
 
@@ -77,6 +77,7 @@ La separación modular todavía es pragmática: varios módulos tienen Route Han
 | Pedidos | `/dashboard/orders` | `/api/v1/orders` |
 | Pick & Pack | `/dashboard/pick-pack` | `/api/v1/pick-pack` |
 | Calendario | `/dashboard/calendar` | `/api/v1/calendar` |
+| Pizarra | `/dashboard/whiteboard` | `/api/v1/whiteboard` |
 | Catálogos | `/dashboard/catalogs` | `/api/v1/catalogs` |
 | Usuarios | `/dashboard/users` | `/api/v1/users` |
 | Roles | `/dashboard/roles` | `/api/v1/roles` |
@@ -205,7 +206,7 @@ El sistema ya implementa:
 - Excel y PDF de la orden de producción;
 - pedidos, Pick & Pack, formato imprimible y despacho;
 - maquinaria y mantenimientos;
-- analítica, calendario, Kanban y notificaciones;
+- analítica, calendario, Kanban, pizarra compartida y notificaciones;
 - plantillas, reportes e importaciones Excel para Compras, Almacén, Recetas, Productos y Pedidos.
 
 Para el detalle de reglas, consultar `docs/ai/DOMAIN_RULES.md`.

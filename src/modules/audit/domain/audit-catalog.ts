@@ -9,6 +9,7 @@ export const auditModuleLabels: Record<string, string> = {
   orders: "Pedidos",
   "pick-pack": "Pick & Pack",
   calendar: "Calendario",
+  whiteboard: "Pizarra",
   catalogs: "Catálogos",
   users: "Usuarios",
   roles: "Roles y permisos",

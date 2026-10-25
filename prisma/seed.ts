@@ -21,6 +21,7 @@ const permissionCodes = [
   "orders.read", "orders.create", "orders.update", "orders.confirm", "orders.link_production", "orders.dispatch", "orders.deliver", "orders.cancel", "orders.export",
   "pick_pack.read", "pick_pack.create", "pick_pack.update", "pick_pack.ready", "pick_pack.print",
   "calendar.read", "calendar.create", "calendar.update", "calendar.delete",
+  "whiteboard.read", "whiteboard.manage",
   "imports.read", "imports.preview", "imports.confirm",
 ] as const;
 

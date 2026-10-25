@@ -7,6 +7,7 @@ const domainPermissions = {
   orders: "orders.read",
   pick_pack: "pick_pack.read",
   calendar: "calendar.read",
+  whiteboard: "whiteboard.read",
   imports: "imports.read",
   catalogs: "catalogs.read",
   users: "users.read",

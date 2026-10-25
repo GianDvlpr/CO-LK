@@ -89,6 +89,14 @@ export const appModules = [
     phase: 5,
   },
   {
+    key: "whiteboard",
+    label: "Pizarra",
+    href: "/dashboard/whiteboard",
+    description: "Notas, dibujos, imágenes y capturas compartidas por el equipo.",
+    permission: "whiteboard.read",
+    phase: 5,
+  },
+  {
     key: "catalogs",
     label: "Catálogos",
     href: "/dashboard/catalogs",

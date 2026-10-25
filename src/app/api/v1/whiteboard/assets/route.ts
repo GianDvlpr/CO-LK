@@ -1,0 +1,52 @@
+import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/database/prisma";
+import { destroyWhiteboardImage, uploadWhiteboardImage } from "@/lib/cloudinary/server";
+import { hasValidImageSignature, isAllowedProductImageMimeType, PRODUCT_IMAGE_MAX_BYTES } from "@/lib/cloudinary/image-validation";
+import { apiError, apiSuccess } from "@/lib/http/api-response";
+import { AuthError } from "@/modules/auth/application/auth-errors";
+import { requireSameOrigin } from "@/modules/auth/application/request-security";
+import { requirePermission } from "@/modules/auth/application/session-service";
+import { emptyWhiteboardContent } from "@/modules/whiteboard/domain/whiteboard-schema";
+
+function known(error: unknown) {
+  if (error instanceof AuthError) return apiError(error.code, error.message, error.status);
+  if (error instanceof Error && error.message === "CLOUDINARY_NOT_CONFIGURED") return apiError("CLOUDINARY_NOT_CONFIGURED", "Cloudinary todavía no está configurado.", 503);
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return apiError("WHITEBOARD_ASSET_CONFLICT", "No se pudo registrar la imagen. Intenta nuevamente.", 409);
+  return null;
+}
+
+export async function POST(request: Request) {
+  try { requireSameOrigin(request); } catch (error) { const response = known(error); if (response) return response; throw error; }
+  try {
+    const user = await requirePermission("whiteboard.manage");
+    const form = await request.formData();
+    const file = form.get("file");
+    if (!(file instanceof File)) return apiError("FILE_REQUIRED", "Selecciona una imagen.", 400);
+    if (!isAllowedProductImageMimeType(file.type)) return apiError("INVALID_IMAGE_TYPE", "La imagen debe ser JPEG, PNG o WebP.", 400);
+    if (file.size < 1 || file.size > PRODUCT_IMAGE_MAX_BYTES) return apiError("INVALID_IMAGE_SIZE", "La imagen no puede superar 5 MB.", 400);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!hasValidImageSignature(bytes, file.type)) return apiError("INVALID_IMAGE_CONTENT", "El archivo no contiene una imagen válida.", 400);
+    const upload = await uploadWhiteboardImage({ bytes, mimeType: file.type, companyId: user.companyId, publicId: randomUUID() });
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const board = await tx.whiteboard.upsert({
+          where: { companyId: user.companyId },
+          update: {},
+          create: { companyId: user.companyId, updatedById: user.id, content: emptyWhiteboardContent() as Prisma.InputJsonValue },
+        });
+        const asset = await tx.whiteboardAsset.create({ data: { whiteboardId: board.id, createdById: user.id, publicId: upload.public_id, secureUrl: upload.secure_url, fileName: file.name.slice(0, 255) || "captura", mimeType: file.type, sizeBytes: file.size, width: upload.width ?? null, height: upload.height ?? null } });
+        await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module: "whiteboard", entity: "WhiteboardAsset", entityId: asset.id, action: "CREATE", afterData: { fileName: asset.fileName, sizeBytes: asset.sizeBytes } } });
+        return { asset: { id: asset.id, secureUrl: asset.secureUrl, fileName: asset.fileName, mimeType: asset.mimeType, sizeBytes: asset.sizeBytes, width: asset.width, height: asset.height }, revision: board.revision };
+      });
+      return apiSuccess(result, 201);
+    } catch (error) {
+      await destroyWhiteboardImage(upload.public_id).catch(() => undefined);
+      throw error;
+    }
+  } catch (error) {
+    const response = known(error);
+    if (response) return response;
+    throw error;
+  }
+}

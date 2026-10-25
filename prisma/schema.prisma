@@ -199,6 +199,7 @@ model Company {
   machines                 Machine[]
   pickPackOrders           PickPackOrder[]
   calendarEvents           CalendarEvent[]
+  whiteboard               Whiteboard?
 
   @@unique([taxId])
   @@map("companies")
@@ -229,6 +230,8 @@ model User {
   inventoryItemImages    InventoryItemImage[]
   calendarEvents         CalendarEvent[]
   machineParameterSheets MachineParameterSheet[]
+  updatedWhiteboards     Whiteboard[]      @relation("WhiteboardUpdatedBy")
+  whiteboardAssets       WhiteboardAsset[]
 
   @@unique([companyId, email])
   @@index([companyId, status])
@@ -1295,6 +1298,40 @@ model CalendarEvent {
   @@index([companyId, startAt])
   @@index([companyId, status, startAt])
   @@map("calendar_events")
+}
+
+model Whiteboard {
+  id          String            @id @default(uuid()) @db.Uuid
+  companyId   String            @unique @map("company_id") @db.Uuid
+  updatedById String            @map("updated_by_id") @db.Uuid
+  content     Json
+  revision    Int               @default(1)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  company     Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy   User              @relation("WhiteboardUpdatedBy", fields: [updatedById], references: [id])
+  assets      WhiteboardAsset[]
+
+  @@map("whiteboards")
+}
+
+model WhiteboardAsset {
+  id          String     @id @default(uuid()) @db.Uuid
+  whiteboardId String     @map("whiteboard_id") @db.Uuid
+  createdById String     @map("created_by_id") @db.Uuid
+  publicId    String     @unique @map("public_id")
+  secureUrl   String     @map("secure_url")
+  fileName    String     @map("file_name")
+  mimeType    String     @map("mime_type")
+  sizeBytes   Int        @map("size_bytes")
+  width       Int?
+  height      Int?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  whiteboard  Whiteboard @relation(fields: [whiteboardId], references: [id], onDelete: Cascade)
+  createdBy   User       @relation(fields: [createdById], references: [id])
+
+  @@index([whiteboardId, createdAt])
+  @@map("whiteboard_assets")
 }
 
 model ImportJob {

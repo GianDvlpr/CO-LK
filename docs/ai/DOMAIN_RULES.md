@@ -1,6 +1,6 @@
 # Reglas vigentes del negocio
 
-Actualizado: 19/10/2026.
+Actualizado: 24/10/2026.
 
 Este documento resume el comportamiento que no debe cambiarse accidentalmente. Ante duda, confirmar la implementación en el esquema, los servicios y las pruebas.
 
@@ -240,7 +240,16 @@ PENDING → PICKING → PACKING → READY → DISPATCHED
 - El tablero de Producción permite mover tarjetas entre Pendiente, En curso y Finalizado.
 - En móvil debe existir una alternativa táctil funcional; no depender solo del drag-and-drop del mouse.
 
-## 12. Excel
+## 12. Pizarra compartida
+
+- Existe una pizarra persistente por empresa; nunca se mezclan elementos ni imágenes entre empresas.
+- `whiteboard.read` permite verla y `whiteboard.manage` permite agregar, mover, redimensionar o eliminar elementos.
+- Admite notas, dibujo libre e imágenes JPEG, PNG o WebP de hasta 5 MB mediante archivo, arrastre o pegado desde el portapapeles.
+- Las imágenes se almacenan en Cloudinary y su pertenencia a la pizarra se valida en servidor.
+- Cada guardado incrementa la revisión. Si otra persona guardó primero, el servidor devuelve conflicto y obliga a recargar para no sobrescribir cambios silenciosamente.
+- Las modificaciones y la gestión de imágenes quedan registradas en Auditoría; Pusher solo comunica la actualización y PostgreSQL conserva el documento real.
+
+## 13. Excel
 
 Módulos con plantilla, importación y reporte: Compras, Almacén, Recetas, Productos y Pedidos.
 
