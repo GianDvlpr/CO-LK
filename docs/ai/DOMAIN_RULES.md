@@ -142,6 +142,7 @@ El kardex es inmutable. Correcciones contables deben realizarse mediante movimie
 - SKU: `MATRIZ-C1[-C2]-TALLA`, por ejemplo `I0034-NEG-39`.
 - Cada variante crea y enlaza su ítem `FINISHED_PRODUCT` con stock cero.
 - Los productos terminados se crean desde Productos, no manualmente desde Almacén.
+- Un ítem `INTERMEDIATE` que también se vende puede publicarse como producto. La variante comercial debe apuntar al mismo `InventoryItem`: no se cambia su tipo, unidad ni código de almacén y no se duplica el stock.
 
 ## 7. Recetas
 
@@ -163,6 +164,7 @@ El kardex es inmutable. Correcciones contables deben realizarse mediante movimie
 - La receta se descarga como PDF A5 apaisado generado por el servidor con su última versión, ingredientes y notas.
 - Cada versión registra un costo calculado no editable: suma de la cantidad estándar por el costo unitario de cada ingrediente (costo promedio del almacén o, si no hay stock, costo de referencia con IGV).
 - El costo manual es opcional, se guarda por versión y se muestra junto al calculado en la tabla y el PDF.
+- Estructura de costos agrega por versión cuatro importes directos por lote: mano de obra, energía, agua y maquinaria. Son tarifas totales, no cantidades de horas, kWh o volumen. El costo unitario es `(materiales + tarifas) / rendimiento`.
 - Los formularios que requieren datos maestros permiten crearlos en el momento (ítem de almacén, producto, almacén, proveedor, cliente, moneda, unidad o máquina) respetando los permisos del módulo correspondiente.
 
 ## 8. Producción

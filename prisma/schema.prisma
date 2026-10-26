@@ -186,6 +186,7 @@ model Company {
   sizes                    Size[]
   colors                   Color[]
   recipes                  Recipe[]
+  productCostStructures    ProductCostStructure[]
   productionOrders         ProductionOrder[]
   customers                Customer[]
   salesOrders              SalesOrder[]
@@ -232,6 +233,7 @@ model User {
   machineParameterSheets MachineParameterSheet[]
   updatedWhiteboards     Whiteboard[]      @relation("WhiteboardUpdatedBy")
   whiteboardAssets       WhiteboardAsset[]
+  productCostStructures  ProductCostStructure[]
 
   @@unique([companyId, email])
   @@index([companyId, status])
@@ -940,10 +942,31 @@ model RecipeVersion {
   primaryProductionOrders   ProductionOrder[]         @relation("PrimaryProductionRecipe")
   secondaryProductionOrders ProductionOrder[]         @relation("SecondaryProductionRecipe")
   inventoryTransformations  InventoryTransformation[]
+  costStructure             ProductCostStructure?
 
   @@unique([recipeId, version])
   @@index([recipeId, isActive])
   @@map("recipe_versions")
+}
+
+model ProductCostStructure {
+  id               String        @id @default(uuid()) @db.Uuid
+  companyId        String        @map("company_id") @db.Uuid
+  recipeVersionId  String        @unique @map("recipe_version_id") @db.Uuid
+  laborTariff      Decimal       @default(0) @map("labor_tariff") @db.Decimal(18, 6)
+  energyTariff     Decimal       @default(0) @map("energy_tariff") @db.Decimal(18, 6)
+  waterTariff      Decimal       @default(0) @map("water_tariff") @db.Decimal(18, 6)
+  machineryCost    Decimal       @default(0) @map("machinery_cost") @db.Decimal(18, 6)
+  notes            String?
+  createdById      String        @map("created_by_id") @db.Uuid
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  company          Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  recipeVersion    RecipeVersion @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
+  createdBy        User          @relation(fields: [createdById], references: [id])
+
+  @@index([companyId, updatedAt])
+  @@map("product_cost_structures")
 }
 
 model RecipeIngredient {

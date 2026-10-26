@@ -71,6 +71,7 @@ La separación modular todavía es pragmática: varios módulos tienen Route Han
 | Compras | `/dashboard/purchases` | `/api/v1/purchases` |
 | Almacén / Kardex | `/dashboard/inventory` | `/api/v1/inventory` |
 | Recetas | `/dashboard/recipes` | `/api/v1/recipes` |
+| Estructura de costos | `/dashboard/costs` | `/api/v1/costs` |
 | Producción | `/dashboard/production` | `/api/v1/production` |
 | Maquinaria | `/dashboard/machinery` | `/api/v1/machinery` |
 | Productos | `/dashboard/products` | `/api/v1/products` |
@@ -202,6 +203,7 @@ El sistema ya implementa:
 - almacén, stock inicial controlado, kardex, lotes y mínimos;
 - productos con matriz, tallas, hasta dos colores, SKU e imágenes;
 - recetas versionadas con rendimiento manual y cantidades estándar;
+- estructura de costos por receta con materiales, tarifas directas y costo unitario;
 - producción por pedido, talla, color, formulaciones C1/C2, máquina, turnos, componentes, reserva, consumo, merma real al cierre y entrada terminada;
 - Excel y PDF de la orden de producción;
 - pedidos, Pick & Pack, formato imprimible y despacho;

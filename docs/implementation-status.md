@@ -45,6 +45,7 @@ Actualizado: 26/10/2026.
 - Permiso `catalogs.manage` separado de la lectura y asignado a los roles administrativos iniciales.
 - Módulo operativo de Productos con modelos de calzado, tallas, colores y variantes SKU.
 - Cada variante de producto crea y enlaza transaccionalmente su ítem terminado de Almacén; el catálogo muestra stock consolidado y cantidad de recetas vinculadas.
+- Un insumo elaborado puede publicarse como producto vendible reutilizando su mismo ítem, unidad y stock; no se crea una existencia paralela.
 - Gestión operativa de imágenes de producto integrada con Cloudinary: carga JPEG/PNG/WebP de hasta 5 MB, validación de firma real, límite de 8 imágenes, portada automática y eliminación auditada.
 - Las imágenes conservan en PostgreSQL el identificador público, URL segura, archivo, MIME, tamaño, autor, orden y fecha; carga y eliminación requieren `products.image_manage` y aislamiento por empresa.
 - Módulo operativo de Recetas como fuente única de formulaciones, con borradores, versiones, rendimiento, ingredientes y destino Producción o Almacén.
@@ -54,6 +55,7 @@ Actualizado: 26/10/2026.
 - Recetas archivables y reactivables; la eliminación solo procede cuando no tienen órdenes de producción ni transformaciones asociadas.
 - Formato PDF A5 apaisado descargable por receta con su última versión, ingredientes y notas.
 - Costo por versión de receta: calculado automáticamente desde los materiales (promedio de almacén o referencia con IGV) y costo manual opcional, visibles en tabla, tabla expandible y PDF; Excel admite `costo_manual`.
+- Módulo Estructura de costos: suma al costo material cuatro tarifas directas por lote (mano de obra, energía, agua y maquinaria) y calcula el costo por unidad según el rendimiento de la receta.
 - Los formularios permiten crear al vuelo el dato maestro faltante (ítem de almacén, producto, almacén, proveedor, cliente, moneda, unidad o máquina) y lo dejan seleccionado.
 - Enviar a Producción y Almacén usa siempre la versión activa de la receta; los PDFs sanitizan caracteres fuera de WinAnsi para no fallar al descargarse.
 - La edición tolera ingredientes desactivados sin cambios y la importación de una nueva versión conserva el estado y el nombre de la receta.

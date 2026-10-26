@@ -1,6 +1,6 @@
 "use client";
 
-import { AppstoreOutlined, DeleteOutlined, EditOutlined, HistoryOutlined, MoreOutlined, PlusOutlined, ReloadOutlined, TableOutlined, UploadOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, DeleteOutlined, EditOutlined, HistoryOutlined, MoreOutlined, PlusOutlined, ReloadOutlined, ShopOutlined, TableOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, AutoComplete, Avatar, Button, Card, Checkbox, DatePicker, Dropdown, Empty, Form, Image, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Space, Tag, Tooltip, Upload } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -21,10 +21,11 @@ import { toast } from "sonner";
 
 type Balance = { warehouseId: string; onHandQuantity: string; reservedQuantity: string; averageUnitCost: string; inventoryValue: string };
 type ItemImage = { id: string; secureUrl: string; fileName: string; sortOrder: number };
-type Item = { id: string; code: string; abbreviation?: string; name: string; type: string; minimumStock: string; lotTrackingMode: string; active: boolean; supplierProductCode?: string | null; referenceNetPrice?: string | null; referenceTaxRate?: string | null; defaultPresentationType?: string | null; defaultPresentationContent?: string | null; defaultWarehouseId?: string | null; defaultWarehouse?: { code: string; name: string } | null; images: ItemImage[]; unit: { code: string; symbol: string }; supplier: { id: string; code: string; name: string } | null; currency: { id: string; code: string; name: string; symbol: string } | null; balances: Balance[] };
+type Item = { id: string; code: string; abbreviation?: string; name: string; type: string; minimumStock: string; lotTrackingMode: string; active: boolean; supplierProductCode?: string | null; referenceNetPrice?: string | null; referenceTaxRate?: string | null; defaultPresentationType?: string | null; defaultPresentationContent?: string | null; defaultWarehouseId?: string | null; defaultWarehouse?: { code: string; name: string } | null; productVariants: { id: string; sku: string; product: { id: string; code: string; name: string } }[]; images: ItemImage[]; unit: { code: string; symbol: string }; supplier: { id: string; code: string; name: string } | null; currency: { id: string; code: string; name: string; symbol: string } | null; balances: Balance[] };
 type Options = { units: { id: string; code: string; name: string; symbol: string }[]; warehouses: { id: string; code: string; name: string }[]; items: (Pick<Item, "id" | "code" | "name" | "lotTrackingMode" | "defaultWarehouseId"> & { unit: { symbol: string } })[]; suppliers: { id: string; code: string; name: string }[]; currencies: { id: string; code: string; name: string; symbol: string; isBase: boolean }[]; igvRate?: string };
 type ItemForm = { name: string; abbreviation?: string; type: "RAW_MATERIAL" | "INTERMEDIATE" | "WASTE" | "FINISHED_PRODUCT"; unitId: string; supplierId?: string | null; currencyId?: string | null; minimumStock: number; lotTrackingMode: "NONE" | "OPTIONAL" | "REQUIRED"; active?: boolean; supplierProductCode?: string | null; referenceNetPrice?: number | null; referenceTaxRate?: number | null; defaultPresentationType?: string | null; defaultPresentationContent?: number | null; defaultWarehouseId?: string | null };
 type OpeningForm = { referenceNumber: string; itemId: string; warehouseId: string; quantity: number; unitCost: number; lotCode?: string; occurredAt: Dayjs };
+type PublishProductForm = { matrixCode: string; productName: string; colorCode: string; colorName: string };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> { const response = await fetch(url, init); const payload = await response.json(); if (!response.ok) throw new Error(payload.error?.message ?? "No se pudo completar la operación."); return payload.data; }
 
@@ -39,10 +40,12 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock, canMa
   const [search, setSearch] = useState("");
   const [editingItem, setEditingItem] = useState<Item>();
   const [openingOpen, setOpeningOpen] = useState(false);
+  const [publishingItem, setPublishingItem] = useState<Item>();
   const [pendingImage, setPendingImage] = useState<File>();
   const [pendingPreview, setPendingPreview] = useState<string>();
   const [itemForm] = Form.useForm<ItemForm>();
   const [openingForm] = Form.useForm<OpeningForm>();
+  const [publishForm] = Form.useForm<PublishProductForm>();
   const inventory = useQuery({ queryKey: ["inventory"], queryFn: () => api<{ items: Item[] }>("/api/v1/inventory") });
   const options = useQuery({ queryKey: ["inventory-options"], queryFn: () => api<Options>("/api/v1/inventory/options") });
   const referenceNetPrice = Form.useWatch("referenceNetPrice", itemForm);
@@ -78,12 +81,13 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock, canMa
   const uploadItemImage = useMutation({ mutationFn: async (file: File) => { const body = new FormData(); body.append("file", file); return api<ItemImage>(`/api/v1/inventory/${editingItem!.id}/images`, { method: "POST", body }); }, onSuccess: async (image) => { setEditingItem((current) => current ? { ...current, images: [image] } : current); toast.success("Imagen cargada."); await queryClient.invalidateQueries({ queryKey: ["inventory"] }); }, onError: (error) => toast.error(error.message) });
   const deleteItemImage = useMutation({ mutationFn: (imageId: string) => api(`/api/v1/inventory/${editingItem!.id}/images/${imageId}`, { method: "DELETE" }), onSuccess: async (_data, imageId) => { setEditingItem((current) => current ? { ...current, images: current.images.filter((image) => image.id !== imageId) } : current); toast.success("Imagen eliminada."); await queryClient.invalidateQueries({ queryKey: ["inventory"] }); }, onError: (error) => toast.error(error.message) });
   const createOpening = useMutation({ mutationFn: (values: OpeningForm) => api("/api/v1/inventory/opening", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...values, occurredAt: values.occurredAt.format("YYYY-MM-DD") }) }), onSuccess: async () => { toast.success("Stock inicial contabilizado."); setOpeningOpen(false); openingForm.resetFields(); await queryClient.invalidateQueries({ queryKey: ["inventory"] }); }, onError: (error) => toast.error(error.message) });
+  const publishProduct = useMutation({ mutationFn: (values: PublishProductForm) => api(`/api/v1/inventory/${publishingItem?.id}/publish-product`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(values) }), onSuccess: async () => { toast.success("El insumo quedó disponible también como producto, sin duplicar el stock."); setPublishingItem(undefined); publishForm.resetFields(); await Promise.all([queryClient.invalidateQueries({ queryKey: ["inventory"] }), queryClient.invalidateQueries({ queryKey: ["products"] })]); }, onError: (error) => toast.error(error.message) });
 
   const columns: ColumnsType<Item> = [
     { title: "", width: 70, fixed: "left", render: (_, row) => row.images?.[0] ? <Avatar shape="square" size={44} src={row.images[0].secureUrl} alt={row.images[0].fileName} /> : <Avatar shape="square" size={44}>{row.code.slice(0, 2)}</Avatar> },
     { title: "Código", dataIndex: "code", width: 150, fixed: "left", render: (value) => <strong>{value}</strong> },
     { title: "Ítem", dataIndex: "name", width: 260, render: (value, row) => <>{value}{row.abbreviation ? <><br /><Tag>{row.abbreviation}</Tag></> : null}</> },
-    { title: "Tipo", dataIndex: "type", width: 150, render: (value) => {
+    { title: "Tipo", dataIndex: "type", width: 180, render: (value, row) => {
       const types: Record<string, { label: string; color: string }> = {
         RAW_MATERIAL: { label: "Materia prima", color: "blue" },
         INTERMEDIATE: { label: "Insumo elaborado", color: "cyan" },
@@ -91,7 +95,7 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock, canMa
         FINISHED_PRODUCT: { label: "Producto terminado", color: "purple" },
       };
       const type = types[value] ?? { label: value, color: "default" };
-      return <Tag color={type.color}>{type.label}</Tag>;
+      return <><Tag color={type.color}>{type.label}</Tag>{row.productVariants.length ? <><br /><Tag color="green">Vendible</Tag></> : null}</>;
     } },
     { title: "Proveedor", width: 220, render: (_, row) => row.supplier ? <>{row.supplier.name}<br /><Tag>{row.supplier.code}</Tag></> : <Tag>Sin asignar</Tag> },
     { title: "Código del proveedor", dataIndex: "supplierProductCode", width: 170, render: (value) => value || "—" },
@@ -108,7 +112,7 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock, canMa
     { title: "Stock mínimo", dataIndex: "minimumStock", width: 130, align: "right", render: (value) => new Decimal(value).toFixed(3) },
     { title: "Valor inventario", width: 150, align: "right", render: (_, row) => `S/ ${row.balances.reduce((sum, balance) => sum.add(balance.inventoryValue), new Decimal(0)).toFixed(2)}` },
     { title: "Lotes", dataIndex: "lotTrackingMode", width: 110, render: (value: Item["lotTrackingMode"]) => ({ NONE: "No", OPTIONAL: "Opcional", REQUIRED: "Obligatorio" } as Record<string, string>)[value] ?? value },
-    ...(canCreate ? [{ title: "Acciones", fixed: "right" as const, width: 100, render: (_: unknown, row: Item) => <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingItem(row); itemForm.setFieldsValue({ name: row.name, abbreviation: row.abbreviation, type: row.type as ItemForm["type"], unitId: options.data?.units.find((unit) => unit.code === row.unit.code)?.id, supplierId: row.supplier?.id, currencyId: row.currency?.id, minimumStock: Number(row.minimumStock), lotTrackingMode: row.lotTrackingMode as ItemForm["lotTrackingMode"], active: row.active, supplierProductCode: row.supplierProductCode ?? undefined, referenceNetPrice: row.referenceNetPrice ? Number(row.referenceNetPrice) : undefined, referenceTaxRate: row.referenceTaxRate != null ? Number(row.referenceTaxRate) : undefined, defaultPresentationType: row.defaultPresentationType ?? undefined, defaultPresentationContent: row.defaultPresentationContent ? Number(row.defaultPresentationContent) : undefined, defaultWarehouseId: row.defaultWarehouseId ?? undefined }); setItemOpen(true); }}>Editar</Button> }] : []),
+    ...((canCreate || permissions.includes("products.create")) ? [{ title: "Acciones", fixed: "right" as const, width: 210, render: (_: unknown, row: Item) => <Space>{canCreate ? <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingItem(row); itemForm.setFieldsValue({ name: row.name, abbreviation: row.abbreviation, type: row.type as ItemForm["type"], unitId: options.data?.units.find((unit) => unit.code === row.unit.code)?.id, supplierId: row.supplier?.id, currencyId: row.currency?.id, minimumStock: Number(row.minimumStock), lotTrackingMode: row.lotTrackingMode as ItemForm["lotTrackingMode"], active: row.active, supplierProductCode: row.supplierProductCode ?? undefined, referenceNetPrice: row.referenceNetPrice ? Number(row.referenceNetPrice) : undefined, referenceTaxRate: row.referenceTaxRate != null ? Number(row.referenceTaxRate) : undefined, defaultPresentationType: row.defaultPresentationType ?? undefined, defaultPresentationContent: row.defaultPresentationContent ? Number(row.defaultPresentationContent) : undefined, defaultWarehouseId: row.defaultWarehouseId ?? undefined }); setItemOpen(true); }}>Editar</Button> : null}{permissions.includes("products.create") && row.type === "INTERMEDIATE" && !row.productVariants.length ? <Button size="small" icon={<ShopOutlined />} onClick={() => { setPublishingItem(row); publishForm.setFieldsValue({ matrixCode: row.code, productName: row.name, colorCode: row.name.toUpperCase().includes("NEGRO") ? "NEG" : "EST", colorName: row.name.toUpperCase().includes("NEGRO") ? "Negro" : "Estándar" }); }}>Publicar</Button> : null}</Space> }] : []),
   ];
 
   return <>
@@ -139,6 +143,17 @@ export function InventoryWorkspace({ permissions, canCreate, canOpenStock, canMa
           {!cloudinaryConfigured ? <Alert type="info" showIcon message="Cloudinary no está configurado; no se pueden subir imágenes." /> : editingItem ? (editingItem.images[0] ? <Space align="start"><Image src={editingItem.images[0].secureUrl} alt={editingItem.images[0].fileName} width={120} height={120} style={{ objectFit: "cover", borderRadius: 8 }} /><Popconfirm title="¿Eliminar la imagen?" description="También se eliminará de Cloudinary." okText="Eliminar" cancelText="Cancelar" okButtonProps={{ danger: true, loading: deleteItemImage.isPending }} onConfirm={() => deleteItemImage.mutate(editingItem.images[0].id)}><Button danger icon={<DeleteOutlined />} loading={deleteItemImage.isPending}>Eliminar</Button></Popconfirm></Space> : <Upload accept="image/jpeg,image/png,image/webp" showUploadList={false} disabled={uploadItemImage.isPending} beforeUpload={(file) => { uploadItemImage.mutate(file as File); return Upload.LIST_IGNORE; }}><Button icon={<UploadOutlined />} loading={uploadItemImage.isPending}>Subir imagen</Button></Upload>) : (pendingImage ? <Space align="start"><Image src={pendingPreview} alt={pendingImage.name} width={120} height={120} style={{ objectFit: "cover", borderRadius: 8 }} /><Button danger onClick={clearPendingImage}>Quitar</Button></Space> : <Upload accept="image/jpeg,image/png,image/webp" showUploadList={false} beforeUpload={(file) => { choosePendingImage(file as File); return Upload.LIST_IGNORE; }}><Button icon={<UploadOutlined />}>Seleccionar imagen</Button></Upload>)}
         </Form.Item> : null}
         {editingItem ? <Form.Item name="active" valuePropName="checked"><Checkbox>Ítem activo</Checkbox></Form.Item> : null}
+      </Form>
+    </Modal>
+    <Modal className="compact-form-modal" title={`Publicar como producto · ${publishingItem?.code ?? ""}`} open={Boolean(publishingItem)} onCancel={() => setPublishingItem(undefined)} onOk={() => publishForm.submit()} okText="Publicar producto" confirmLoading={publishProduct.isPending} width={720} destroyOnHidden>
+      <Alert type="info" showIcon message="Se reutilizará la misma existencia" description={`El ítem seguirá siendo un insumo elaborado en ${publishingItem?.unit.symbol ?? "su unidad base"}. Los pedidos, despachos y recetas moverán el mismo stock; no se creará una copia.`} style={{ marginBottom: 16 }} />
+      <Form form={publishForm} layout="vertical" onFinish={(values) => publishProduct.mutate(values)}>
+        <div className="modal-form-grid modal-form-grid-2">
+          <Form.Item name="matrixCode" label="Código interno del producto" rules={[{ required: true }]}><Input maxLength={50} /></Form.Item>
+          <Form.Item name="productName" label="Nombre comercial" rules={[{ required: true }]}><Input maxLength={150} /></Form.Item>
+          <Form.Item name="colorCode" label="Código de color" rules={[{ required: true }]}><Input maxLength={30} /></Form.Item>
+          <Form.Item name="colorName" label="Nombre del color" rules={[{ required: true }]}><Input maxLength={80} /></Form.Item>
+        </div>
       </Form>
     </Modal>
     <Modal className="compact-form-modal" title="Registrar saldo inicial" open={openingOpen} onCancel={() => setOpeningOpen(false)} onOk={() => openingForm.submit()} okText="Registrar saldo" confirmLoading={createOpening.isPending} width={760} destroyOnHidden>

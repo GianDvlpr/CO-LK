@@ -34,7 +34,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       for (const variant of product.variants) {
         const sku = buildProductSku({ matrixCode, primaryColorCode: variant.color.code, secondaryColorCode: variant.secondaryColor?.code, sizeCode: variant.size.code });
         const colorLabel = productVariantColorLabel(variant.color.name, variant.secondaryColor?.name);
-        await tx.inventoryItem.update({ where: { id: variant.inventoryItemId }, data: { code: sku, name: `${parsed.data.name} · ${variant.size.name} · ${colorLabel}`, active: parsed.data.active } });
+        if (variant.inventoryItem.type === "FINISHED_PRODUCT") {
+          await tx.inventoryItem.update({ where: { id: variant.inventoryItemId }, data: { code: sku, name: `${parsed.data.name} · ${variant.size.name} · ${colorLabel}`, active: parsed.data.active } });
+        }
         await tx.productVariant.update({ where: { id: variant.id }, data: { sku, active: parsed.data.active } });
       }
       await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "Product", entityId: id, action: "UPDATE", beforeData: { name: product.name, matrixCode: product.matrixCode, description: product.description, active: product.active }, afterData: { ...parsed.data, matrixCode } } });

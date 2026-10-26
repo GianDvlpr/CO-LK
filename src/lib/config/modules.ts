@@ -41,6 +41,14 @@ export const appModules = [
     phase: 4,
   },
   {
+    key: "costs",
+    label: "Estructura de costos",
+    href: "/dashboard/costs",
+    description: "Costo de materiales, tarifas directas y costo unitario por receta.",
+    permission: "costs.read",
+    phase: 4,
+  },
+  {
     key: "production",
     label: "Producción",
     href: "/dashboard/production",

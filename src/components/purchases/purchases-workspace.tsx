@@ -26,7 +26,7 @@ type Purchase = {
 };
 type Option = { id: string; code: string; name: string };
 type ItemOption = Option & { supplierId?: string | null; lotTrackingMode: "NONE" | "OPTIONAL" | "REQUIRED"; supplierProductCode?: string | null; referenceNetPrice?: string | null; referenceTaxRate?: string | null; unit: { symbol: string }; supplier?: { id: string; name: string } | null };
-type Options = { suppliers: Option[]; warehouses: Option[]; currencies: (Option & { isBase: boolean })[]; items: ItemOption[]; igvRate?: string };
+type Options = { suppliers: Option[]; warehouses: Option[]; currencies: (Option & { isBase: boolean; symbol: string })[]; items: ItemOption[]; igvRate?: string };
 type LineForm = { itemId?: string; presentationType?: string; presentationQuantity?: number; contentPerUnit?: number; pricePerBaseUnit?: number; taxRate?: number; lotCode?: string; supplierLot?: string };
 type PurchaseForm = { supplierId: string; warehouseId: string; currencyId: string; receptionDate: Dayjs; documentNumber: string; exchangeRate: number; lines: LineForm[] };
 
@@ -57,6 +57,7 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
   const [form] = Form.useForm<PurchaseForm>();
   const watchedLines = Form.useWatch("lines", form) ?? [];
   const selectedSupplierId = Form.useWatch("supplierId", form);
+  const selectedCurrencyId = Form.useWatch("currencyId", form);
 
   const purchases = useQuery({
     queryKey: ["purchases", page, pageSize, deferredSearch],
@@ -106,6 +107,17 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
   }, new Decimal(0));
 
   const companyIgvRate = Number(options.data?.igvRate ?? 18);
+  const currencySymbol = options.data?.currencies.find((currency) => currency.id === selectedCurrencyId)?.symbol ?? "S/";
+  const lineFinal = (index: number) => {
+    const line = watchedLines[index];
+    try {
+      return new Decimal(line?.presentationQuantity ?? 0)
+        .mul(line?.contentPerUnit ?? 0)
+        .mul(line?.pricePerBaseUnit ?? 0)
+        .mul(new Decimal(1).add(new Decimal(line?.taxRate ?? companyIgvRate).div(100)))
+        .toFixed(2);
+    } catch { return "0.00"; }
+  };
   const normalizeForSearch = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const pickerItems = (options.data?.items ?? []).filter((item) => {
     if (!selectedSupplierId || item.supplierId !== selectedSupplierId) return false;
@@ -218,6 +230,7 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
                 <Form.Item name={[field.name, "pricePerBaseUnit"]} label={watchedLines[index]?.taxRate === 0 ? "Precio total" : "Precio neto (sin IGV)"} tooltip={watchedLines[index]?.taxRate === 0 ? "Importe final por unidad base; no se agrega IGV." : "Precio sin IGV por unidad base."} rules={[{ required: true }]}><InputNumber min={0.000001} precision={6} style={{ width: "100%" }} /></Form.Item>
                 <Form.Item name={[field.name, "taxRate"]} hidden><Input /></Form.Item>
                 <Form.Item label="IGV"><Segmented value={watchedLines[index]?.taxRate === 0 ? "EXCLUDED" : "INCLUDED"} onChange={(value) => form.setFieldValue(["lines", index, "taxRate"], value === "EXCLUDED" ? 0 : companyIgvRate)} options={[{ value: "INCLUDED", label: `Con IGV (${companyIgvRate} %)` }, { value: "EXCLUDED", label: "Sin IGV (0 %)" }]} /></Form.Item>
+                <Form.Item label="Precio final" tooltip="Total de la línea con IGV: cantidad base × precio."><Input value={lineFinal(index)} disabled prefix={currencySymbol} /></Form.Item>
                 <Form.Item name={[field.name, "lotCode"]} label="Lote interno" tooltip="Código de lote según la configuración del ítem."><Input placeholder="Según configuración del ítem" /></Form.Item>
                 <Form.Item name={[field.name, "supplierLot"]} label="Lote del proveedor"><Input placeholder="Opcional" /></Form.Item>
               </div>

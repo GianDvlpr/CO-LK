@@ -9,7 +9,7 @@ export async function GET() {
     const [suppliers, warehouses, currencies, items, company] = await prisma.$transaction([
       prisma.supplier.findMany({ where: { companyId: user.companyId, active: true }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true } }),
       prisma.warehouse.findMany({ where: { companyId: user.companyId, active: true }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true } }),
-      prisma.currency.findMany({ where: { companyId: user.companyId }, orderBy: [{ isBase: "desc" }, { code: "asc" }], select: { id: true, code: true, name: true, isBase: true } }),
+      prisma.currency.findMany({ where: { companyId: user.companyId }, orderBy: [{ isBase: "desc" }, { code: "asc" }], select: { id: true, code: true, name: true, symbol: true, isBase: true } }),
       prisma.inventoryItem.findMany({
         where: { companyId: user.companyId, active: true, type: "RAW_MATERIAL" }, orderBy: { name: "asc" },
         select: { id: true, code: true, name: true, supplierId: true, lotTrackingMode: true, supplierProductCode: true, referenceNetPrice: true, referenceTaxRate: true, unit: { select: { symbol: true } }, supplier: { select: { id: true, name: true } } },

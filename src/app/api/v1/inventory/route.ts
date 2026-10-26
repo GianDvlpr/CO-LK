@@ -38,7 +38,7 @@ export async function GET() {
     const items = await prisma.inventoryItem.findMany({
       where: { companyId: user.companyId },
       orderBy: { name: "asc" },
-      include: { unit: { select: { code: true, symbol: true } }, supplier: { select: { id: true, code: true, name: true } }, currency: { select: { id: true, code: true, name: true, symbol: true } }, defaultWarehouse: { select: { code: true, name: true } }, images: { orderBy: { sortOrder: "asc" }, select: { id: true, secureUrl: true, fileName: true, sortOrder: true } }, balances: { where: { lotId: null }, select: { warehouseId: true, onHandQuantity: true, reservedQuantity: true, averageUnitCost: true, inventoryValue: true } } },
+      include: { unit: { select: { code: true, symbol: true } }, supplier: { select: { id: true, code: true, name: true } }, currency: { select: { id: true, code: true, name: true, symbol: true } }, defaultWarehouse: { select: { code: true, name: true } }, productVariants: { select: { id: true, sku: true, product: { select: { id: true, code: true, name: true } } } }, images: { orderBy: { sortOrder: "asc" }, select: { id: true, secureUrl: true, fileName: true, sortOrder: true } }, balances: { where: { lotId: null }, select: { warehouseId: true, onHandQuantity: true, reservedQuantity: true, averageUnitCost: true, inventoryValue: true } } },
     });
     return apiSuccess({ items });
   } catch (error) { const response = knownError(error); if (response) return response; throw error; }

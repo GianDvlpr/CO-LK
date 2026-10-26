@@ -22,6 +22,7 @@ const permissionCodes = [
   "purchases.read", "purchases.create", "purchases.update", "purchases.submit", "purchases.approve", "purchases.reject", "purchases.reverse", "purchases.export",
   "inventory.read", "inventory.create_item", "inventory.image_manage", "inventory.adjust_request", "inventory.adjust_approve", "inventory.adjust_value_request", "inventory.adjust_value_approve", "inventory.opening_import", "inventory.export",
   "recipes.read", "recipes.create", "recipes.update", "recipes.activate", "recipes.archive", "recipes.export",
+  "costs.read", "costs.manage",
   "production.read", "production.create", "production.release", "production.start", "production.complete", "production.cancel", "production.scrap",
   "machinery.read", "machinery.create", "machinery.maintenance",
   "products.read", "products.create", "products.update", "products.image_manage", "products.export",
@@ -539,6 +540,12 @@ async function main() {
     { itemId: materialByCode.get("DEMO-MP-CACO3")!.id, quantity: 5 },
     { itemId: materialByCode.get("DEMO-MP-EST")!.id, quantity: 1 },
   ] } } } }, include: { versions: true } });
+  await prisma.productCostStructure.createMany({ data: [
+    { companyId: company.id, recipeVersionId: urbanRecipe.versions[0].id, createdById: adminUser.id, laborTariff: 72, energyTariff: 28, waterTariff: 6, machineryCost: 35, notes: "Tarifas demo por una carga completa de 24 pares." },
+    { companyId: company.id, recipeVersionId: urbanRedRecipe.versions[0].id, createdById: adminUser.id, laborTariff: 38, energyTariff: 16, waterTariff: 4, machineryCost: 20, notes: "Tarifas demo para la formulación secundaria." },
+    { companyId: company.id, recipeVersionId: industrialRecipe.versions[0].id, createdById: adminUser.id, laborTariff: 64, energyTariff: 32, waterTariff: 8, machineryCost: 42, notes: "Tarifas demo por lote de 12 pares." },
+    { companyId: company.id, recipeVersionId: intermediateRecipe.versions[0].id, createdById: adminUser.id, laborTariff: 45, energyTariff: 18, waterTariff: 5, machineryCost: 25, notes: "Tarifas demo por lote de 25 kg de insumo elaborado." },
+  ] });
 
   const polymerLines = purchaseLineData([
     { itemId: materialByCode.get("DEMO-MP-PVC")!.id, presentationType: "SACO", presentationQty: 20, contentPerUnit: 20, pricePerBaseUnit: 7.2 },
