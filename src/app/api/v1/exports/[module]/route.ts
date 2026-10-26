@@ -37,7 +37,7 @@ async function reportData(module: keyof typeof workbookSpecs, companyId: string,
   if (module === "recipes") {
     const items = await prisma.recipe.findMany({ where: { companyId, createdAt: dateRange }, orderBy: { code: "asc" }, include: { product: true, outputItem: { include: { unit: true } }, versions: { orderBy: { version: "asc" }, include: { ingredients: { include: { item: { include: { unit: true } } } } } } } });
     return {
-      Recetas: items.flatMap((recipe) => recipe.versions.flatMap((version) => version.ingredients.map((ingredient) => [recipe.code, recipe.code, recipe.product ? "PRODUCCION" : "ALMACEN", recipe.product?.code ?? recipe.outputItem?.code ?? null, recipe.product?.code ?? null, null, version.version, Number(version.yieldQuantity), recipe.outputItem?.unit.code ?? "PAR", version.isActive ? "ACTIVE" : recipe.status, ingredient.item.code, Number(ingredient.quantity), ingredient.item.unit.code]))),
+      Recetas: items.flatMap((recipe) => recipe.versions.flatMap((version) => version.ingredients.map((ingredient) => [recipe.code, recipe.code, recipe.product ? "PRODUCCION" : "ALMACEN", recipe.product?.code ?? recipe.outputItem?.code ?? null, recipe.product?.code ?? null, null, version.version, Number(version.yieldQuantity), recipe.outputItem?.unit.code ?? "PAR", version.isActive ? "ACTIVE" : recipe.status, ingredient.item.code, Number(ingredient.quantity), ingredient.item.unit.code, version.manualCost ? Number(version.manualCost) : null]))),
     };
   }
   if (module === "products") {

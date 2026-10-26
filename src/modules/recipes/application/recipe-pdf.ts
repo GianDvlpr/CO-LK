@@ -21,6 +21,8 @@ export type RecipeDocumentData = {
   versions: {
     version: number;
     yieldQuantity: unknown;
+    calculatedCost: unknown | null;
+    manualCost: unknown | null;
     notes: string | null;
     isActive: boolean;
     createdAt: Date;
@@ -89,6 +91,7 @@ export async function buildRecipePdf(recipe: RecipeDocumentData) {
     ["Nombre", recipe.name, "Estado", statusLabels[recipe.status] ?? recipe.status],
     ["Destino", destination, "Rendimiento", yieldLabel],
     ["Versión", `${version.version} · ${version.isActive ? "activa" : "borrador"}`, "Fecha de emisión", limaDate.format(version.createdAt)],
+    ["Costo calculado", `S/ ${new Decimal(String(version.calculatedCost ?? 0)).toFixed(2)}`, "Costo manual", version.manualCost === null || version.manualCost === undefined ? "—" : `S/ ${new Decimal(String(version.manualCost)).toFixed(2)}`],
   ];
   info.forEach(([leftLabel, leftValue, rightLabel, rightValue]) => {
     cell(page, font, bold, { x: margin, top, width: labelWidth, height: 14, text: leftLabel, label: true, size: 6 });

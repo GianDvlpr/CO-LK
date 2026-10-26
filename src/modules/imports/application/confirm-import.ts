@@ -7,6 +7,7 @@ import { isBlankNumericCell } from "@/modules/imports/domain/numeric-cell";
 import { buildProductSku, normalizeMatrixCode, productVariantColorLabel } from "@/modules/products/domain/product-sku";
 import { createsInventoryFormulaCycle } from "@/modules/inventory/domain/inventory-formula-cycle";
 import { normalizeDefaultPresentation } from "@/modules/inventory/domain/default-presentation";
+import { calculateRecipeCost, resolveItemUnitCost } from "@/modules/recipes/domain/recipe-cost";
 import type { ImportModule, ParsedWorkbookRow } from "./workbook";
 
 type ImportData = Record<string, ParsedWorkbookRow[]>;
@@ -148,8 +149,8 @@ async function importInventory(tx: Prisma.TransactionClient, data: ImportData, c
         : tx.warehouse.findUnique({ where: { companyId_code: { companyId, code: sectorCode.toUpperCase() } } }));
       if (!sector) throw new ImportApplicationError("INVALID_REFERENCE", "El almacén no existe.", row.rowNumber, "almacen_codigo");
       defaultWarehouseId = sector.id;
-    } else if (existing) {
-      defaultWarehouseId = existing.defaultWarehouseId ?? null;
+    } else if (existing?.defaultWarehouseId) {
+      defaultWarehouseId = existing.defaultWarehouseId;
     } else if (type === "RAW_MATERIAL") {
       const sector = await tx.warehouse.upsert({ where: { companyId_code: { companyId, code: "PRINCIPAL" } }, update: { active: true }, create: { companyId, code: "PRINCIPAL", name: "Almacén principal" } });
       defaultWarehouseId = sector.id;
@@ -253,6 +254,7 @@ async function importRecipes(tx: Prisma.TransactionClient, data: ImportData, com
     const resultType = (text(row, "tipo_resultado") || "PRODUCCION").toUpperCase();
     if (!["PRODUCCION", "ALMACEN"].includes(resultType)) throw new ImportApplicationError("INVALID_RESULT_TYPE", "El destino debe ser PRODUCCION o ALMACEN.", row.rowNumber, "tipo_resultado");
     const yieldQuantity = positive(row, "rendimiento");
+    const manualCost = text(row, "costo_manual") ? positive(row, "costo_manual") : null;
     if (resultType === "PRODUCCION" && !yieldQuantity.isInteger()) throw new ImportApplicationError("INVALID_RECIPE_YIELD", "El rendimiento de una receta de producción debe ser un número entero de pares.", row.rowNumber, "rendimiento");
     const resultCode = text(row, "resultado_codigo") || text(row, "producto_codigo");
     const [product, outputItem, existing] = await Promise.all([
@@ -272,11 +274,13 @@ async function importRecipes(tx: Prisma.TransactionClient, data: ImportData, com
     if (!ingredientRows.length) throw new ImportApplicationError("RECIPE_EMPTY", `La receta ${code} no tiene ingredientes.`, row.rowNumber);
     unique(ingredientRows.map((item) => text(item, "material_codigo")), `La receta ${code} contiene materias primas repetidas.`, row.rowNumber);
     const ingredients = [];
+    const unitCostByItem = new Map<string, Decimal>();
     for (const ingredientRow of ingredientRows) {
-      const item = await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code: text(ingredientRow, "material_codigo") } }, include: { unit: { select: { code: true, symbol: true } } } });
+      const item = await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code: text(ingredientRow, "material_codigo") } }, include: { unit: { select: { code: true, symbol: true } }, balances: { where: { lotId: null }, select: { onHandQuantity: true, averageUnitCost: true } } } });
       if (!item || !(["RAW_MATERIAL", "INTERMEDIATE", "WASTE"] as string[]).includes(item.type)) throw new ImportApplicationError("INVALID_REFERENCE", "La materia prima, insumo elaborado o merma no existe o no es válida.", ingredientRow.rowNumber, "material_codigo");
       const suppliedUnit = text(ingredientRow, "unidad").toUpperCase();
       if (suppliedUnit && ![item.unit.code, item.unit.symbol].some((value) => value.toUpperCase() === suppliedUnit)) throw new ImportApplicationError("INVALID_UNIT", `La unidad de ${item.code} debe ser ${item.unit.symbol}.`, ingredientRow.rowNumber, "unidad");
+      unitCostByItem.set(item.id, resolveItemUnitCost(item));
       ingredients.push({ itemId: item.id, quantity: positive(ingredientRow, "cantidad").toString() });
     }
     if (outputItem) {
@@ -288,7 +292,7 @@ async function importRecipes(tx: Prisma.TransactionClient, data: ImportData, com
     const recipe = existing
       ? await tx.recipe.update({ where: { id: existing.id }, data: { productId: product?.id ?? null, outputItemId: outputItem?.id ?? null } })
       : await tx.recipe.create({ data: { companyId, productId: product?.id, outputItemId: outputItem?.id, code, name: code, status: "DRAFT" } });
-    await tx.recipeVersion.create({ data: { recipeId: recipe.id, version, yieldQuantity: yieldQuantity.toString(), notes: `Importación de versión ${requestedVersion}`, ingredients: { create: ingredients } } });
+    await tx.recipeVersion.create({ data: { recipeId: recipe.id, version, yieldQuantity: yieldQuantity.toString(), calculatedCost: calculateRecipeCost(ingredients.map((ingredient) => ({ quantity: ingredient.quantity, unitCost: unitCostByItem.get(ingredient.itemId) ?? 0 }))), manualCost, notes: `Importación de versión ${requestedVersion}`, ingredients: { create: ingredients } } });
     created(result);
   }
 }

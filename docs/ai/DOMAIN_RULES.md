@@ -1,6 +1,6 @@
 # Reglas vigentes del negocio
 
-Actualizado: 25/10/2026.
+Actualizado: 26/10/2026.
 
 Este documento resume el comportamiento que no debe cambiarse accidentalmente. Ante duda, confirmar la implementación en el esquema, los servicios y las pruebas.
 
@@ -51,6 +51,7 @@ Incluyen proveedores, clientes, almacenes, unidades y monedas.
 - Un almacén solo se desactiva cuando no tiene stock en mano ni reservado; se elimina solo cuando no tiene movimientos ni documentos asociados.
 - El mapa del almacén permite posicionar los sectores libremente con zoom y desplazamiento; la posición se guarda por almacén.
 - Si no existe almacén al importar, la referencia operativa esperada es `PRINCIPAL` una vez creado por el seed.
+- Después de un inicio de sesión exitoso, la aplicación intenta actualizar el tipo de cambio USD una sola vez por empresa y día de Lima. La tarea se ejecuta después de responder el login, usa SUNAT con BCRP como respaldo y un bloqueo de PostgreSQL evita consultas simultáneas. Una sincronización manual exitosa del mismo día también evita el intento automático; si la consulta falla, la transacción se revierte y otro login puede reintentarla.
 
 ## 4. Compras
 
@@ -74,6 +75,7 @@ Reglas:
 - Rechazar no mueve inventario.
 - El documento no debe duplicarse para el mismo proveedor y secuencia de recepción.
 - La tasa de IGV es configurable por empresa en Catálogos → Configuración general (18 % por defecto). El Excel de Compras no solicita tasa por línea y usa la configurada; los archivos anteriores con `IGV (%)` se aceptan ignorando esa columna.
+- En la línea de compra el IGV se elige como Con IGV (tasa configurada de la empresa) o Sin IGV (0 %). Con IGV el precio se registra como neto y el total agrega la tasa; sin IGV el precio es el total.
 - Una compra registrada puede compartirse con el proveedor por WhatsApp. El mensaje incluye materiales, código del proveedor, presentaciones y cantidades (sin precios ni totales) y la URL de la imagen del material cuando existe.
 - No usar `number` para cálculos de cantidad, precio, IGV o totales.
 
@@ -105,6 +107,7 @@ Datos de referencia para compras:
 - También puede registrar un costo de referencia opcional: precio neto y tasa de IGV en porcentaje. El costo total de referencia es `precio neto × (1 + IGV/100)`, usando el IGV configurado por empresa cuando no se informa.
 - Estos datos son informativos para preparar pedidos al proveedor; no generan movimientos ni modifican la valorización del saldo inicial.
 - Al aprobar una compra cuya moneda coincide con la moneda de referencia del ítem, el precio neto y la tasa IGV de la línea reemplazan la referencia del ítem en una operación auditada. Si las monedas difieren, la referencia no cambia.
+- El costo de referencia del ítem puede registrarse con IGV (tasa configurada de la empresa) o sin IGV (0 %); el total se calcula acorde a la elección.
 
 Presentación habitual:
 
@@ -157,6 +160,9 @@ El kardex es inmutable. Correcciones contables deben realizarse mediante movimie
 - Agregar una versión por edición o importación no cambia el estado de la receta.
 - Una receta archivada deja de ofrecerse a Producción y Almacén y puede reactivarse; solo se elimina si nunca se usó en órdenes de producción o transformaciones.
 - La receta se descarga como PDF A5 apaisado generado por el servidor con su última versión, ingredientes y notas.
+- Cada versión registra un costo calculado no editable: suma de la cantidad estándar por el costo unitario de cada ingrediente (costo promedio del almacén o, si no hay stock, costo de referencia con IGV).
+- El costo manual es opcional, se guarda por versión y se muestra junto al calculado en la tabla y el PDF.
+- Los formularios que requieren datos maestros permiten crearlos en el momento (ítem de almacén, producto, almacén, proveedor, cliente, moneda, unidad o máquina) respetando los permisos del módulo correspondiente.
 
 ## 8. Producción
 
@@ -242,9 +248,10 @@ PENDING → PICKING → PACKING → READY → DISPATCHED
 
 ## 12. Pizarra compartida
 
-- Existe una pizarra persistente por empresa; nunca se mezclan elementos ni imágenes entre empresas.
+- Cada empresa puede conservar varias pizarras persistentes con nombre; nunca se mezclan elementos ni imágenes entre empresas.
+- La biblioteca muestra las pizarras guardadas por última actualización y permite abrirlas para continuar editando. `Nueva pizarra` crea un lienzo vacío y `Guardar` confirma el contenido y permite cambiar su nombre sin crear una copia accidental.
 - `whiteboard.read` permite verla y `whiteboard.manage` permite agregar, mover, redimensionar o eliminar elementos.
-- Admite notas, dibujo libre e imágenes JPEG, PNG o WebP de hasta 5 MB mediante archivo, arrastre o pegado desde el portapapeles.
+- Admite notas, dibujo libre e imágenes JPEG, PNG o WebP de hasta 5 MB mediante archivo, arrastre o pegado desde el portapapeles. El dibujo usa eventos de puntero y funciona con mouse, tacto y lápiz de tablet; el grosor configurado es fijo y no depende de la presión.
 - El borrador elimina trazos completos al tocarlos o recorrerlos; no elimina notas ni imágenes.
 - Las imágenes se almacenan en Cloudinary y su pertenencia a la pizarra se valida en servidor.
 - Cada guardado incrementa la revisión. Si otra persona guardó primero, el servidor devuelve conflicto y obliga a recargar para no sobrescribir cambios silenciosamente.

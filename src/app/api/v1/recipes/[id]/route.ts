@@ -7,14 +7,16 @@ import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { createsInventoryFormulaCycle } from "@/modules/inventory/domain/inventory-formula-cycle";
+import { calculateRecipeCost, resolveItemUnitCost } from "@/modules/recipes/domain/recipe-cost";
 
 const decimal = z.union([z.string().min(1), z.number()]);
 const updateSchema = z.object({
   name: z.string().trim().min(1).max(150).optional(),
   yieldQuantity: decimal.optional(),
   notes: z.string().trim().max(500).optional(),
+  manualCost: decimal.nullable().optional(),
   ingredients: z.array(z.object({ itemId: z.uuid(), quantity: decimal })).min(1).optional(),
-}).refine((value) => value.name !== undefined || value.yieldQuantity !== undefined || value.notes !== undefined || value.ingredients !== undefined, "Indica al menos un cambio en la receta.");
+}).refine((value) => value.name !== undefined || value.yieldQuantity !== undefined || value.notes !== undefined || value.manualCost !== undefined || value.ingredients !== undefined, "Indica al menos un cambio en la receta.");
 
 function known(error: unknown) {
   if (error instanceof AuthError) return apiError(error.code, error.message, error.status);
@@ -28,6 +30,7 @@ const messages: Record<string, [string, string, number]> = {
   RECIPE_ARCHIVED: ["RECIPE_ARCHIVED", "Reactiva la receta antes de editarla.", 422],
   RECIPE_EMPTY: ["RECIPE_EMPTY", "La receta no tiene una versión válida con ingredientes.", 422],
   RECIPE_INVALID: ["RECIPE_INVALID", "El rendimiento debe ser positivo y las materias primas no pueden repetirse.", 422],
+  RECIPE_INVALID_COST: ["RECIPE_INVALID_COST", "El costo manual no puede ser negativo.", 422],
   RECIPE_INVALID_YIELD: ["RECIPE_INVALID_YIELD", "El rendimiento de una receta de producción debe ser un número entero de pares.", 422],
   RECIPE_INVALID_REFERENCE: ["RECIPE_INVALID_REFERENCE", "Una materia prima o insumo no es válido.", 422],
   RECIPE_CYCLE: ["RECIPE_CYCLE", "La receta generaría un ciclo: un insumo no puede terminar dependiendo de sí mismo.", 422],
@@ -57,6 +60,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       const yieldQuantity = input.yieldQuantity !== undefined ? new Decimal(input.yieldQuantity) : new Decimal(latest.yieldQuantity.toString());
       if (!yieldQuantity.greaterThan(0)) throw new Error("RECIPE_INVALID");
       if (recipe.productId && !yieldQuantity.isInteger()) throw new Error("RECIPE_INVALID_YIELD");
+      const manualCost = input.manualCost === undefined ? latest.manualCost : input.manualCost === null ? null : new Decimal(input.manualCost);
+      if (manualCost && (manualCost.isNegative() || !manualCost.isFinite())) throw new Error("RECIPE_INVALID_COST");
 
       if (input.ingredients) {
         const itemIds = input.ingredients.map((ingredient) => ingredient.itemId);
@@ -73,19 +78,23 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         }
       }
 
-      const versionChanged = input.yieldQuantity !== undefined || input.notes !== undefined || input.ingredients !== undefined;
+      const versionChanged = input.yieldQuantity !== undefined || input.notes !== undefined || input.manualCost !== undefined || input.ingredients !== undefined;
       const editInPlace = recipe.status === "DRAFT" && !recipe.versions.some((version) => version.isActive);
       let targetVersion = latest.version;
       if (versionChanged) {
+        const ingredientItemIds = ingredients.map((ingredient) => ingredient.itemId);
+        const costItems = await tx.inventoryItem.findMany({ where: { id: { in: ingredientItemIds }, companyId: user.companyId }, select: { id: true, referenceNetPrice: true, referenceTaxRate: true, balances: { where: { lotId: null }, select: { onHandQuantity: true, averageUnitCost: true } } } });
+        const unitCostByItem = new Map(costItems.map((item) => [item.id, resolveItemUnitCost(item)]));
+        const calculatedCost = calculateRecipeCost(ingredients.map((ingredient) => ({ quantity: ingredient.quantity, unitCost: unitCostByItem.get(ingredient.itemId) ?? 0 })));
         if (editInPlace) {
-          await tx.recipeVersion.update({ where: { id: latest.id }, data: { yieldQuantity, notes: input.notes ?? latest.notes } });
+          await tx.recipeVersion.update({ where: { id: latest.id }, data: { yieldQuantity, notes: input.notes ?? latest.notes, calculatedCost, manualCost } });
           if (input.ingredients) {
             await tx.recipeIngredient.deleteMany({ where: { recipeVersionId: latest.id } });
             await tx.recipeIngredient.createMany({ data: ingredients.map((ingredient) => ({ recipeVersionId: latest.id, itemId: ingredient.itemId, quantity: ingredient.quantity })) });
           }
         } else {
           targetVersion = latest.version + 1;
-          await tx.recipeVersion.create({ data: { recipeId: recipe.id, version: targetVersion, yieldQuantity, notes: input.notes ?? latest.notes, isActive: false, ingredients: { create: ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: ingredient.quantity })) } } });
+          await tx.recipeVersion.create({ data: { recipeId: recipe.id, version: targetVersion, yieldQuantity, notes: input.notes ?? latest.notes, isActive: false, calculatedCost, manualCost, ingredients: { create: ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: ingredient.quantity })) } } });
         }
       }
 

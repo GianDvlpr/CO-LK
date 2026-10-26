@@ -11,6 +11,8 @@ const recipe: RecipeDocumentData = {
   versions: [{
     version: 2,
     yieldQuantity: "10",
+    calculatedCost: "120.5",
+    manualCost: "150",
     notes: "Versión de prueba",
     isActive: true,
     createdAt: new Date("2026-10-20T12:00:00Z"),

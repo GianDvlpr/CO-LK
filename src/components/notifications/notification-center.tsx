@@ -57,7 +57,7 @@ export function NotificationCenter({ companyId, permissions }: { companyId: stri
           order: [["orders"], ["inventory"], ["kardex"]],
           pick_pack: [["pick-pack"], ["orders"], ["inventory"], ["kardex"]],
           calendar: [["calendar"]],
-          whiteboard: [["whiteboard"]],
+          whiteboard: [["whiteboard"], ["whiteboards"]],
           product: [["products"]], recipe: [["recipes"]], import: [["imports"]], catalog: [["catalogs"]],
         };
         for (const key of keys[domain] ?? []) void queryClient.invalidateQueries({ queryKey: key });

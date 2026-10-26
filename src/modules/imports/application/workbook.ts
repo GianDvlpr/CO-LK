@@ -50,7 +50,7 @@ export const workbookSpecs: Record<ImportModule, ModuleSpec> = {
   recipes: {
     label: "Recetas", permission: "recipes.read", file: "recetas",
     sheets: [
-      { name: "Recetas", columns: ["referencia_carga", "receta_codigo", "tipo_resultado", "resultado_codigo", "producto_codigo", "variante_sku", "version", "rendimiento", "unidad_salida", "estado", "material_codigo", "cantidad", "unidad"], required: ["referencia_carga", "tipo_resultado", "resultado_codigo", "version", "rendimiento", "material_codigo", "cantidad"], uniqueBy: [["referencia_carga", "version", "material_codigo"], ["receta_codigo", "version", "material_codigo"]], numeric: ["version", "rendimiento", "cantidad"] },
+      { name: "Recetas", columns: ["referencia_carga", "receta_codigo", "tipo_resultado", "resultado_codigo", "producto_codigo", "variante_sku", "version", "rendimiento", "unidad_salida", "estado", "material_codigo", "cantidad", "unidad", "costo_manual"], required: ["referencia_carga", "tipo_resultado", "resultado_codigo", "version", "rendimiento", "material_codigo", "cantidad"], uniqueBy: [["referencia_carga", "version", "material_codigo"], ["receta_codigo", "version", "material_codigo"]], numeric: ["version", "rendimiento", "cantidad", "costo_manual"] },
     ],
   },
   products: {
@@ -85,6 +85,7 @@ function exampleValue(column: string): string | number {
     tipo_item: "MATERIA_PRIMA", unidad_base: "KG", modo_lote: "OPTIONAL", almacen_codigo: "PRINCIPAL",
     stock_minimo: 10, activo: "SI", producto_activo: "SI", variante_activa: "SI", stock_inicial: 100, fecha_inicial: "2026-10-13", item_codigo: "MP-000001", lote: "LOTE-2026-01", fecha: "2026-10-13",
     cantidad: 100, costo_unitario_pen: 4.5, receta_codigo: "(se genera)", tipo_resultado: "ALMACEN", resultado_codigo: "IE-000001", producto_codigo: "(se genera)",
+    costo_manual: 25.5,
     codigo_producto_proveedor: "PVC-450S", precio_neto: 4.5, costo_total: 5.31,
     variante_sku: "ZAP-001-40-NEG", version: 1, rendimiento: 1, unidad_salida: "PAR",
     unidad: "KG", categoria: "Calzado", descripcion: "Suela urbana", codigo_matriz: "I0034", sku: "(se genera)",
@@ -189,6 +190,7 @@ function describeColumn(sheet: string, column: string) {
     "Almacén.contenido_por_presentacion": "Capacidad de la presentación habitual expresada en la unidad base. Ejemplo: 50 para una bolsa de 50 KG. No modifica el stock ni el kardex.",
     "Recetas.estado": "Estado de la receta, por ejemplo BORRADOR, ACTIVA o INACTIVA.",
     "Recetas.cantidad": "Cantidad del material necesaria para obtener el rendimiento indicado. Se interpreta en la unidad registrada para ese material (kg, L, und., etc.).",
+    "Recetas.costo_manual": "Costo opcional de la receta ingresado por el usuario. El costo calculado se obtiene siempre en el sistema a partir de los materiales y no se importa.",
     "Pedidos.estado": "Estado del pedido, por ejemplo BORRADOR, CONFIRMADO, EN_PROCESO, ATENDIDO o CANCELADO.",
   };
   return contextual[`${sheet}.${column}`] ?? columnDescriptions[column] ?? "Dato utilizado por el módulo para registrar o relacionar este campo.";

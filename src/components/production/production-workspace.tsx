@@ -18,6 +18,10 @@ import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 import { TableSearch, matchesSearch } from "@/components/common/table-search";
 import { ProductionKanban } from "@/components/production/production-kanban";
 import { productionBoardTransition } from "@/modules/production/domain/production-board";
+import { CreatableSelect } from "@/components/common/quick-create/creatable-select";
+import { ItemQuickCreateModal } from "@/components/common/quick-create/item-quick-create";
+import { WarehouseQuickCreateModal } from "@/components/common/quick-create/catalog-quick-create";
+import { MachineQuickCreateModal } from "@/components/common/quick-create/machine-quick-create";
 
 type Material = { id: string; plannedQuantity: string; consumedQuantity: string; actualWasteQuantity: string; item: { code: string; name: string; unit: { symbol: string } } };
 type SizeProgram = { productVariantId: string; sku?: string; size: string; color?: string; requestedPairs: number; producedPairs?: number };
@@ -119,8 +123,9 @@ function setVariantSnapshot(form: FormInstance, path: "sizeProgram" | "productio
   if (path === "sizeProgram") form.setFieldValue([...base, "color"], colorLabel(variant));
 }
 
-function ProductionDetailsFields({ form, variants, materials, customerBrands = [], structureLocked = false }: { form: FormInstance; variants: Variant[]; materials: Options["materials"]; customerBrands?: BrandOption[]; structureLocked?: boolean }) {
+function ProductionDetailsFields({ form, variants, materials, customerBrands = [], structureLocked = false, canCreateItem = false }: { form: FormInstance; variants: Variant[]; materials: Options["materials"]; customerBrands?: BrandOption[]; structureLocked?: boolean; canCreateItem?: boolean }) {
   const program = (Form.useWatch("sizeProgram", form) ?? []) as SizeProgram[];
+  const [quickComponentIndex, setQuickComponentIndex] = useState<number>();
   const firstVariant = variants.find((item) => item.id === program.find((item) => item?.productVariantId)?.productVariantId);
   const compatibleVariants = firstVariant ? variants.filter((item) => colorPair(item) === colorPair(firstVariant)) : variants;
   const programmedVariants = program.map((item) => variants.find((variant) => variant.id === item?.productVariantId)).filter((item): item is Variant => Boolean(item));
@@ -157,7 +162,7 @@ function ProductionDetailsFields({ form, variants, materials, customerBrands = [
       {(fields, { add, remove }) => <Space direction="vertical" style={{ width: "100%" }}>
         {fields.map((field) => <div key={field.key} className="purchase-form-grid">
           <Form.Item {...field} name={[field.name, "componentType"]} label="Componente" rules={[{ required: true }]}><Select disabled={structureLocked} options={Object.entries(componentLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
-          <Form.Item {...field} name={[field.name, "itemId"]} label="Artículo" tooltip="Ítem de almacén: materia prima, merma o componente." rules={[{ required: true }]}><Select disabled={structureLocked} showSearch optionFilterProp="label" options={materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name} · ${item.unit.symbol}` }))} /></Form.Item>
+          <Form.Item {...field} name={[field.name, "itemId"]} label="Artículo" tooltip="Ítem de almacén: materia prima, merma o componente." rules={[{ required: true }]}><CreatableSelect createLabel="Nuevo artículo" createDisabled={!canCreateItem || structureLocked} onCreate={() => setQuickComponentIndex(field.name)} disabled={structureLocked} showSearch optionFilterProp="label" options={materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name} · ${item.unit.symbol}` }))} /></Form.Item>
           <Form.Item {...field} name={[field.name, "quantity"]} label="Cantidad total" rules={[{ required: true }]}><InputNumber disabled={structureLocked} min={0.000001} precision={6} style={{ width: "100%" }} /></Form.Item>
           <Form.Item {...field} name={[field.name, "colorDetail"]} label="Color / detalle"><Input disabled={structureLocked} maxLength={150} suffix={!structureLocked ? <Button danger type="text" size="small" icon={<DeleteOutlined />} onClick={() => remove(field.name)} /> : undefined} /></Form.Item>
         </div>)}
@@ -184,6 +189,7 @@ function ProductionDetailsFields({ form, variants, materials, customerBrands = [
         <Button type="dashed" icon={<PlusOutlined />} disabled={!programmedVariants.length} onClick={() => add({ date: dayjs(), quantities: programmedVariants.map((variant) => ({ productVariantId: variant.id, sku: variant.sku, size: variant.size.name, quantity: 0 })) })}>Agregar turno</Button>
       </Space>}
     </Form.List>
+    <ItemQuickCreateModal open={quickComponentIndex !== undefined} defaultType="RAW_MATERIAL" onCancel={() => setQuickComponentIndex(undefined)} onCreated={(item) => { if (quickComponentIndex !== undefined) form.setFieldValue(["components", quickComponentIndex, "itemId"], item.id); setQuickComponentIndex(undefined); }} />
   </>;
 }
 
@@ -223,6 +229,9 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   const [viewMode, setViewMode] = useState<"list" | "board">("list");
   const [search, setSearch] = useState("");
   const [form] = Form.useForm<FormValues>();
+  const [quickWarehouseOpen, setQuickWarehouseOpen] = useState(false);
+  const [quickMachineOpen, setQuickMachineOpen] = useState(false);
+  const [quickMaterialOpen, setQuickMaterialOpen] = useState(false);
   const [editForm] = Form.useForm<SheetValues>();
   const [completeForm] = Form.useForm<CompleteValues>();
   const recipeVersionId = Form.useWatch("recipeVersionId", form);
@@ -329,14 +338,14 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
       <Form form={form} layout="vertical" onFinish={(values) => create.mutate(values)} initialValues={{ recipeVersionId: requestedRecipeVersionId, priority: 2, plannedAt: dayjs(), sizeProgram: [], productionTurns: [], components: [], dailyProduction: [] }}>
         <Divider titlePlacement="left">Orden y formulaciones</Divider>
         <div className="purchase-form-grid">
-          <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.warehouses.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
+          <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><CreatableSelect createLabel="Nuevo almacén" createDisabled={!permissions.includes("catalogs.manage")} onCreate={() => setQuickWarehouseOpen(true)} showSearch optionFilterProp="label" options={options.data?.warehouses.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
           <Form.Item name="plannedAt" label="Fecha programada" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}><Select options={[1, 2, 3].map((value) => ({ value, label: `Prioridad ${value}` }))} /></Form.Item>
-          <Form.Item name="machineId" label="Máquina"><Select allowClear showSearch optionFilterProp="label" options={options.data?.machines.map((machine) => ({ value: machine.id, label: `${machine.code} · ${machine.name}${machine.status === "MAINTENANCE" ? " · En mantenimiento" : ""}` }))} /></Form.Item>
+          <Form.Item name="machineId" label="Máquina"><CreatableSelect createLabel="Nueva máquina" createDisabled={!permissions.includes("machinery.create")} onCreate={() => setQuickMachineOpen(true)} allowClear showSearch optionFilterProp="label" options={options.data?.machines.map((machine) => ({ value: machine.id, label: `${machine.code} · ${machine.name}${machine.status === "MAINTENANCE" ? " · En mantenimiento" : ""}` }))} /></Form.Item>
           <Form.Item name="recipeVersionId" label="Formulación C1" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" onChange={() => form.setFieldsValue({ secondaryRecipeVersionId: undefined, salesOrderIds: [], sizeProgram: [], productionTurns: [], customerBrandId: undefined })} options={options.data?.recipes.filter((recipe) => recipe.versions[0]).map((recipe) => ({ value: recipe.versions[0].id, label: `${recipe.code} · ${recipe.name} · ${recipe.versions[0].yieldQuantity} pares` }))} /></Form.Item>
           <Form.Item name="secondaryRecipeVersionId" label="Formulación C2"><Select allowClear showSearch optionFilterProp="label" options={options.data?.recipes.filter((recipe) => recipe.productId === selectedRecipe?.productId && recipe.versions[0]?.id !== recipeVersionId).map((recipe) => ({ value: recipe.versions[0].id, label: `${recipe.code} · ${recipe.name} · ${recipe.versions[0].yieldQuantity} pares` }))} /></Form.Item>
           <Form.Item name="salesOrderIds" label="Pedidos" tooltip="Pedidos de cliente vinculados a la orden; puedes seleccionar varios."><Select mode="multiple" maxTagCount="responsive" allowClear showSearch optionFilterProp="label" placeholder="Selecciona uno o varios pedidos" onChange={loadSalesOrders} options={options.data?.salesOrders.filter((order) => order.lines.some((line) => allowedVariants.some((variant) => variant.id === line.productVariantId))).map((order) => ({ value: order.id, label: `${order.number} · ${order.customer.name}${order.promisedAt ? ` · ${dayjs(order.promisedAt).format("DD/MM/YYYY")}` : ""}` }))} /></Form.Item>
-          <Form.Item name="materialItemId" label="Material"><Select allowClear showSearch optionFilterProp="label" options={options.data?.materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
+          <Form.Item name="materialItemId" label="Material"><CreatableSelect createLabel="Nuevo material" createDisabled={!permissions.includes("inventory.create_item")} onCreate={() => setQuickMaterialOpen(true)} allowClear showSearch optionFilterProp="label" options={options.data?.materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
         </div>
         {selectedRecipe ? <Alert
           type={firstProgramVariant?.secondaryColor && !secondaryRecipe ? "warning" : "info"}
@@ -347,14 +356,14 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
             : <Space size={[4, 4]} wrap><Typography.Text>Consumo al iniciar:</Typography.Text>{plannedRecipeConsumption.length ? plannedRecipeConsumption.map((item) => <Tag key={item.code}>{item.code}: {item.quantity.toFixed(3)} {item.unit}</Tag>) : <Typography.Text type="secondary">agrega las tallas y pares para calcularlo</Typography.Text>}</Space>}
           style={{ marginBottom: 12 }}
         /> : null}
-        <ProductionDetailsFields form={form} variants={allowedVariants} materials={options.data?.materials ?? []} customerBrands={createBrands} />
+        <ProductionDetailsFields form={form} variants={allowedVariants} materials={options.data?.materials ?? []} customerBrands={createBrands} canCreateItem={permissions.includes("inventory.create_item")} />
       </Form>
     </Modal>
 
     <Modal className="compact-form-modal" title={`Editar ${editOrder?.number ?? "orden"}`} open={Boolean(editOrder)} onCancel={() => setEditOrder(undefined)} onOk={() => editForm.submit()} okText="Guardar cambios" confirmLoading={update.isPending} width={1180} destroyOnHidden>
       <Form form={editForm} layout="vertical" onFinish={(values) => editOrder && update.mutate({ id: editOrder.id, values })}>
         {editOrder ? <Alert type="info" showIcon message={`${editOrder.recipeVersion.recipe.name}${editOrder.secondaryRecipeVersion ? ` + ${editOrder.secondaryRecipeVersion.recipe.name}` : ""} · ${editOrder.productVariant.product.matrixCode} · ${colorLabel(editOrder.productVariant)}`} style={{ marginBottom: 12 }} /> : null}
-        <ProductionDetailsFields form={editForm} variants={editVariants} materials={options.data?.materials ?? []} customerBrands={editBrands} structureLocked={editOrder?.status !== "DRAFT"} />
+        <ProductionDetailsFields form={editForm} variants={editVariants} materials={options.data?.materials ?? []} customerBrands={editBrands} structureLocked={editOrder?.status !== "DRAFT"} canCreateItem={permissions.includes("inventory.create_item")} />
       </Form>
     </Modal>
 
@@ -366,5 +375,8 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
         <Form.List name="waste">{(fields) => <Space direction="vertical" style={{ width: "100%" }}>{fields.map((field) => { const material = completeOrder?.materials[field.name]; return <div key={field.key} className="purchase-form-grid"><Form.Item {...field} name={[field.name, "productionMaterialId"]} hidden><Input /></Form.Item><Form.Item label="Material"><Input disabled value={material ? `${material.item.code} · ${material.item.name}` : ""} /></Form.Item><Form.Item {...field} name={[field.name, "quantity"]} label={`Merma real${material ? ` (${material.item.unit.symbol})` : ""}`} rules={[{ required: true }]}><InputNumber min={0} max={material ? Number(material.consumedQuantity) : undefined} precision={6} style={{ width: "100%" }} /></Form.Item></div>; })}</Space>}</Form.List>
       </Form>
     </Modal>
+    <WarehouseQuickCreateModal open={quickWarehouseOpen} onCancel={() => setQuickWarehouseOpen(false)} onCreated={(warehouse) => { form.setFieldValue("warehouseId", warehouse.id); setQuickWarehouseOpen(false); }} />
+    <MachineQuickCreateModal open={quickMachineOpen} onCancel={() => setQuickMachineOpen(false)} onCreated={(machine) => { form.setFieldValue("machineId", machine.id); setQuickMachineOpen(false); }} />
+    <ItemQuickCreateModal open={quickMaterialOpen} defaultType="RAW_MATERIAL" onCancel={() => setQuickMaterialOpen(false)} onCreated={(item) => { form.setFieldValue("materialItemId", item.id); setQuickMaterialOpen(false); }} />
   </>;
 }

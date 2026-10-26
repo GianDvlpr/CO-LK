@@ -1,6 +1,6 @@
 # Estado de implementación
 
-Actualizado: 25/10/2026.
+Actualizado: 26/10/2026.
 
 ## Completado
 
@@ -23,7 +23,7 @@ Actualizado: 25/10/2026.
 - RBAC alineado con la matriz aprobada y aislamiento de empresa obtenido desde la sesión.
 - Endpoints de autenticación, Compras y autorización privada de Pusher protegidos en servidor.
 - Dashboard protegido por sesión y navegación filtrada por permisos.
-- Barra superior con nombre y `@usuario`, tipo de cambio USD vigente e histórico compacto de compra/venta; sincronización oficial desde SUNAT con respaldo e histórico BCRP.
+- Barra superior con nombre y `@usuario`, tipo de cambio USD vigente e histórico compacto de compra/venta; sincronización oficial desde SUNAT con respaldo e histórico BCRP, automática una vez por empresa y día después del primer login exitoso.
 - Acciones de creación ubicadas en el encabezado de sus respectivas tablas para mantener el contexto visual del módulo.
 - Pantalla operativa de Compras conectada a API: listado, alta multilínea, presentaciones, lotes, cálculo de IGV/total y aprobación.
 - Endpoint protegido de opciones de Compras para proveedores, almacenes, monedas y materias primas.
@@ -33,6 +33,7 @@ Actualizado: 25/10/2026.
 - Registro transaccional e idempotente de stock inicial con saldo global/por lote, promedio ponderado, auditoría, outbox y secuencia de contabilización.
 - Kardex valorizado con filtros por ítem y almacén, lote, cantidades, costos, valor y saldo posterior a cada movimiento.
 - Ítems de Almacén con código de producto del proveedor y costo de referencia opcional (precio neto, IGV y costo total calculado), administrables desde el modal y desde Excel sin afectar la valorización.
+- El IGV de una línea de compra y del costo de referencia del ítem se elige como Con IGV (tasa de la empresa) o Sin IGV (0 %), también al crear el ítem al vuelo desde otros módulos.
 - Presentación habitual opcional por ítem de Almacén (tipo de envase y contenido en unidad base), administrable desde el modal y Excel; la tabla muestra la equivalencia calculada entre envases completos y remanente sin alterar stock ni kardex.
 - La aprobación de compras valoriza el inventario con el IGV incluido en el costo unitario; el saldo inicial se registra con el costo total con IGV.
 - Tasa de IGV configurable por empresa desde Catálogos → Configuración general, aplicada a compras (modal y Excel), costo de referencia de ítems e importaciones.
@@ -51,6 +52,8 @@ Actualizado: 25/10/2026.
 - Edición de recetas: los borradores se corrigen en su versión actual y una receta activa genera una versión nueva que se publica al activarla, sin interrumpir la versión vigente.
 - Recetas archivables y reactivables; la eliminación solo procede cuando no tienen órdenes de producción ni transformaciones asociadas.
 - Formato PDF A5 apaisado descargable por receta con su última versión, ingredientes y notas.
+- Costo por versión de receta: calculado automáticamente desde los materiales (promedio de almacén o referencia con IGV) y costo manual opcional, visibles en tabla, tabla expandible y PDF; Excel admite `costo_manual`.
+- Los formularios permiten crear al vuelo el dato maestro faltante (ítem de almacén, producto, almacén, proveedor, cliente, moneda, unidad o máquina) y lo dejan seleccionado.
 - Enviar a Producción y Almacén usa siempre la versión activa de la receta; los PDFs sanitizan caracteres fuera de WinAnsi para no fallar al descargarse.
 - La edición tolera ingredientes desactivados sin cambios y la importación de una nueva versión conserva el estado y el nombre de la receta.
 - Flujo operativo de Producción: crear orden, reservar materiales, iniciar consumiendo inventario y completar ingresando producto terminado.
@@ -66,7 +69,7 @@ Actualizado: 25/10/2026.
 - Formato descargable en PDF A5 apaisado generado por el servidor, sin firmas, con cabecera, detalle de productos, verificación, incidencias, paquetes y observaciones.
 - Despacho valorizado de las cantidades realmente empacadas, liberación de diferencias reservadas, actualización del kardex, auditoría y notificaciones Pusher.
 - Calendario operativo integrado con pedidos, producción, Pick & Pack, mantenimientos y eventos manuales; incluye agenda móvil, tablero arrastrable de tareas, filtros, vencimientos y recordatorios Pusher.
-- Pizarra compartida por empresa con notas adhesivas, dibujo libre compatible con mouse y tacto, borrador de trazos, imágenes sin marco cargadas, arrastradas o pegadas desde el portapapeles, movimiento, redimensionado, zoom, controles adaptados al tema, exportación PNG completa habilitada solo al detectar cambios, guardado persistente, auditoría y control de revisión concurrente.
+- Biblioteca de pizarras compartidas por empresa con nombre, creación, guardado y reapertura; incluye notas adhesivas, dibujo libre compatible con mouse, tacto y lápiz de tablet, borrador de trazos, imágenes sin marco cargadas, arrastradas o pegadas desde el portapapeles, movimiento, redimensionado, zoom, controles adaptados al tema, exportación PNG completa habilitada solo al detectar cambios, auditoría y control de revisión concurrente.
 - Maquinaria rediseñada con indicadores compactos, búsqueda, filtros por tipo/estado, vista de tarjetas o tabla, paginación, edición, historial de mantenimiento y fichas versionadas de parámetros por estación, canal y zona térmica, descargables en PDF A4.
 - Módulo operativo de Usuarios con alta, asignación de múltiples roles, contraseña temporal mínima de 6 caracteres y cambio obligatorio en el primer ingreso.
 - Activación y desactivación segura de usuarios; al desactivar una cuenta se revocan de inmediato todas sus sesiones y se registra la operación en auditoría.

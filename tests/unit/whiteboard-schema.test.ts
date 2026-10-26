@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emptyWhiteboardContent, referencedAssetIds, whiteboardContentSchema } from "@/modules/whiteboard/domain/whiteboard-schema";
+import { createWhiteboardSchema, emptyWhiteboardContent, referencedAssetIds, updateWhiteboardSchema, whiteboardContentSchema } from "@/modules/whiteboard/domain/whiteboard-schema";
 
 describe("whiteboardContentSchema", () => {
   it("acepta notas, imágenes y dibujos válidos", () => {
@@ -27,5 +27,12 @@ describe("whiteboardContentSchema", () => {
       { ...base, id: crypto.randomUUID(), type: "image", assetId },
     ] })).toEqual([assetId]);
     expect(emptyWhiteboardContent()).toEqual({ version: 1, elements: [] });
+  });
+
+  it("valida nombres y referencias al guardar pizarras", () => {
+    const content = emptyWhiteboardContent();
+    expect(createWhiteboardSchema.safeParse({ title: "  Reunión de producción  " }).success).toBe(true);
+    expect(createWhiteboardSchema.safeParse({ title: "   " }).success).toBe(false);
+    expect(updateWhiteboardSchema.safeParse({ id: crypto.randomUUID(), title: "Plan semanal", revision: 2, content }).success).toBe(true);
   });
 });

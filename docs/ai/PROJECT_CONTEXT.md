@@ -1,6 +1,6 @@
 # Contexto técnico para continuar LK INNOVACION
 
-Actualizado: 24/10/2026.
+Actualizado: 26/10/2026.
 
 ## 1. Qué es el sistema
 
@@ -206,7 +206,7 @@ El sistema ya implementa:
 - Excel y PDF de la orden de producción;
 - pedidos, Pick & Pack, formato imprimible y despacho;
 - maquinaria y mantenimientos;
-- analítica, calendario, Kanban, pizarra compartida y notificaciones;
+- analítica, calendario, Kanban, biblioteca de pizarras compartidas y notificaciones;
 - plantillas, reportes e importaciones Excel para Compras, Almacén, Recetas, Productos y Pedidos.
 
 Para el detalle de reglas, consultar `docs/ai/DOMAIN_RULES.md`.

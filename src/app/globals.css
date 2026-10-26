@@ -2398,6 +2398,29 @@ a {
   border-bottom: 1px solid var(--line);
 }
 
+.whiteboard-library-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--brand-soft) 42%, var(--surface));
+}
+
+.whiteboard-library-select {
+  display: grid;
+  grid-template-columns: auto minmax(220px, 360px);
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  color: var(--brand-dark);
+}
+
+.whiteboard-library-select .ant-select { width: 100%; min-width: 0; }
+
+.whiteboard-name-field { display: grid; gap: 7px; font-weight: 600; }
+
 .whiteboard-toolbar > .ant-space { min-width: 0; }
 .whiteboard-note-icon { display: inline-block; width: 15px; height: 15px; border: 1px solid rgb(15 23 42 / 24%); border-radius: 3px; }
 
@@ -2565,6 +2588,10 @@ a {
 .whiteboard-state .ant-btn { pointer-events: auto; }
 
 @media (max-width: 760px) {
+  .whiteboard-library-bar { align-items: stretch; flex-direction: column; }
+  .whiteboard-library-select { grid-template-columns: auto minmax(0, 1fr); width: 100%; }
+  .whiteboard-library-bar > .ant-space { width: 100%; }
+  .whiteboard-library-bar > .ant-space .ant-btn { flex: 1; }
   .whiteboard-toolbar,
   .whiteboard-meta { align-items: stretch; flex-direction: column; }
   .whiteboard-toolbar > .ant-space { width: 100%; }

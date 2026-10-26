@@ -2,7 +2,7 @@
 
 import { CheckOutlined, CloseCircleOutlined, PlusOutlined, ReloadOutlined, WhatsAppOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Alert, Button, Card, DatePicker, Divider, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag, Tooltip, Typography } from "antd";
+import { Alert, Button, Card, DatePicker, Divider, Empty, Form, Input, InputNumber, Modal, Segmented, Select, Space, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import Decimal from "decimal.js";
@@ -14,6 +14,9 @@ import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 import { TableSearch } from "@/components/common/table-search";
 import { PRESENTATION_TYPES } from "@/modules/purchases/domain/presentation-types";
+import { CreatableSelect } from "@/components/common/quick-create/creatable-select";
+import { ContactQuickCreateModal, CurrencyQuickCreateModal, WarehouseQuickCreateModal } from "@/components/common/quick-create/catalog-quick-create";
+import { ItemQuickCreateModal } from "@/components/common/quick-create/item-quick-create";
 import { buildPurchaseRequestMessage, normalizeWhatsAppPhone } from "@/modules/purchases/domain/whatsapp-request";
 
 type PurchaseLine = { id: string; lineNumber: number; presentationType: string; presentationQty: string; contentPerUnit: string; receivedQuantity: string; pricePerBaseUnit: string; taxRate: string; total: string; item: { code: string; name: string; supplierProductCode?: string | null; unit: { symbol: string }; images: { secureUrl: string }[] }; lots: { lot: { supplierLot: string | null } }[] };
@@ -43,6 +46,10 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
   const [open, setOpen] = useState(false);
   const [pickerLine, setPickerLine] = useState<number | null>(null);
   const [pickerSearch, setPickerSearch] = useState("");
+  const [quickSupplierOpen, setQuickSupplierOpen] = useState(false);
+  const [quickWarehouseOpen, setQuickWarehouseOpen] = useState(false);
+  const [quickCurrencyOpen, setQuickCurrencyOpen] = useState(false);
+  const [quickItemOpen, setQuickItemOpen] = useState(false);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search.trim());
   const [page, setPage] = useState(1);
@@ -188,13 +195,13 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
 
     <Modal className="compact-form-modal" title="Nueva recepción de compra" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Registrar pendiente" cancelText="Cancelar" confirmLoading={create.isPending} width={980} destroyOnHidden>
       {options.error ? <Alert type="error" showIcon message={options.error.message} style={{ marginBottom: 16 }} /> : null}
-      <Form form={form} layout="vertical" onFinish={(values) => create.mutate(values)} initialValues={{ receptionDate: dayjs(), exchangeRate: 1, lines: [{ taxRate: 18 }] }}>
+      <Form form={form} layout="vertical" onFinish={(values) => create.mutate(values)} initialValues={{ receptionDate: dayjs(), exchangeRate: 1, lines: [{ taxRate: companyIgvRate }] }}>
         <div className="purchase-form-grid">
           <Form.Item name="receptionDate" label="Fecha de recepción" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>
-          <Form.Item name="supplierId" label="Proveedor" rules={[{ required: true }]}><Select loading={options.isLoading} showSearch optionFilterProp="label" onChange={changeSupplier} options={options.data?.suppliers.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
+          <Form.Item name="supplierId" label="Proveedor" rules={[{ required: true }]}><CreatableSelect createLabel="Nuevo proveedor" createDisabled={!permissions.includes("catalogs.manage")} onCreate={() => setQuickSupplierOpen(true)} loading={options.isLoading} showSearch optionFilterProp="label" onChange={changeSupplier} options={options.data?.suppliers.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
           <Form.Item name="documentNumber" label="Documento / guía" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.warehouses.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
-          <Form.Item name="currencyId" label="Moneda" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.currencies.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
+          <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><CreatableSelect createLabel="Nuevo almacén" createDisabled={!permissions.includes("catalogs.manage")} onCreate={() => setQuickWarehouseOpen(true)} showSearch optionFilterProp="label" options={options.data?.warehouses.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
+          <Form.Item name="currencyId" label="Moneda" rules={[{ required: true }]}><CreatableSelect createLabel="Nueva moneda" createDisabled={!permissions.includes("catalogs.manage")} onCreate={() => setQuickCurrencyOpen(true)} showSearch optionFilterProp="label" options={options.data?.currencies.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
           <Form.Item name="exchangeRate" label="Tipo de cambio" tooltip="Valor en soles de una unidad de la moneda de la compra. Para PEN usa 1." rules={[{ required: true }]}><InputNumber min={0.000001} precision={6} style={{ width: "100%" }} /></Form.Item>
         </div>
         <Divider>Productos recibidos</Divider>
@@ -208,8 +215,9 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
                 <Form.Item name={[field.name, "presentationQuantity"]} label="Presentaciones" tooltip="Número de bultos o envases recibidos, por ejemplo 25 sacos." rules={[{ required: true }]}><InputNumber min={0.000001} style={{ width: "100%" }} placeholder="20" /></Form.Item>
                 <Form.Item name={[field.name, "contentPerUnit"]} label="Contenido" tooltip="Unidades base por presentación, por ejemplo 20 kg por saco." rules={[{ required: true }]}><InputNumber min={0.000001} style={{ width: "100%" }} placeholder="10" /></Form.Item>
                 <Form.Item label="Recibido" tooltip="Cantidad total en unidad base: presentaciones × contenido."><Input value={new Decimal(watchedLines[index]?.presentationQuantity ?? 0).mul(watchedLines[index]?.contentPerUnit ?? 0).toString()} disabled suffix={options.data?.items.find((item) => item.id === watchedLines[index]?.itemId)?.unit.symbol} /></Form.Item>
-                <Form.Item name={[field.name, "pricePerBaseUnit"]} label="Precio neto" tooltip="Precio sin IGV por unidad base." rules={[{ required: true }]}><InputNumber min={0.000001} precision={6} style={{ width: "100%" }} /></Form.Item>
-                <Form.Item name={[field.name, "taxRate"]} label="IGV %" rules={[{ required: true }]}><InputNumber min={0} max={100} precision={2} style={{ width: "100%" }} /></Form.Item>
+                <Form.Item name={[field.name, "pricePerBaseUnit"]} label={watchedLines[index]?.taxRate === 0 ? "Precio total" : "Precio neto (sin IGV)"} tooltip={watchedLines[index]?.taxRate === 0 ? "Importe final por unidad base; no se agrega IGV." : "Precio sin IGV por unidad base."} rules={[{ required: true }]}><InputNumber min={0.000001} precision={6} style={{ width: "100%" }} /></Form.Item>
+                <Form.Item name={[field.name, "taxRate"]} hidden><Input /></Form.Item>
+                <Form.Item label="IGV"><Segmented value={watchedLines[index]?.taxRate === 0 ? "EXCLUDED" : "INCLUDED"} onChange={(value) => form.setFieldValue(["lines", index, "taxRate"], value === "EXCLUDED" ? 0 : companyIgvRate)} options={[{ value: "INCLUDED", label: `Con IGV (${companyIgvRate} %)` }, { value: "EXCLUDED", label: "Sin IGV (0 %)" }]} /></Form.Item>
                 <Form.Item name={[field.name, "lotCode"]} label="Lote interno" tooltip="Código de lote según la configuración del ítem."><Input placeholder="Según configuración del ítem" /></Form.Item>
                 <Form.Item name={[field.name, "supplierLot"]} label="Lote del proveedor"><Input placeholder="Opcional" /></Form.Item>
               </div>
@@ -221,7 +229,10 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
       </Form>
     </Modal>
     <Modal title={`Seleccionar materia prima${selectedSupplier ? ` · ${selectedSupplier.name}` : ""}`} open={pickerLine !== null} onCancel={() => setPickerLine(null)} footer={null} width={960} destroyOnHidden>
-      <Input.Search allowClear placeholder="Buscar por nombre, código o código del proveedor" value={pickerSearch} onChange={(event) => setPickerSearch(event.target.value)} style={{ marginBottom: 12 }} />
+      <Space.Compact block style={{ marginBottom: 12 }}>
+        <Input.Search allowClear placeholder="Buscar por nombre, código o código del proveedor" value={pickerSearch} onChange={(event) => setPickerSearch(event.target.value)} style={{ flex: 1 }} />
+        <Button icon={<PlusOutlined />} disabled={!selectedSupplierId || !permissions.includes("inventory.create_item")} onClick={() => setQuickItemOpen(true)}>Nuevo material</Button>
+      </Space.Compact>
       <Table
         rowKey="id"
         size="small"
@@ -243,5 +254,9 @@ export function PurchasesWorkspace({ permissions, canCreate, canApprove, canReje
         ]}
       />
     </Modal>
+    <ContactQuickCreateModal kind="SUPPLIER" open={quickSupplierOpen} onCancel={() => setQuickSupplierOpen(false)} onCreated={(supplier) => { form.setFieldValue("supplierId", supplier.id); changeSupplier(); setQuickSupplierOpen(false); }} />
+    <WarehouseQuickCreateModal open={quickWarehouseOpen} onCancel={() => setQuickWarehouseOpen(false)} onCreated={(warehouse) => { form.setFieldValue("warehouseId", warehouse.id); setQuickWarehouseOpen(false); }} />
+    <CurrencyQuickCreateModal open={quickCurrencyOpen} onCancel={() => setQuickCurrencyOpen(false)} onCreated={(currency) => { form.setFieldValue("currencyId", currency.id); setQuickCurrencyOpen(false); }} />
+    <ItemQuickCreateModal open={quickItemOpen} defaultType="RAW_MATERIAL" allowedTypes={["RAW_MATERIAL"]} defaultSupplierId={selectedSupplierId} defaultCurrencyId={options.data?.currencies.find((currency) => currency.isBase)?.id} onCancel={() => setQuickItemOpen(false)} onCreated={(item) => { if (pickerLine !== null) { form.setFieldValue(["lines", pickerLine, "itemId"], item.id); form.setFieldValue(["lines", pickerLine, "taxRate"], companyIgvRate); setPickerLine(null); } setQuickItemOpen(false); }} />
   </>;
 }

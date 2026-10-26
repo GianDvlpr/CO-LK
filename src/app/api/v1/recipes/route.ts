@@ -8,10 +8,12 @@ import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { nextBusinessCode } from "@/lib/database/business-code";
 import { createsInventoryFormulaCycle } from "@/modules/inventory/domain/inventory-formula-cycle";
+import { calculateRecipeCost, resolveItemUnitCost } from "@/modules/recipes/domain/recipe-cost";
 
 const decimal = z.union([z.string().min(1), z.number()]);
 const createSchema = z.object({
   name: z.string().trim().min(1).max(150), productId: z.uuid().optional(), outputItemId: z.uuid().optional(), yieldQuantity: decimal, notes: z.string().trim().max(500).optional(),
+  manualCost: decimal.optional(),
   ingredients: z.array(z.object({ itemId: z.uuid(), quantity: decimal })).min(1),
 }).refine((value) => Boolean(value.productId) !== Boolean(value.outputItemId), { message: "Selecciona un producto final o un insumo resultante, no ambos." });
 
@@ -34,8 +36,10 @@ export async function POST(request: Request) {
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("VALIDATION_ERROR", "La receta contiene datos inválidos.", 400);
   const yieldQuantity = new Decimal(parsed.data.yieldQuantity);
+  const manualCost = parsed.data.manualCost !== undefined ? new Decimal(parsed.data.manualCost) : null;
   const itemIds = parsed.data.ingredients.map((ingredient) => ingredient.itemId);
   if (!yieldQuantity.greaterThan(0) || new Set(itemIds).size !== itemIds.length) return apiError("RECIPE_INVALID", "El rendimiento debe ser positivo y las materias primas no pueden repetirse.", 422);
+  if (manualCost && (manualCost.isNegative() || !manualCost.isFinite())) return apiError("RECIPE_INVALID_COST", "El costo manual no puede ser negativo.", 422);
   if (parsed.data.productId && !yieldQuantity.isInteger()) return apiError("RECIPE_INVALID_YIELD", "El rendimiento de una receta de producción debe ser un número entero de pares.", 422);
   for (const ingredient of parsed.data.ingredients) {
     const quantity = new Decimal(ingredient.quantity);
@@ -47,7 +51,7 @@ export async function POST(request: Request) {
       const [product, outputItem, materials] = await Promise.all([
         parsed.data.productId ? tx.product.findFirst({ where: { id: parsed.data.productId, companyId: user.companyId, active: true } }) : null,
         parsed.data.outputItemId ? tx.inventoryItem.findFirst({ where: { id: parsed.data.outputItemId, companyId: user.companyId, active: true, type: "INTERMEDIATE" } }) : null,
-        tx.inventoryItem.findMany({ where: { id: { in: itemIds }, companyId: user.companyId, active: true, type: { in: ["RAW_MATERIAL", "INTERMEDIATE", "WASTE"] } } }),
+        tx.inventoryItem.findMany({ where: { id: { in: itemIds }, companyId: user.companyId, active: true, type: { in: ["RAW_MATERIAL", "INTERMEDIATE", "WASTE"] } }, include: { balances: { where: { lotId: null }, select: { onHandQuantity: true, averageUnitCost: true } } } }),
       ]);
       if ((parsed.data.productId && !product) || (parsed.data.outputItemId && !outputItem) || materials.length !== itemIds.length) throw new Error("RECIPE_INVALID_REFERENCE");
       if (outputItem) {
@@ -57,7 +61,9 @@ export async function POST(request: Request) {
         if (createsInventoryFormulaCycle(edges, outputItem.id, itemIds)) throw new Error("RECIPE_CYCLE");
       }
       const code = await nextBusinessCode(tx, user.companyId, "RECIPE");
-      const created = await tx.recipe.create({ data: { companyId: user.companyId, productId: product?.id, outputItemId: outputItem?.id, code, name: parsed.data.name, status: "DRAFT", versions: { create: { version: 1, yieldQuantity, notes: parsed.data.notes, isActive: false, ingredients: { create: parsed.data.ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: new Decimal(ingredient.quantity) })) } } } } });
+      const unitCostByItem = new Map(materials.map((item) => [item.id, resolveItemUnitCost(item)]));
+      const calculatedCost = calculateRecipeCost(parsed.data.ingredients.map((ingredient) => ({ quantity: ingredient.quantity, unitCost: unitCostByItem.get(ingredient.itemId) ?? 0 })));
+      const created = await tx.recipe.create({ data: { companyId: user.companyId, productId: product?.id, outputItemId: outputItem?.id, code, name: parsed.data.name, status: "DRAFT", versions: { create: { version: 1, yieldQuantity, calculatedCost, manualCost, notes: parsed.data.notes, isActive: false, ingredients: { create: parsed.data.ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: new Decimal(ingredient.quantity) })) } } } } });
       await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "Recipe", entityId: created.id, action: "CREATE", afterData: { code: created.code, version: 1, ingredientCount: itemIds.length } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "recipe.created.v1", aggregateId: created.id, payload: { recipeId: created.id, code: created.code } } });
       return created;

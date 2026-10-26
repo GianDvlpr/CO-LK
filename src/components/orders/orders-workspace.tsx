@@ -2,7 +2,7 @@
 
 import { CheckOutlined, EditOutlined, InboxOutlined, PlusOutlined, ReloadOutlined, SendOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag, Tooltip, Typography } from "antd";
+import { Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Space, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import Decimal from "decimal.js";
@@ -12,6 +12,9 @@ import { ModuleImportButton } from "@/components/imports/module-import-button";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 import { TableSearch, matchesSearch } from "@/components/common/table-search";
+import { CreatableSelect } from "@/components/common/quick-create/creatable-select";
+import { ContactQuickCreateModal } from "@/components/common/quick-create/catalog-quick-create";
+import { ProductCreateModal } from "@/components/common/quick-create/product-create-modal";
 
 type Variant = { id: string; sku: string; product: { code: string; name: string }; size: { name: string }; color: { name: string }; inventoryItem: { unit: { symbol: string } } };
 type Options = { customers: { id: string; code: string; name: string; taxId?: string }[]; variants: Variant[] };
@@ -25,6 +28,8 @@ const labels: Record<string, [string, string]> = { DRAFT: ["Borrador", "blue"], 
 export function OrdersWorkspace({ permissions }: { permissions: string[] }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
+  const [quickProductOpen, setQuickProductOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Order>();
   const [form] = Form.useForm<OrderForm>();
@@ -65,10 +70,12 @@ export function OrdersWorkspace({ permissions }: { permissions: string[] }) {
     <Card className="section-card" title="Órdenes de pedido" extra={permissions.includes("orders.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo pedido</Button> : null}>{orders.error ? <Alert type="error" showIcon message={orders.error.message} style={{ marginBottom: 16 }} /> : null}<Table rowKey="id" loading={orders.isLoading} columns={columns} dataSource={filteredOrders} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" sticky={false} pagination={false} columns={lineColumns} dataSource={row.lines} /> }} scroll={{ x: 1200 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay pedidos registrados" /> }} /></Card>
     <Modal className="compact-form-modal" title={editing ? `Editar ${editing.number}` : "Nuevo pedido"} open={open} onCancel={() => { setOpen(false); setEditing(undefined); }} onOk={() => form.submit()} okText={editing ? "Guardar cambios" : "Crear borrador"} confirmLoading={save.isPending} width={900} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={(values) => save.mutate(values)}>
-        <div className="purchase-form-grid">{editing ? <Form.Item label="Número"><Input disabled value={editing.number} /></Form.Item> : null}<Form.Item name="customerId" label="Cliente" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` }))} /></Form.Item><Form.Item name="requestedAt" label="Fecha de pedido" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item><Form.Item name="promisedAt" label="Fecha prometida"><DatePicker style={{ width: "100%" }} /></Form.Item></div>
+        <div className="purchase-form-grid">{editing ? <Form.Item label="Número"><Input disabled value={editing.number} /></Form.Item> : null}<Form.Item name="customerId" label="Cliente" rules={[{ required: true }]}><CreatableSelect createLabel="Nuevo cliente" createDisabled={!permissions.includes("catalogs.manage")} onCreate={() => setQuickCustomerOpen(true)} showSearch optionFilterProp="label" options={options.data?.customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` }))} /></Form.Item><Form.Item name="requestedAt" label="Fecha de pedido" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item><Form.Item name="promisedAt" label="Fecha prometida"><DatePicker style={{ width: "100%" }} /></Form.Item></div>
         <Form.Item name="notes" label="Observaciones"><Input.TextArea rows={2} /></Form.Item>
-        <Form.List name="lines">{(fields, { add, remove }) => <Space direction="vertical" style={{ width: "100%" }}><Typography.Title level={5}>Productos solicitados</Typography.Title>{fields.map((field, index) => <Card size="small" key={field.key} title={`Línea ${index + 1}`} extra={fields.length > 1 ? <Button type="link" danger onClick={() => remove(field.name)}>Quitar</Button> : null}><div className="purchase-form-grid"><Form.Item name={[field.name, "productVariantId"]} label="Variante" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={options.data?.variants.map((variant) => ({ value: variant.id, label: `${variant.sku} · ${variant.product.name} · ${variant.size.name} · ${variant.color.name}` }))} /></Form.Item><Form.Item name={[field.name, "quantity"]} label="Cantidad" rules={[{ required: true }]}><InputNumber min={0.001} precision={3} style={{ width: "100%" }} /></Form.Item><Form.Item name={[field.name, "unitPrice"]} label="Precio unitario" rules={[{ required: true }]}><InputNumber min={0} precision={2} prefix="S/" style={{ width: "100%" }} /></Form.Item></div></Card>)}<Button block icon={<PlusOutlined />} onClick={() => add({ quantity: 1, unitPrice: 0 })}>Agregar producto</Button></Space>}</Form.List>
+        <Form.List name="lines">{(fields, { add, remove }) => <Space direction="vertical" style={{ width: "100%" }}><Typography.Title level={5}>Productos solicitados</Typography.Title>{fields.map((field, index) => <Card size="small" key={field.key} title={`Línea ${index + 1}`} extra={fields.length > 1 ? <Button type="link" danger onClick={() => remove(field.name)}>Quitar</Button> : null}><div className="purchase-form-grid"><Form.Item name={[field.name, "productVariantId"]} label="Variante" rules={[{ required: true }]}><CreatableSelect createLabel="Nuevo producto" createDisabled={!permissions.includes("products.create")} onCreate={() => setQuickProductOpen(true)} showSearch optionFilterProp="label" options={options.data?.variants.map((variant) => ({ value: variant.id, label: `${variant.sku} · ${variant.product.name} · ${variant.size.name} · ${variant.color.name}` }))} /></Form.Item><Form.Item name={[field.name, "quantity"]} label="Cantidad" rules={[{ required: true }]}><InputNumber min={0.001} precision={3} style={{ width: "100%" }} /></Form.Item><Form.Item name={[field.name, "unitPrice"]} label="Precio unitario" rules={[{ required: true }]}><InputNumber min={0} precision={2} prefix="S/" style={{ width: "100%" }} /></Form.Item></div></Card>)}<Button block icon={<PlusOutlined />} onClick={() => add({ quantity: 1, unitPrice: 0 })}>Agregar producto</Button></Space>}</Form.List>
       </Form>
     </Modal>
+    <ContactQuickCreateModal kind="CUSTOMER" open={quickCustomerOpen} onCancel={() => setQuickCustomerOpen(false)} onCreated={(customer) => { form.setFieldValue("customerId", customer.id); setQuickCustomerOpen(false); }} />
+    <ProductCreateModal open={quickProductOpen} onCancel={() => setQuickProductOpen(false)} onCreated={() => setQuickProductOpen(false)} />
   </>;
 }

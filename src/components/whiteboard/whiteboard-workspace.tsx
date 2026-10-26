@@ -5,9 +5,12 @@ import {
   DeleteOutlined,
   DownloadOutlined,
   DragOutlined,
+  FolderOpenOutlined,
   HighlightOutlined,
   PictureOutlined,
+  PlusOutlined,
   ReloadOutlined,
+  SaveOutlined,
   ScissorOutlined,
 } from "@ant-design/icons";
 import {
@@ -24,7 +27,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Empty, Modal, Select, Space, Tag, Tooltip, Upload, Typography } from "antd";
+import { Alert, Button, Empty, Input, Modal, Select, Space, Tag, Tooltip, Upload, Typography } from "antd";
 import dayjs from "dayjs";
 import Image from "next/image";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
@@ -36,8 +39,9 @@ import { drawingIntersectsEraser, whiteboardContentFingerprint } from "@/modules
 import { useUiStore } from "@/stores/ui-store";
 
 type WhiteboardAsset = { id: string; secureUrl: string; fileName: string; mimeType: string; sizeBytes: number; width?: number | null; height?: number | null };
-type WhiteboardResponse = { id: string | null; revision: number; content: WhiteboardContent; assets: WhiteboardAsset[]; updatedAt: string | null; updatedBy: { name: string; username: string } | null };
-type UploadResponse = { asset: WhiteboardAsset; revision: number };
+type WhiteboardResponse = { id: string | null; title: string; revision: number; content: WhiteboardContent; assets: WhiteboardAsset[]; createdAt?: string | null; updatedAt: string | null; updatedBy: { name: string; username: string } | null };
+type WhiteboardSummary = { id: string; title: string; revision: number; createdAt: string; updatedAt: string; updatedBy: { name: string; username: string } };
+type UploadResponse = { asset: WhiteboardAsset; boardId: string; revision: number };
 type Tool = "select" | "draw" | "erase";
 type BoardNodeData = { element: WhiteboardElement; asset?: WhiteboardAsset; canManage: boolean };
 type BoardNode = Node<BoardNodeData, "board">;
@@ -113,12 +117,22 @@ const nodeTypes = { board: BoardNodeView };
 export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canManage: boolean; cloudinaryConfigured: boolean }) {
   const queryClient = useQueryClient();
   const themeMode = useUiStore((state) => state.themeMode);
-  const query = useQuery({ queryKey: ["whiteboard"], queryFn: () => api<WhiteboardResponse>("/api/v1/whiteboard") });
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
+  const whiteboardQueryKey = useMemo(() => ["whiteboard", selectedBoardId ?? "latest"] as const, [selectedBoardId]);
+  const query = useQuery({
+    queryKey: whiteboardQueryKey,
+    queryFn: () => api<WhiteboardResponse>(`/api/v1/whiteboard${selectedBoardId ? `?id=${encodeURIComponent(selectedBoardId)}` : ""}`),
+  });
+  const boardsQuery = useQuery({ queryKey: ["whiteboards"], queryFn: () => api<WhiteboardSummary[]>("/api/v1/whiteboard/list") });
+  const canEdit = canManage && !query.isLoading;
   const [elements, setElements] = useState<WhiteboardElement[]>([]);
   const [assets, setAssets] = useState<WhiteboardAsset[]>([]);
   const [revision, setRevision] = useState(0);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [nameModalMode, setNameModalMode] = useState<"save" | "new" | null>(null);
+  const [boardName, setBoardName] = useState("");
+  const [namingBoard, setNamingBoard] = useState(false);
   const [tool, setTool] = useState<Tool>("select");
   const [drawColor, setDrawColor] = useState("#1f2937");
   const [noteColor, setNoteColor] = useState("#fff3a3");
@@ -128,6 +142,7 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
   const flowRef = useRef<ReactFlowInstance<BoardNode, Edge> | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const revisionRef = useRef(0);
+  const boardIdRef = useRef<string | null>(null);
   const elementsRef = useRef<WhiteboardElement[]>([]);
   const assetsRef = useRef<WhiteboardAsset[]>([]);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -139,6 +154,7 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!query.data || saving) return;
+    boardIdRef.current = query.data.id;
     revisionRef.current = query.data.revision;
     elementsRef.current = query.data.content.elements;
     assetsRef.current = query.data.assets;
@@ -161,28 +177,35 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
       id: element.id,
       type: "board",
       position: { x: element.x, y: element.y },
-      data: { element, asset: element.type === "image" ? assetMap.get(element.assetId) : undefined, canManage },
-      draggable: canManage && element.type !== "drawing" && tool === "select",
+      data: { element, asset: element.type === "image" ? assetMap.get(element.assetId) : undefined, canManage: canEdit },
+      draggable: canEdit && element.type !== "drawing" && tool === "select",
       selectable: element.type !== "drawing",
       style: { width: element.width, height: element.height },
       zIndex: element.type === "drawing" ? 0 : 1,
     })));
-  }, [assetMap, canManage, elements, setNodes, tool]);
+  }, [assetMap, canEdit, elements, setNodes, tool]);
 
-  const persist = useCallback((next: WhiteboardElement[]) => {
-    saveQueueRef.current = saveQueueRef.current.then(async () => {
+  const persist = useCallback((next: WhiteboardElement[], title?: string) => {
+    const operation = saveQueueRef.current.then(async () => {
       setSaving(true);
       try {
         const board = await api<WhiteboardResponse>("/api/v1/whiteboard", {
           method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ revision: revisionRef.current, content: { version: 1, elements: next } }),
+          body: JSON.stringify({ id: boardIdRef.current ?? undefined, title, revision: revisionRef.current, content: { version: 1, elements: next } }),
         });
+        boardIdRef.current = board.id;
         revisionRef.current = board.revision;
         assetsRef.current = board.assets;
         setRevision(board.revision);
         setAssets(board.assets);
-        queryClient.setQueryData(["whiteboard"], board);
+        queryClient.setQueryData(whiteboardQueryKey, board);
+        if (board.id) {
+          queryClient.setQueryData(["whiteboard", board.id], board);
+          setSelectedBoardId(board.id);
+        }
+        void queryClient.invalidateQueries({ queryKey: ["whiteboards"] });
+        return board;
       } catch (error) {
         const typed = error as Error & { code?: string };
         toast.error(typed.message);
@@ -191,13 +214,15 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
       } finally {
         setSaving(false);
       }
-    }).catch(() => undefined);
-  }, [queryClient]);
+    });
+    saveQueueRef.current = operation.then(() => undefined, () => undefined);
+    return operation;
+  }, [queryClient, whiteboardQueryKey]);
 
   const replaceElements = useCallback((next: WhiteboardElement[], shouldPersist = true) => {
     elementsRef.current = next;
     setElements(next);
-    if (shouldPersist) persist(next);
+    if (shouldPersist) void persist(next).catch(() => undefined);
   }, [persist]);
 
   const updateElement = useCallback((id: string, changes: Partial<WhiteboardElement>, shouldPersist = true) => {
@@ -245,9 +270,11 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
     if (!file.type.startsWith("image/")) return toast.error("Selecciona una imagen JPEG, PNG o WebP.");
     const form = new FormData();
     form.append("file", file);
+    if (boardIdRef.current) form.append("whiteboardId", boardIdRef.current);
     setSaving(true);
     try {
       const result = await api<UploadResponse>("/api/v1/whiteboard/assets", { method: "POST", body: form });
+      boardIdRef.current = result.boardId;
       revisionRef.current = result.revision;
       setRevision(result.revision);
       const nextAssets = [...assetsRef.current, result.asset];
@@ -270,7 +297,7 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
   }, [centerPosition, cloudinaryConfigured, replaceElements]);
 
   useEffect(() => {
-    if (!canManage) return;
+    if (!canEdit) return;
     const onPaste = (event: ClipboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.matches("input, textarea, [contenteditable='true']")) return;
@@ -282,7 +309,7 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [canManage, uploadImage]);
+  }, [canEdit, uploadImage]);
 
   const startDrawing = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!flowRef.current || !surfaceRef.current) return;
@@ -349,7 +376,7 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
   const finishErasing = () => {
     const erasing = erasingRef.current;
     erasingRef.current = null;
-    if (erasing?.changed) persist(elementsRef.current);
+    if (erasing?.changed) void persist(elementsRef.current).catch(() => undefined);
   };
 
   const clearBoard = () => Modal.confirm({
@@ -370,13 +397,75 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
     },
   });
 
+  const openBoard = async (id: string) => {
+    if (id === boardIdRef.current) return;
+    await saveQueueRef.current;
+    boardIdRef.current = id;
+    revisionRef.current = 0;
+    elementsRef.current = [];
+    assetsRef.current = [];
+    setSelectedBoardId(id);
+    setRevision(0);
+    setElements([]);
+    setAssets([]);
+    setSelectedId(null);
+    setTool("select");
+  };
+
+  const openNameModal = (mode: "save" | "new") => {
+    setNameModalMode(mode);
+    setBoardName(mode === "save" ? (query.data?.title ?? "Pizarra sin título") : "");
+  };
+
+  const confirmBoardName = async () => {
+    const title = boardName.trim();
+    if (!title) return toast.error("Escribe un nombre para la pizarra.");
+    setNamingBoard(true);
+    try {
+      if (nameModalMode === "new") {
+        await saveQueueRef.current;
+        const board = await api<WhiteboardResponse>("/api/v1/whiteboard", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ title }),
+        });
+        boardIdRef.current = board.id;
+        revisionRef.current = board.revision;
+        elementsRef.current = board.content.elements;
+        assetsRef.current = board.assets;
+        if (board.id) queryClient.setQueryData(["whiteboard", board.id], board);
+        setSelectedBoardId(board.id);
+        setRevision(board.revision);
+        setElements(board.content.elements);
+        setAssets(board.assets);
+        setSelectedId(null);
+        setTool("select");
+        toast.success("Nueva pizarra creada.");
+      } else {
+        await persist(elementsRef.current, title);
+        toast.success("Pizarra guardada.");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["whiteboards"] });
+      setNameModalMode(null);
+    } catch (error) {
+      if (nameModalMode === "new") toast.error((error as Error).message);
+    } finally {
+      setNamingBoard(false);
+    }
+  };
+
   const exportBoard = async () => {
     setExporting(true);
     try {
+      if (!boardIdRef.current) throw new Error("Guarda la pizarra antes de exportarla.");
       const exportedElements = elementsRef.current;
       const exportedAssets = assetsRef.current;
       await downloadWhiteboardPng(exportedElements, exportedAssets);
-      await api("/api/v1/whiteboard/export", { method: "POST" }).catch(() => undefined);
+      await api("/api/v1/whiteboard/export", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: boardIdRef.current }),
+      }).catch(() => undefined);
       const exportedFingerprint = whiteboardContentFingerprint(exportedElements);
       if (exportStorageKey) {
         window.localStorage.setItem(exportStorageKey, exportedFingerprint);
@@ -405,29 +494,49 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
     {!cloudinaryConfigured ? <Alert type="warning" showIcon message="Cloudinary no está configurado; las notas y dibujos funcionan, pero no se pueden cargar imágenes." /> : null}
 
     <section className="whiteboard-panel">
+      <div className="whiteboard-library-bar">
+        <div className="whiteboard-library-select">
+          <FolderOpenOutlined aria-hidden="true" />
+          <Select
+            aria-label="Pizarras guardadas"
+            value={query.data?.id ?? selectedBoardId ?? undefined}
+            placeholder={boardsQuery.isLoading ? "Cargando pizarras…" : "Selecciona una pizarra"}
+            loading={boardsQuery.isLoading}
+            disabled={saving}
+            showSearch
+            optionFilterProp="label"
+            options={(boardsQuery.data ?? []).map((board) => ({ value: board.id, label: board.title }))}
+            onChange={(id) => { void openBoard(id); }}
+          />
+        </div>
+        <Space wrap size={8}>
+          <Button icon={<SaveOutlined />} disabled={!canEdit || saving} onClick={() => openNameModal("save")}>Guardar</Button>
+          <Button type="primary" icon={<PlusOutlined />} disabled={!canEdit || saving} onClick={() => openNameModal("new")}>Nueva pizarra</Button>
+        </Space>
+      </div>
       <div className="whiteboard-toolbar" role="toolbar" aria-label="Herramientas de pizarra">
         <Space wrap size={8}>
           <Tooltip title="Seleccionar, mover y navegar por la pizarra">
-            <Button shape="circle" type={tool === "select" ? "primary" : "default"} icon={<DragOutlined />} disabled={!canManage} aria-label="Seleccionar, mover y navegar" onClick={() => setTool("select")} />
+            <Button shape="circle" type={tool === "select" ? "primary" : "default"} icon={<DragOutlined />} disabled={!canEdit} aria-label="Seleccionar, mover y navegar" onClick={() => setTool("select")} />
           </Tooltip>
-          <Button type={tool === "draw" ? "primary" : "default"} icon={<HighlightOutlined />} disabled={!canManage} onClick={() => setTool("draw")}>Dibujar</Button>
+          <Button type={tool === "draw" ? "primary" : "default"} icon={<HighlightOutlined />} disabled={!canEdit} onClick={() => setTool("draw")}>Dibujar</Button>
           <Tooltip title="Borrar trazos completos">
-            <Button type={tool === "erase" ? "primary" : "default"} icon={<ScissorOutlined />} disabled={!canManage} onClick={() => setTool("erase")}>Borrador</Button>
+            <Button type={tool === "erase" ? "primary" : "default"} icon={<ScissorOutlined />} disabled={!canEdit} onClick={() => setTool("erase")}>Borrador</Button>
           </Tooltip>
-          <Button icon={<span className="whiteboard-note-icon" style={{ background: noteColor }} />} disabled={!canManage} onClick={addNote}>Nueva nota</Button>
-          <Upload accept="image/jpeg,image/png,image/webp" showUploadList={false} disabled={!canManage || !cloudinaryConfigured || saving} beforeUpload={(file) => { void uploadImage(file as File); return Upload.LIST_IGNORE; }}>
-            <Button icon={<PictureOutlined />} disabled={!canManage || !cloudinaryConfigured}>Imagen</Button>
+          <Button icon={<span className="whiteboard-note-icon" style={{ background: noteColor }} />} disabled={!canEdit} onClick={addNote}>Nueva nota</Button>
+          <Upload accept="image/jpeg,image/png,image/webp" showUploadList={false} disabled={!canEdit || !cloudinaryConfigured || saving} beforeUpload={(file) => { void uploadImage(file as File); return Upload.LIST_IGNORE; }}>
+            <Button icon={<PictureOutlined />} disabled={!canEdit || !cloudinaryConfigured}>Imagen</Button>
           </Upload>
-          <label className="whiteboard-color-control">Trazo <input type="color" value={drawColor} disabled={!canManage} onChange={(event) => setDrawColor(event.target.value)} /></label>
-          <Select aria-label="Grosor del trazo" value={strokeWidth} disabled={!canManage} onChange={setStrokeWidth} options={[2, 4, 6, 10, 16].map((value) => ({ value, label: `${value} px` }))} style={{ width: 82 }} />
-          <label className="whiteboard-color-control">Nota <input type="color" value={noteColor} disabled={!canManage} onChange={(event) => setNoteColor(event.target.value)} /></label>
+          <label className="whiteboard-color-control">Trazo <input type="color" value={drawColor} disabled={!canEdit} onChange={(event) => setDrawColor(event.target.value)} /></label>
+          <Select aria-label="Grosor del trazo" value={strokeWidth} disabled={!canEdit} onChange={setStrokeWidth} options={[2, 4, 6, 10, 16].map((value) => ({ value, label: `${value} px` }))} style={{ width: 82 }} />
+          <label className="whiteboard-color-control">Nota <input type="color" value={noteColor} disabled={!canEdit} onChange={(event) => setNoteColor(event.target.value)} /></label>
         </Space>
         <Space wrap size={8}>
           <Tooltip title={!elements.length ? "Agrega contenido para exportar" : !hasExportableChanges ? "No hay cambios desde la última descarga" : "Descargar la pizarra completa"}>
             <Button icon={<DownloadOutlined />} loading={exporting} disabled={!hasExportableChanges || saving} onClick={() => void exportBoard()}>Exportar PNG</Button>
           </Tooltip>
-          {selectedId && canManage ? <Button danger icon={<DeleteOutlined />} onClick={() => removeElement(selectedId)}>Eliminar selección</Button> : null}
-          {elements.length && canManage ? <Button danger icon={<ClearOutlined />} onClick={clearBoard}>Limpiar</Button> : null}
+          {selectedId && canEdit ? <Button danger icon={<DeleteOutlined />} onClick={() => removeElement(selectedId)}>Eliminar selección</Button> : null}
+          {elements.length && canEdit ? <Button danger icon={<ClearOutlined />} onClick={clearBoard}>Limpiar</Button> : null}
         </Space>
       </div>
       <div className="whiteboard-meta"><Typography.Text type="secondary">{lastUpdated}</Typography.Text><Typography.Text type="secondary">Puedes pegar una captura con Ctrl+V o arrastrar una imagen al lienzo.</Typography.Text></div>
@@ -435,9 +544,9 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
       <div
         ref={surfaceRef}
         className={`whiteboard-surface${tool === "draw" ? " is-drawing" : tool === "erase" ? " is-erasing" : ""}`}
-        onDragOver={(event) => { if (canManage) event.preventDefault(); }}
+        onDragOver={(event) => { if (canEdit) event.preventDefault(); }}
         onDrop={(event) => {
-          if (!canManage || !flowRef.current) return;
+          if (!canEdit || !flowRef.current) return;
           event.preventDefault();
           const file = [...event.dataTransfer.files].find((item) => item.type.startsWith("image/"));
           if (file) void uploadImage(file, flowRef.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }));
@@ -456,7 +565,7 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
             onSelectionChange={({ nodes: selected }) => setSelectedId(selected[0]?.id ?? null)}
             onPaneClick={() => setSelectedId(null)}
             nodesConnectable={false}
-            nodesDraggable={canManage && tool === "select"}
+            nodesDraggable={canEdit && tool === "select"}
             elementsSelectable={tool === "select"}
             deleteKeyCode={null}
             panOnDrag={tool === "select"}
@@ -473,11 +582,27 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
             }} />
           </ReactFlow>
         </BoardActionsContext.Provider>
-        {tool === "draw" && canManage ? <div className="whiteboard-draw-overlay" onPointerDown={startDrawing} onPointerMove={continueDrawing} onPointerUp={finishDrawing} onPointerCancel={finishDrawing}>
+        {tool === "draw" && canEdit ? <div className="whiteboard-draw-overlay" onPointerDown={startDrawing} onPointerMove={continueDrawing} onPointerUp={finishDrawing} onPointerCancel={finishDrawing}>
           <svg aria-hidden="true"><path d={pathForPoints(draftPoints)} fill="none" stroke={drawColor} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" /></svg>
         </div> : null}
-        {tool === "erase" && canManage ? <div className="whiteboard-draw-overlay is-eraser" aria-label="Borrador de trazos" onPointerDown={startErasing} onPointerMove={continueErasing} onPointerUp={finishErasing} onPointerCancel={finishErasing} /> : null}
+        {tool === "erase" && canEdit ? <div className="whiteboard-draw-overlay is-eraser" aria-label="Borrador de trazos" onPointerDown={startErasing} onPointerMove={continueErasing} onPointerUp={finishErasing} onPointerCancel={finishErasing} /> : null}
       </div>
     </section>
+    <Modal
+      title={nameModalMode === "new" ? "Nueva pizarra" : "Guardar pizarra"}
+      open={nameModalMode !== null}
+      okText={nameModalMode === "new" ? "Crear y abrir" : "Guardar"}
+      cancelText="Cancelar"
+      confirmLoading={namingBoard}
+      okButtonProps={{ disabled: !boardName.trim() }}
+      onOk={() => { void confirmBoardName(); }}
+      onCancel={() => { if (!namingBoard) setNameModalMode(null); }}
+      destroyOnHidden
+    >
+      <label className="whiteboard-name-field">
+        <span>Nombre de la pizarra</span>
+        <Input value={boardName} maxLength={120} autoFocus placeholder="Ej. Plan semanal de producción" onChange={(event) => setBoardName(event.target.value)} onPressEnter={() => { if (boardName.trim()) void confirmBoardName(); }} />
+      </label>
+    </Modal>
   </div>;
 }
