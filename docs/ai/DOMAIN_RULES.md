@@ -122,6 +122,7 @@ Distinción crítica:
 - El tipo `WASTE` representa una existencia física recuperable.
 - La merma real de una orden representa pérdida del proceso y se registra al cerrar Producción.
 - No confundir ambas cosas ni volver a poner un porcentaje de merma en Recetas.
+- El tipo de un ítem puede corregirse entre materia prima, insumo elaborado y merma aunque ya tenga movimientos. Los productos terminados se gestionan desde Productos y no cambian de tipo desde Almacén.
 
 Stock inicial:
 

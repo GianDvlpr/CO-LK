@@ -33,6 +33,7 @@ Actualizado: 26/10/2026.
 - Registro transaccional e idempotente de stock inicial con saldo global/por lote, promedio ponderado, auditoría, outbox y secuencia de contabilización.
 - Kardex valorizado con filtros por ítem y almacén, lote, cantidades, costos, valor y saldo posterior a cada movimiento.
 - Ítems de Almacén con código de producto del proveedor y costo de referencia opcional (precio neto, IGV y costo total calculado), administrables desde el modal y desde Excel sin afectar la valorización.
+- El tipo de un ítem puede corregirse en la edición entre materia prima, insumo elaborado y merma; los productos terminados quedan bloqueados porque se gestionan desde Productos.
 - El IGV de una línea de compra y del costo de referencia del ítem se elige como Con IGV (tasa de la empresa) o Sin IGV (0 %), también al crear el ítem al vuelo desde otros módulos.
 - Presentación habitual opcional por ítem de Almacén (tipo de envase y contenido en unidad base), administrable desde el modal y Excel; la tabla muestra la equivalencia calculada entre envases completos y remanente sin alterar stock ni kardex.
 - La aprobación de compras valoriza el inventario con el IGV incluido en el costo unitario; el saldo inicial se registra con el costo total con IGV.
