@@ -237,22 +237,6 @@ a {
   overflow-wrap: anywhere;
 }
 
-.module-title-row .ant-tag {
-  margin-inline-end: 0;
-  white-space: nowrap;
-}
-
-.module-description-trigger {
-  flex: 0 0 auto;
-  color: var(--muted) !important;
-}
-
-.module-description-trigger:hover,
-.module-description-trigger:focus-visible {
-  color: var(--brand) !important;
-  background: var(--brand-soft) !important;
-}
-
 .page-heading > .ant-space {
   max-width: 100%;
 }
