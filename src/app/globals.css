@@ -482,6 +482,22 @@ a {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.recipe-ingredient-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 2fr) minmax(220px, 1fr);
+  gap: 0 16px;
+}
+
+.recipe-ingredient-grid > * {
+  min-width: 0;
+}
+
+@media (max-width: 700px) {
+  .recipe-ingredient-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .modal-form-grid {
   display: grid;
   gap: 0 16px;
@@ -966,6 +982,7 @@ a {
   }
 
   .purchase-form-grid,
+  .recipe-ingredient-grid,
   .modal-form-grid-2,
   .modal-form-grid-3,
   .purchase-line-grid,

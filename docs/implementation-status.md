@@ -101,7 +101,7 @@ Actualizado: 26/10/2026.
 - Analítica incorpora gráficos interactivos con Recharts: actividad diaria, estados por módulo, inventario valorizado por tipo y almacén, productos más pedidos y materiales más consumidos en producción, adaptados a modo claro/oscuro y móvil.
 - Etiquetas de formularios acortadas con tooltips explicativos para mantener alineados los controles en los modales.
 - Las tablas de los módulos muestran 8 registros por página por defecto, con selector de tamaño; el kardex conserva 30. En escritorio las cabeceras permanecen fijas bajo la barra superior al desplazarse.
-- Las tablas principales incluyen búsqueda por texto y los selectores de datos maestros permiten escribir para filtrar. El tipo de presentación de Compras usa una lista estándar (SACO, BOLSA, BOTELLA, CAJA, BIDÓN, CILINDRO, ROLLO, FARDO).
+- Las tablas principales incluyen búsqueda por texto y los selectores de datos maestros permiten escribir para filtrar. El tipo de presentación de Compras usa una lista estándar (SACO, BOLSA, BOTELLA, CAJA, BIDÓN, CILINDRO, ROLLO, FARDO, LÁMINA).
 - La carga masiva permite elegir entre “Solo nuevos” y “Crear o actualizar” después de validar; en modo actualización se aplican los campos modificados de Almacén, Productos y Recetas, mientras Compras y Pedidos siguen sin sobrescribir registros existentes.
 - Las fotos de perfil permiten recorte cuadrado previo con arrastre, teclado y zoom; el archivo resultante se optimiza a 512 × 512 px antes de enviarse a Cloudinary.
 - Las materias primas admiten una imagen de referencia en Cloudinary, administrable desde el modal de Almacén con el permiso `inventory.image_manage`.
