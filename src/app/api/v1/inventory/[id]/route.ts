@@ -8,6 +8,7 @@ import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { normalizeReferenceCost, type ReferenceCostValues } from "@/modules/inventory/domain/reference-cost";
 import { normalizeDefaultPresentation, type DefaultPresentationValues } from "@/modules/inventory/domain/default-presentation";
 import { itemTypeChangeIssue } from "@/modules/inventory/domain/item-type-change";
+import { destroyInventoryImage } from "@/lib/cloudinary/server";
 
 const schema = z.object({ type: z.enum(["RAW_MATERIAL", "INTERMEDIATE", "WASTE", "FINISHED_PRODUCT"]), name: z.string().trim().min(1).max(150), abbreviation: z.string().trim().max(30).optional().or(z.literal("")), unitId: z.uuid(), supplierId: z.uuid().nullable().optional(), currencyId: z.uuid().nullable().optional(), minimumStock: z.union([z.string(), z.number()]), lotTrackingMode: z.enum(["NONE", "OPTIONAL", "REQUIRED"]), active: z.boolean().default(true), supplierProductCode: z.string().trim().max(100).nullable().optional(), referenceNetPrice: z.union([z.string(), z.number()]).nullable().optional(), referenceTaxRate: z.union([z.string(), z.number()]).nullable().optional(), defaultPresentationType: z.string().trim().max(50).nullable().optional(), defaultPresentationContent: z.union([z.string(), z.number()]).nullable().optional(), defaultWarehouseId: z.uuid().nullable().optional() });
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -37,4 +38,48 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const updated = await prisma.$transaction(async (tx) => { const value = await tx.inventoryItem.update({ where: { id }, data: values }); await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "InventoryItem", entityId: id, action: "UPDATE", beforeData: { type: item.type, name: item.name, abbreviation: item.abbreviation, unitId: item.unitId, supplierId: item.supplierId, currencyId: item.currencyId, minimumStock: item.minimumStock.toString(), lotTrackingMode: item.lotTrackingMode, active: item.active, supplierProductCode: item.supplierProductCode, referenceNetPrice: item.referenceNetPrice?.toString() ?? null, referenceTaxRate: item.referenceTaxRate?.toString() ?? null, defaultPresentationType: item.defaultPresentationType, defaultPresentationContent: item.defaultPresentationContent?.toString() ?? null, defaultWarehouseId: item.defaultWarehouseId }, afterData: { ...values, minimumStock: String(values.minimumStock), referenceNetPrice: values.referenceNetPrice, referenceTaxRate: values.referenceTaxRate, defaultPresentationContent: values.defaultPresentationContent } } }); return value; });
     return apiSuccess(updated);
   } catch (error) { if (error instanceof AuthError) return apiError(error.code, error.message, error.status); if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return apiError("INVENTORY_DUPLICATE_CODE", "Ya existe un ítem con ese código.", 409); throw error; }
+}
+
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  try { requireSameOrigin(request); } catch (error) { if (error instanceof AuthError) return apiError(error.code, error.message, error.status); throw error; }
+  try {
+    const user = await requirePermission("inventory.delete");
+    const { id } = await context.params;
+    if (!z.uuid().safeParse(id).success) return apiError("INVENTORY_NOT_FOUND", "El ítem no existe.", 404);
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM inventory_items WHERE id = ${id}::uuid FOR UPDATE`;
+      const item = await tx.inventoryItem.findFirst({ where: { id, companyId: user.companyId }, select: { id: true, code: true, name: true, type: true, images: { select: { publicId: true } } } });
+      if (!item) return "missing" as const;
+      const references = await Promise.all([
+        tx.stockBalance.count({ where: { itemId: id } }),
+        tx.stockMovement.count({ where: { itemId: id } }),
+        tx.stockReservation.count({ where: { itemId: id } }),
+        tx.inventoryLot.count({ where: { itemId: id } }),
+        tx.inventoryAdjustmentLine.count({ where: { itemId: id } }),
+        tx.purchaseLine.count({ where: { itemId: id } }),
+        tx.productVariant.count({ where: { inventoryItemId: id } }),
+        tx.recipeIngredient.count({ where: { itemId: id } }),
+        tx.recipe.count({ where: { outputItemId: id } }),
+        tx.productionMaterial.count({ where: { itemId: id } }),
+        tx.productionOrder.count({ where: { materialItemId: id } }),
+        tx.productionComponent.count({ where: { itemId: id } }),
+        tx.inventoryFormula.count({ where: { outputItemId: id } }),
+        tx.inventoryFormulaIngredient.count({ where: { itemId: id } }),
+        tx.inventoryTransformationMaterial.count({ where: { itemId: id } }),
+      ]);
+      if (references.some((count) => count > 0)) return "in-use" as const;
+      await tx.inventoryItem.delete({ where: { id } });
+      await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module: "inventory", entity: "InventoryItem", entityId: id, action: "DELETE", beforeData: { code: item.code, name: item.name, type: item.type } } });
+      await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "inventory.item-deleted.v1", aggregateId: id, payload: { itemId: id, code: item.code } } });
+      return { kind: "deleted" as const, images: item.images };
+    });
+    if (result === "missing") return apiError("INVENTORY_NOT_FOUND", "El ítem no existe.", 404);
+    if (result === "in-use") return apiError("INVENTORY_ITEM_IN_USE", "El ítem ya se usó; desactívalo en lugar de eliminarlo.", 409);
+    await Promise.all(result.images.map((image) => destroyInventoryImage(image.publicId).catch(() => undefined)));
+    return apiSuccess({ id });
+  } catch (error) {
+    if (error instanceof AuthError) return apiError(error.code, error.message, error.status);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") return apiError("INVENTORY_ITEM_IN_USE", "El ítem ya se usó; desactívalo en lugar de eliminarlo.", 409);
+    throw error;
+  }
 }

@@ -13,7 +13,7 @@ const permissionCodes = [
   "sessions.read", "sessions.revoke",
   "audit.read",
   "purchases.read", "purchases.create", "purchases.update", "purchases.submit", "purchases.approve", "purchases.reject", "purchases.reverse", "purchases.export",
-  "inventory.read", "inventory.create_item", "inventory.image_manage", "inventory.adjust_request", "inventory.adjust_approve", "inventory.adjust_value_request", "inventory.adjust_value_approve", "inventory.opening_import", "inventory.export",
+  "inventory.read", "inventory.create_item", "inventory.delete", "inventory.image_manage", "inventory.adjust_request", "inventory.adjust_approve", "inventory.adjust_value_request", "inventory.adjust_value_approve", "inventory.opening_import", "inventory.export",
   "recipes.read", "recipes.create", "recipes.update", "recipes.activate", "recipes.archive", "recipes.export",
   "costs.read", "costs.manage",
   "production.read", "production.create", "production.release", "production.start", "production.complete", "production.cancel", "production.scrap",
