@@ -8,6 +8,7 @@ import {
   HighlightOutlined,
   PictureOutlined,
   ReloadOutlined,
+  ScissorOutlined,
 } from "@ant-design/icons";
 import {
   Background,
@@ -26,17 +27,18 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Empty, Modal, Select, Space, Tag, Tooltip, Upload, Typography } from "antd";
 import dayjs from "dayjs";
 import Image from "next/image";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { downloadWhiteboardPng } from "@/components/whiteboard/whiteboard-export";
 import type { WhiteboardContent, WhiteboardElement } from "@/modules/whiteboard/domain/whiteboard-schema";
+import { drawingIntersectsEraser, whiteboardContentFingerprint } from "@/modules/whiteboard/domain/whiteboard-tools";
 import { useUiStore } from "@/stores/ui-store";
 
 type WhiteboardAsset = { id: string; secureUrl: string; fileName: string; mimeType: string; sizeBytes: number; width?: number | null; height?: number | null };
 type WhiteboardResponse = { id: string | null; revision: number; content: WhiteboardContent; assets: WhiteboardAsset[]; updatedAt: string | null; updatedBy: { name: string; username: string } | null };
 type UploadResponse = { asset: WhiteboardAsset; revision: number };
-type Tool = "select" | "draw";
+type Tool = "select" | "draw" | "erase";
 type BoardNodeData = { element: WhiteboardElement; asset?: WhiteboardAsset; canManage: boolean };
 type BoardNode = Node<BoardNodeData, "board">;
 type BoardActions = {
@@ -46,6 +48,16 @@ type BoardActions = {
 };
 
 const BoardActionsContext = createContext<BoardActions | null>(null);
+const exportFingerprintEvent = "lk-whiteboard-export";
+
+function subscribeToExportFingerprint(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(exportFingerprintEvent, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(exportFingerprintEvent, callback);
+  };
+}
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -120,6 +132,7 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
   const assetsRef = useRef<WhiteboardAsset[]>([]);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const drawingRef = useRef<{ screen: { x: number; y: number }[]; flow: { x: number; y: number }[] } | null>(null);
+  const erasingRef = useRef<{ changed: boolean } | null>(null);
   const [draftPoints, setDraftPoints] = useState<{ x: number; y: number }[]>([]);
 
   /* La consulta es la fuente externa que hidrata el documento local editable. */
@@ -134,6 +147,13 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
     setAssets(query.data.assets);
   }, [query.data, saving]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  const exportStorageKey = query.data?.id ? `lk-whiteboard-export:${query.data.id}` : null;
+  const getExportFingerprint = useCallback(() => exportStorageKey ? window.localStorage.getItem(exportStorageKey) : null, [exportStorageKey]);
+  const lastExportedFingerprint = useSyncExternalStore(subscribeToExportFingerprint, getExportFingerprint, () => null);
+
+  const contentFingerprint = useMemo(() => whiteboardContentFingerprint(elements), [elements]);
+  const hasExportableChanges = elements.length > 0 && contentFingerprint !== lastExportedFingerprint;
 
   const assetMap = useMemo(() => new Map(assets.map((asset) => [asset.id, asset])), [assets]);
   useEffect(() => {
@@ -304,6 +324,34 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
     replaceElements([...elementsRef.current, element]);
   };
 
+  const eraseAtPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!flowRef.current) return;
+    const point = flowRef.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    const radius = 12 / flowRef.current.getZoom();
+    const next = elementsRef.current.filter((element) => (
+      element.type !== "drawing" || !drawingIntersectsEraser(element, point, radius)
+    ));
+    if (next.length === elementsRef.current.length) return;
+    if (erasingRef.current) erasingRef.current.changed = true;
+    replaceElements(next, false);
+  };
+
+  const startErasing = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    erasingRef.current = { changed: false };
+    eraseAtPointer(event);
+  };
+
+  const continueErasing = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (erasingRef.current) eraseAtPointer(event);
+  };
+
+  const finishErasing = () => {
+    const erasing = erasingRef.current;
+    erasingRef.current = null;
+    if (erasing?.changed) persist(elementsRef.current);
+  };
+
   const clearBoard = () => Modal.confirm({
     title: "¿Limpiar toda la pizarra?",
     content: "Se eliminarán notas, dibujos e imágenes. Esta acción no se puede deshacer.",
@@ -325,8 +373,15 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
   const exportBoard = async () => {
     setExporting(true);
     try {
-      await downloadWhiteboardPng(elementsRef.current, assetsRef.current);
+      const exportedElements = elementsRef.current;
+      const exportedAssets = assetsRef.current;
+      await downloadWhiteboardPng(exportedElements, exportedAssets);
       await api("/api/v1/whiteboard/export", { method: "POST" }).catch(() => undefined);
+      const exportedFingerprint = whiteboardContentFingerprint(exportedElements);
+      if (exportStorageKey) {
+        window.localStorage.setItem(exportStorageKey, exportedFingerprint);
+        window.dispatchEvent(new Event(exportFingerprintEvent));
+      }
       toast.success("Pizarra exportada como imagen PNG.");
     } catch (error) {
       toast.error((error as Error).message);
@@ -356,6 +411,9 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
             <Button shape="circle" type={tool === "select" ? "primary" : "default"} icon={<DragOutlined />} disabled={!canManage} aria-label="Seleccionar, mover y navegar" onClick={() => setTool("select")} />
           </Tooltip>
           <Button type={tool === "draw" ? "primary" : "default"} icon={<HighlightOutlined />} disabled={!canManage} onClick={() => setTool("draw")}>Dibujar</Button>
+          <Tooltip title="Borrar trazos completos">
+            <Button type={tool === "erase" ? "primary" : "default"} icon={<ScissorOutlined />} disabled={!canManage} onClick={() => setTool("erase")}>Borrador</Button>
+          </Tooltip>
           <Button icon={<span className="whiteboard-note-icon" style={{ background: noteColor }} />} disabled={!canManage} onClick={addNote}>Nueva nota</Button>
           <Upload accept="image/jpeg,image/png,image/webp" showUploadList={false} disabled={!canManage || !cloudinaryConfigured || saving} beforeUpload={(file) => { void uploadImage(file as File); return Upload.LIST_IGNORE; }}>
             <Button icon={<PictureOutlined />} disabled={!canManage || !cloudinaryConfigured}>Imagen</Button>
@@ -365,7 +423,9 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
           <label className="whiteboard-color-control">Nota <input type="color" value={noteColor} disabled={!canManage} onChange={(event) => setNoteColor(event.target.value)} /></label>
         </Space>
         <Space wrap size={8}>
-          <Button icon={<DownloadOutlined />} loading={exporting} disabled={!elements.length} onClick={() => void exportBoard()}>Exportar PNG</Button>
+          <Tooltip title={!elements.length ? "Agrega contenido para exportar" : !hasExportableChanges ? "No hay cambios desde la última descarga" : "Descargar la pizarra completa"}>
+            <Button icon={<DownloadOutlined />} loading={exporting} disabled={!hasExportableChanges || saving} onClick={() => void exportBoard()}>Exportar PNG</Button>
+          </Tooltip>
           {selectedId && canManage ? <Button danger icon={<DeleteOutlined />} onClick={() => removeElement(selectedId)}>Eliminar selección</Button> : null}
           {elements.length && canManage ? <Button danger icon={<ClearOutlined />} onClick={clearBoard}>Limpiar</Button> : null}
         </Space>
@@ -374,7 +434,7 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
 
       <div
         ref={surfaceRef}
-        className={`whiteboard-surface${tool === "draw" ? " is-drawing" : ""}`}
+        className={`whiteboard-surface${tool === "draw" ? " is-drawing" : tool === "erase" ? " is-erasing" : ""}`}
         onDragOver={(event) => { if (canManage) event.preventDefault(); }}
         onDrop={(event) => {
           if (!canManage || !flowRef.current) return;
@@ -416,6 +476,7 @@ export function WhiteboardWorkspace({ canManage, cloudinaryConfigured }: { canMa
         {tool === "draw" && canManage ? <div className="whiteboard-draw-overlay" onPointerDown={startDrawing} onPointerMove={continueDrawing} onPointerUp={finishDrawing} onPointerCancel={finishDrawing}>
           <svg aria-hidden="true"><path d={pathForPoints(draftPoints)} fill="none" stroke={drawColor} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" /></svg>
         </div> : null}
+        {tool === "erase" && canManage ? <div className="whiteboard-draw-overlay is-eraser" aria-label="Borrador de trazos" onPointerDown={startErasing} onPointerMove={continueErasing} onPointerUp={finishErasing} onPointerCancel={finishErasing} /> : null}
       </div>
     </section>
   </div>;

@@ -2453,6 +2453,7 @@ a {
 }
 
 .whiteboard-surface.is-drawing { cursor: crosshair; }
+.whiteboard-surface.is-erasing { cursor: cell; }
 .whiteboard-surface .react-flow__attribution { display: none; }
 .whiteboard-surface .react-flow__node { border-radius: 10px; }
 .whiteboard-surface .react-flow__node-board { border: 0; background: transparent; }
@@ -2478,7 +2479,31 @@ a {
 
 .whiteboard-node.is-selected { outline: 2px solid var(--brand); outline-offset: 2px; }
 .whiteboard-note { display: grid; grid-template-rows: auto minmax(0, 1fr); color: #1f2937; }
-.whiteboard-image { display: grid; grid-template-rows: auto minmax(0, 1fr); background: #fff; }
+.whiteboard-image {
+  position: relative;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.whiteboard-image .whiteboard-node-handle {
+  position: absolute;
+  z-index: 2;
+  top: 5px;
+  right: 5px;
+  left: 5px;
+  border: 0;
+  border-radius: 7px;
+  background: rgb(15 23 42 / 78%);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.whiteboard-image:hover .whiteboard-node-handle,
+.whiteboard-image.is-selected .whiteboard-node-handle,
+.whiteboard-image:focus-within .whiteboard-node-handle { opacity: 1; }
 
 .whiteboard-node-handle {
   display: flex;
@@ -2509,7 +2534,7 @@ a {
   overflow-wrap: anywhere;
 }
 
-.whiteboard-image-content { position: relative; width: 100%; height: 100%; min-height: 0; background: #f8fafc; }
+.whiteboard-image-content { position: relative; width: 100%; height: 100%; min-height: 0; background: transparent; }
 .whiteboard-node img { object-fit: contain; user-select: none; }
 .whiteboard-missing-image { display: grid; height: 100%; place-items: center; padding: 14px; color: #64748b; background: #f8fafc; text-align: center; }
 .whiteboard-stroke { display: block; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
@@ -2521,6 +2546,8 @@ a {
   cursor: crosshair;
   touch-action: none;
 }
+
+.whiteboard-draw-overlay.is-eraser { cursor: cell; }
 
 .whiteboard-draw-overlay svg { display: block; width: 100%; height: 100%; pointer-events: none; }
 

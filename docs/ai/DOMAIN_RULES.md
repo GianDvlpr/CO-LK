@@ -245,10 +245,11 @@ PENDING → PICKING → PACKING → READY → DISPATCHED
 - Existe una pizarra persistente por empresa; nunca se mezclan elementos ni imágenes entre empresas.
 - `whiteboard.read` permite verla y `whiteboard.manage` permite agregar, mover, redimensionar o eliminar elementos.
 - Admite notas, dibujo libre e imágenes JPEG, PNG o WebP de hasta 5 MB mediante archivo, arrastre o pegado desde el portapapeles.
+- El borrador elimina trazos completos al tocarlos o recorrerlos; no elimina notas ni imágenes.
 - Las imágenes se almacenan en Cloudinary y su pertenencia a la pizarra se valida en servidor.
 - Cada guardado incrementa la revisión. Si otra persona guardó primero, el servidor devuelve conflicto y obliga a recargar para no sobrescribir cambios silenciosamente.
 - Las modificaciones y la gestión de imágenes quedan registradas en Auditoría; Pusher solo comunica la actualización y PostgreSQL conserva el documento real.
-- La exportación PNG se genera en el navegador con todos los elementos del documento, independientemente de la zona visible y del nivel de zoom, y registra la descarga en Auditoría.
+- La exportación PNG se genera en el navegador con todos los elementos del documento, independientemente de la zona visible y del nivel de zoom, y registra la descarga en Auditoría. Después de exportar queda inactiva hasta que cambie el contenido; la última huella exportada se recuerda localmente por pizarra.
 
 ## 13. Excel
 

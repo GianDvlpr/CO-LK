@@ -103,12 +103,30 @@ export async function downloadWhiteboardPng(elements: WhiteboardElement[], asset
       continue;
     }
 
+    if (element.type === "image") {
+      const asset = assetMap.get(element.assetId);
+      if (asset) {
+        try {
+          const image = await loadImage(asset.secureUrl);
+          drawContainedImage(context, image.source, image.width, image.height, element.x, element.y, element.width, element.height);
+          image.cleanup();
+        } catch {
+          context.fillStyle = "#64748b";
+          context.font = "500 13px Arial, sans-serif";
+          context.textAlign = "center";
+          context.fillText("Imagen no disponible", element.x + element.width / 2, element.y + element.height / 2);
+          context.textAlign = "start";
+        }
+      }
+      continue;
+    }
+
     context.save();
     context.shadowColor = "rgba(15, 23, 42, 0.16)";
     context.shadowBlur = 18;
     context.shadowOffsetY = 6;
     roundedRect(context, element.x, element.y, element.width, element.height, 10);
-    context.fillStyle = element.type === "note" ? element.color : "#ffffff";
+    context.fillStyle = element.color;
     context.fill();
     context.shadowColor = "transparent";
     context.strokeStyle = "rgba(15, 23, 42, 0.18)";
@@ -122,33 +140,15 @@ export async function downloadWhiteboardPng(elements: WhiteboardElement[], asset
     context.fillStyle = "#334155";
     context.font = "700 11px Arial, sans-serif";
     context.textBaseline = "middle";
-    context.fillText(element.type === "note" ? "NOTA" : (assetMap.get(element.assetId)?.fileName ?? "IMAGEN").slice(0, 48), element.x + 10, element.y + headerHeight / 2, element.width - 20);
+    context.fillText("NOTA", element.x + 10, element.y + headerHeight / 2, element.width - 20);
 
-    if (element.type === "note") {
-      context.fillStyle = "#1f2937";
-      context.font = "500 15px Arial, sans-serif";
-      context.textBaseline = "top";
-      const lineHeight = 22;
-      const lines = wrapText(context, element.text, Math.max(10, element.width - 24));
-      const maxLines = Math.max(0, Math.floor((element.height - headerHeight - 20) / lineHeight));
-      lines.slice(0, maxLines).forEach((line, index) => context.fillText(line, element.x + 12, element.y + headerHeight + 10 + index * lineHeight));
-    } else {
-      const asset = assetMap.get(element.assetId);
-      const imageArea = { x: element.x + 6, y: element.y + headerHeight + 6, width: element.width - 12, height: element.height - headerHeight - 12 };
-      if (asset && imageArea.width > 0 && imageArea.height > 0) {
-        try {
-          const image = await loadImage(asset.secureUrl);
-          drawContainedImage(context, image.source, image.width, image.height, imageArea.x, imageArea.y, imageArea.width, imageArea.height);
-          image.cleanup();
-        } catch {
-          context.fillStyle = "#64748b";
-          context.font = "500 13px Arial, sans-serif";
-          context.textAlign = "center";
-          context.fillText("Imagen no disponible", element.x + element.width / 2, element.y + element.height / 2);
-          context.textAlign = "start";
-        }
-      }
-    }
+    context.fillStyle = "#1f2937";
+    context.font = "500 15px Arial, sans-serif";
+    context.textBaseline = "top";
+    const lineHeight = 22;
+    const lines = wrapText(context, element.text, Math.max(10, element.width - 24));
+    const maxLines = Math.max(0, Math.floor((element.height - headerHeight - 20) / lineHeight));
+    lines.slice(0, maxLines).forEach((line, index) => context.fillText(line, element.x + 12, element.y + headerHeight + 10 + index * lineHeight));
     context.restore();
   }
 
