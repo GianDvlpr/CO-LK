@@ -552,9 +552,8 @@ model StockMovement {
   reversalOf       StockMovement?    @relation("MovementReversal", fields: [reversalOfId], references: [id])
   reversals        StockMovement[]   @relation("MovementReversal")
 
-  @@unique([postingSequence])
+  @@unique([warehouseId, postingSequence])
   @@index([itemId, warehouseId, postedAt, postingSequence])
-  @@index([referenceType, referenceId])
   @@map("stock_movements")
 }
 
