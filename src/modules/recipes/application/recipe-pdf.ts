@@ -22,6 +22,7 @@ export type RecipeDocumentData = {
     version: number;
     yieldQuantity: unknown;
     calculatedCost: unknown | null;
+    costCurrency: string | null;
     manualCost: unknown | null;
     notes: string | null;
     isActive: boolean;
@@ -82,6 +83,7 @@ export async function buildRecipePdf(recipe: RecipeDocumentData) {
   const labelWidth = 92;
   const yieldQuantity = new Decimal(String(version.yieldQuantity));
   const yieldLabel = recipe.product ? `${yieldQuantity.toFixed(0)} pares` : `${yieldQuantity.toFixed(3)} ${recipe.outputItem?.unit.symbol ?? "und."}`;
+  const costSymbol = version.costCurrency === "USD" ? "$" : version.costCurrency === "PEN" || !version.costCurrency ? "S/" : `${version.costCurrency} `;
   const destination = recipe.product
     ? `Producción · ${recipe.product.code} · ${recipe.product.name}`
     : recipe.outputItem
@@ -91,7 +93,7 @@ export async function buildRecipePdf(recipe: RecipeDocumentData) {
     ["Nombre", recipe.name, "Estado", statusLabels[recipe.status] ?? recipe.status],
     ["Destino", destination, "Rendimiento", yieldLabel],
     ["Versión", `${version.version} · ${version.isActive ? "activa" : "borrador"}`, "Fecha de emisión", limaDate.format(version.createdAt)],
-    ["Costo calculado", `S/ ${new Decimal(String(version.calculatedCost ?? 0)).toFixed(2)}`, "Costo manual", version.manualCost === null || version.manualCost === undefined ? "—" : `S/ ${new Decimal(String(version.manualCost)).toFixed(2)}`],
+    ["Costo calculado", `${costSymbol} ${new Decimal(String(version.calculatedCost ?? 0)).toFixed(2)}`, "Costo manual", version.manualCost === null || version.manualCost === undefined ? "—" : `${costSymbol} ${new Decimal(String(version.manualCost)).toFixed(2)}`],
   ];
   info.forEach(([leftLabel, leftValue, rightLabel, rightValue]) => {
     cell(page, font, bold, { x: margin, top, width: labelWidth, height: 14, text: leftLabel, label: true, size: 6 });
@@ -137,7 +139,7 @@ export async function buildRecipePdf(recipe: RecipeDocumentData) {
   }
   cell(page, font, bold, { x: margin, top, width, height: 26, text: `Notas de versión: ${version.notes || "Sin notas."}`, label: true, size: 6 });
   top -= 26;
-  page.drawText("La receta no incluye merma teórica; la merma real se registra al ejecutar el destino.", { x: margin, y: Math.max(margin, top - 6), size: 5.2, font, color: muted });
+  page.drawText("Costos sin IGV. La receta no incluye merma teórica; la merma real se registra al ejecutar el destino.", { x: margin, y: Math.max(margin, top - 6), size: 5.2, font, color: muted });
 
   document.setTitle(`Receta ${recipe.code} · versión ${version.version}`);
   document.setAuthor("LK INNOVACION");

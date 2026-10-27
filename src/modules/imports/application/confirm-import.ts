@@ -7,7 +7,7 @@ import { isBlankNumericCell } from "@/modules/imports/domain/numeric-cell";
 import { buildProductSku, normalizeMatrixCode, productVariantColorLabel } from "@/modules/products/domain/product-sku";
 import { createsInventoryFormulaCycle } from "@/modules/inventory/domain/inventory-formula-cycle";
 import { normalizeDefaultPresentation } from "@/modules/inventory/domain/default-presentation";
-import { calculateRecipeCost, resolveItemUnitCost } from "@/modules/recipes/domain/recipe-cost";
+import { resolveRecipeVersionCost } from "@/modules/recipes/application/recipe-cost-service";
 import type { ImportModule, ParsedWorkbookRow } from "./workbook";
 
 type ImportData = Record<string, ParsedWorkbookRow[]>;
@@ -274,13 +274,13 @@ async function importRecipes(tx: Prisma.TransactionClient, data: ImportData, com
     if (!ingredientRows.length) throw new ImportApplicationError("RECIPE_EMPTY", `La receta ${code} no tiene ingredientes.`, row.rowNumber);
     unique(ingredientRows.map((item) => text(item, "material_codigo")), `La receta ${code} contiene materias primas repetidas.`, row.rowNumber);
     const ingredients = [];
-    const unitCostByItem = new Map<string, Decimal>();
+    const costItems: { id: string; referenceNetPrice: { toString(): string } | null; currency: { code: string } | null }[] = [];
     for (const ingredientRow of ingredientRows) {
-      const item = await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code: text(ingredientRow, "material_codigo") } }, include: { unit: { select: { code: true, symbol: true } }, balances: { where: { lotId: null }, select: { onHandQuantity: true, averageUnitCost: true } } } });
+      const item = await tx.inventoryItem.findUnique({ where: { companyId_code: { companyId, code: text(ingredientRow, "material_codigo") } }, include: { unit: { select: { code: true, symbol: true } }, currency: { select: { code: true } } } });
       if (!item || !(["RAW_MATERIAL", "INTERMEDIATE", "WASTE"] as string[]).includes(item.type)) throw new ImportApplicationError("INVALID_REFERENCE", "La materia prima, insumo elaborado o merma no existe o no es válida.", ingredientRow.rowNumber, "material_codigo");
       const suppliedUnit = text(ingredientRow, "unidad").toUpperCase();
       if (suppliedUnit && ![item.unit.code, item.unit.symbol].some((value) => value.toUpperCase() === suppliedUnit)) throw new ImportApplicationError("INVALID_UNIT", `La unidad de ${item.code} debe ser ${item.unit.symbol}.`, ingredientRow.rowNumber, "unidad");
-      unitCostByItem.set(item.id, resolveItemUnitCost(item));
+      if (!costItems.some((entry) => entry.id === item.id)) costItems.push({ id: item.id, referenceNetPrice: item.referenceNetPrice, currency: item.currency });
       ingredients.push({ itemId: item.id, quantity: positive(ingredientRow, "cantidad").toString() });
     }
     if (outputItem) {
@@ -292,7 +292,8 @@ async function importRecipes(tx: Prisma.TransactionClient, data: ImportData, com
     const recipe = existing
       ? await tx.recipe.update({ where: { id: existing.id }, data: { productId: product?.id ?? null, outputItemId: outputItem?.id ?? null } })
       : await tx.recipe.create({ data: { companyId, productId: product?.id, outputItemId: outputItem?.id, code, name: code, status: "DRAFT" } });
-    await tx.recipeVersion.create({ data: { recipeId: recipe.id, version, yieldQuantity: yieldQuantity.toString(), calculatedCost: calculateRecipeCost(ingredients.map((ingredient) => ({ quantity: ingredient.quantity, unitCost: unitCostByItem.get(ingredient.itemId) ?? 0 }))), manualCost, notes: `Importación de versión ${requestedVersion}`, ingredients: { create: ingredients } } });
+    const cost = await resolveRecipeVersionCost(tx, companyId, costItems, ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: ingredient.quantity })));
+    await tx.recipeVersion.create({ data: { recipeId: recipe.id, version, yieldQuantity: yieldQuantity.toString(), calculatedCost: cost.amount, costCurrency: cost.currency, manualCost, notes: `Importación de versión ${requestedVersion}`, ingredients: { create: ingredients } } });
     created(result);
   }
 }

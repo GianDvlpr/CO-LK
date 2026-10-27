@@ -124,6 +124,7 @@ Distinción crítica:
 - No confundir ambas cosas ni volver a poner un porcentaje de merma en Recetas.
 - El tipo de un ítem puede corregirse entre materia prima, insumo elaborado y merma aunque ya tenga movimientos. Los productos terminados se gestionan desde Productos y no cambian de tipo desde Almacén.
 - Un ítem solo se elimina cuando no tiene stock, movimientos ni referencias; si ya se usó, se desactiva.
+- La referencia del saldo inicial es opcional; si se omite, se genera automáticamente como `SALDO-AAAA-######`.
 
 Stock inicial:
 
@@ -163,8 +164,9 @@ El kardex es inmutable. Correcciones contables deben realizarse mediante movimie
 - Agregar una versión por edición o importación no cambia el estado de la receta.
 - Una receta archivada deja de ofrecerse a Producción y Almacén y puede reactivarse; solo se elimina si nunca se usó en órdenes de producción o transformaciones.
 - La receta se descarga como PDF A5 apaisado generado por el servidor con su última versión, ingredientes y notas.
-- Cada versión registra un costo calculado no editable: suma de la cantidad estándar por el costo unitario de cada ingrediente (costo promedio del almacén o, si no hay stock, costo de referencia con IGV).
-- El costo manual es opcional, se guarda por versión y se muestra junto al calculado en la tabla y el PDF.
+- Cada versión registra un costo calculado no editable y sin IGV: suma de la cantidad estándar por el precio de referencia neto de cada ingrediente, en la moneda de los insumos. Si hay monedas distintas, se convierte a soles con el tipo de cambio vigente; los ítems sin precio de referencia aportan cero.
+- El costo manual es opcional, sin IGV y en la misma moneda de la receta; se muestra junto al calculado en la tabla y el PDF.
+- En recetas con destino Almacén, el rendimiento se autocompleta con la suma de los pesos de los materiales mientras se agregan (misma unidad) y permanece editable; si las unidades difieren, se avisa y no se calcula automáticamente.
 - Estructura de costos agrega por versión cuatro importes directos por lote: mano de obra, energía, agua y maquinaria. Son tarifas totales, no cantidades de horas, kWh o volumen. El costo unitario es `(materiales + tarifas) / rendimiento`.
 - Los formularios que requieren datos maestros permiten crearlos en el momento (ítem de almacén, producto, almacén, proveedor, cliente, moneda, unidad o máquina) respetando los permisos del módulo correspondiente.
 

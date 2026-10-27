@@ -9,7 +9,7 @@ import { createOpeningStock } from "@/modules/inventory/application/create-openi
 import { InventoryApplicationError } from "@/modules/inventory/application/inventory-errors";
 
 const decimal = z.union([z.string().min(1), z.number()]);
-const schema = z.object({ referenceNumber: z.string().trim().min(1).max(50), itemId: z.uuid(), warehouseId: z.uuid(), quantity: decimal, unitCost: decimal, lotCode: z.string().trim().max(100).optional(), occurredAt: z.coerce.date() });
+const schema = z.object({ referenceNumber: z.string().trim().max(50).optional().or(z.literal("")), itemId: z.uuid(), warehouseId: z.uuid(), quantity: decimal, unitCost: decimal, lotCode: z.string().trim().max(100).optional(), occurredAt: z.coerce.date() });
 
 export async function POST(request: Request) {
   try { requireSameOrigin(request); } catch (error) { if (error instanceof AuthError) return apiError(error.code, error.message, error.status); throw error; }

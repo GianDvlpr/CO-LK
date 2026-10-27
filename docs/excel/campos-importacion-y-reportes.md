@@ -57,7 +57,7 @@ Estas columnas se conservan para que el reporte tenga el mismo formato, pero no 
 
 - Compras: `tipo_documento`, `fecha_tipo_cambio`, `fuente_tipo_cambio`, `estado`, `observaciones`, `tipo_presentacion`, `unidad_contenido`, `precio_unitario_con_igv`, `subtotal_neto`, `igv` y `total_linea`.
 - Almacén: `almacen_codigo` define el sector del ítem (obligatorio para materia prima en la aplicación; si se deja vacío al importar se usa `PRINCIPAL`) y, cuando hay stock inicial, también el almacén del movimiento. `stock_inicial`, `costo_unitario_pen`, `lote` y `fecha_inicial` están en la misma hoja y pueden quedar vacíos si no hay stock inicial. `codigo_producto_proveedor`, `precio_neto` y `tasa_igv` son datos de referencia del ítem; `costo_total` se recalcula y no determina la importación. `tipo_presentacion` y `contenido_por_presentacion` describen el envase habitual y tampoco alteran el stock.
-- Recetas: `producto_codigo` se conserva por compatibilidad con archivos antiguos; `variante_sku`, `unidad_salida` y `estado` son informativos. La importación crea la receta o versión como borrador. `costo_manual` es opcional; el costo calculado se obtiene siempre en el sistema a partir de los materiales y no se importa.
+- Recetas: `producto_codigo` se conserva por compatibilidad con archivos antiguos; `variante_sku`, `unidad_salida` y `estado` son informativos. La importación crea la receta o versión como borrador. `costo_manual` es opcional y sin IGV; el costo calculado (sin IGV) se obtiene siempre en el sistema a partir de los materiales y no se importa.
 - Productos: `categoria` y `precio_venta`.
 - Pedidos: `moneda`, `tipo_cambio_pen`, `estado`, `tasa_igv`, `subtotal_neto`, `igv` y `total_linea`. El pedido importado queda en borrador.
 

@@ -35,6 +35,7 @@ Actualizado: 26/10/2026.
 - Ítems de Almacén con código de producto del proveedor y costo de referencia opcional (precio neto, IGV y costo total calculado), administrables desde el modal y desde Excel sin afectar la valorización.
 - El tipo de un ítem puede corregirse en la edición entre materia prima, insumo elaborado y merma; los productos terminados quedan bloqueados porque se gestionan desde Productos.
 - Los ítems de Almacén pueden eliminarse solo si nunca tuvieron stock, movimientos ni referencias; en caso contrario se desactivan.
+- El saldo inicial admite referencia opcional y la genera automáticamente como SALDO-AAAA-######.
 - El IGV de una línea de compra y del costo de referencia del ítem se elige como Con IGV (tasa de la empresa) o Sin IGV (0 %), también al crear el ítem al vuelo desde otros módulos.
 - Presentación habitual opcional por ítem de Almacén (tipo de envase y contenido en unidad base), administrable desde el modal y Excel; la tabla muestra la equivalencia calculada entre envases completos y remanente sin alterar stock ni kardex.
 - La aprobación de compras valoriza el inventario con el IGV incluido en el costo unitario; el saldo inicial se registra con el costo total con IGV.
@@ -55,7 +56,8 @@ Actualizado: 26/10/2026.
 - Edición de recetas: los borradores se corrigen en su versión actual y una receta activa genera una versión nueva que se publica al activarla, sin interrumpir la versión vigente.
 - Recetas archivables y reactivables; la eliminación solo procede cuando no tienen órdenes de producción ni transformaciones asociadas.
 - Formato PDF A5 apaisado descargable por receta con su última versión, ingredientes y notas.
-- Costo por versión de receta: calculado automáticamente desde los materiales (promedio de almacén o referencia con IGV) y costo manual opcional, visibles en tabla, tabla expandible y PDF; Excel admite `costo_manual`.
+- En recetas con destino Almacén, el rendimiento se autocompleta con la suma de los pesos de los materiales cuando comparten la unidad del resultado, y queda editable; si las unidades difieren se muestra un aviso.
+- Costo por versión de receta sin IGV: calculado automáticamente desde el precio neto de referencia de los materiales, en la moneda de los insumos (convertido a soles si hay monedas distintas), y costo manual opcional; visibles en tabla, fila expandible y PDF.
 - Módulo Estructura de costos: suma al costo material cuatro tarifas directas por lote (mano de obra, energía, agua y maquinaria) y calcula el costo por unidad según el rendimiento de la receta.
 - Los formularios permiten crear al vuelo el dato maestro faltante (ítem de almacén, producto, almacén, proveedor, cliente, moneda, unidad o máquina) y lo dejan seleccionado.
 - Enviar a Producción y Almacén usa siempre la versión activa de la receta; los PDFs sanitizan caracteres fuera de WinAnsi para no fallar al descargarse.

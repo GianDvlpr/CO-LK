@@ -8,7 +8,7 @@ import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { nextBusinessCode } from "@/lib/database/business-code";
 import { createsInventoryFormulaCycle } from "@/modules/inventory/domain/inventory-formula-cycle";
-import { calculateRecipeCost, resolveItemUnitCost } from "@/modules/recipes/domain/recipe-cost";
+import { resolveRecipeVersionCost } from "@/modules/recipes/application/recipe-cost-service";
 
 const decimal = z.union([z.string().min(1), z.number()]);
 const createSchema = z.object({
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       const [product, outputItem, materials] = await Promise.all([
         parsed.data.productId ? tx.product.findFirst({ where: { id: parsed.data.productId, companyId: user.companyId, active: true } }) : null,
         parsed.data.outputItemId ? tx.inventoryItem.findFirst({ where: { id: parsed.data.outputItemId, companyId: user.companyId, active: true, type: "INTERMEDIATE" } }) : null,
-        tx.inventoryItem.findMany({ where: { id: { in: itemIds }, companyId: user.companyId, active: true, type: { in: ["RAW_MATERIAL", "INTERMEDIATE", "WASTE"] } }, include: { balances: { where: { lotId: null }, select: { onHandQuantity: true, averageUnitCost: true } } } }),
+        tx.inventoryItem.findMany({ where: { id: { in: itemIds }, companyId: user.companyId, active: true, type: { in: ["RAW_MATERIAL", "INTERMEDIATE", "WASTE"] } }, include: { balances: { where: { lotId: null }, select: { onHandQuantity: true, averageUnitCost: true } }, currency: { select: { code: true } } } }),
       ]);
       if ((parsed.data.productId && !product) || (parsed.data.outputItemId && !outputItem) || materials.length !== itemIds.length) throw new Error("RECIPE_INVALID_REFERENCE");
       if (outputItem) {
@@ -61,9 +61,8 @@ export async function POST(request: Request) {
         if (createsInventoryFormulaCycle(edges, outputItem.id, itemIds)) throw new Error("RECIPE_CYCLE");
       }
       const code = await nextBusinessCode(tx, user.companyId, "RECIPE");
-      const unitCostByItem = new Map(materials.map((item) => [item.id, resolveItemUnitCost(item)]));
-      const calculatedCost = calculateRecipeCost(parsed.data.ingredients.map((ingredient) => ({ quantity: ingredient.quantity, unitCost: unitCostByItem.get(ingredient.itemId) ?? 0 })));
-      const created = await tx.recipe.create({ data: { companyId: user.companyId, productId: product?.id, outputItemId: outputItem?.id, code, name: parsed.data.name, status: "DRAFT", versions: { create: { version: 1, yieldQuantity, calculatedCost, manualCost, notes: parsed.data.notes, isActive: false, ingredients: { create: parsed.data.ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: new Decimal(ingredient.quantity) })) } } } } });
+      const cost = await resolveRecipeVersionCost(tx, user.companyId, materials, parsed.data.ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: ingredient.quantity })));
+      const created = await tx.recipe.create({ data: { companyId: user.companyId, productId: product?.id, outputItemId: outputItem?.id, code, name: parsed.data.name, status: "DRAFT", versions: { create: { version: 1, yieldQuantity, calculatedCost: cost.amount, costCurrency: cost.currency, manualCost, notes: parsed.data.notes, isActive: false, ingredients: { create: parsed.data.ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: new Decimal(ingredient.quantity) })) } } } } });
       await tx.auditLog.create({ data: { companyId: user.companyId, userId: user.id, entity: "Recipe", entityId: created.id, action: "CREATE", afterData: { code: created.code, version: 1, ingredientCount: itemIds.length } } });
       await tx.outboxEvent.create({ data: { companyId: user.companyId, topic: `private-company-${user.companyId}`, eventName: "recipe.created.v1", aggregateId: created.id, payload: { recipeId: created.id, code: created.code } } });
       return created;

@@ -1,12 +1,13 @@
 import Decimal from "decimal.js";
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { nextBusinessCode } from "@/lib/database/business-code";
 import { calculateMovingAverage } from "../domain/calculate-moving-average";
 import { InventoryApplicationError } from "./inventory-errors";
 
 export type CreateOpeningStockCommand = {
   companyId: string;
   createdById: string;
-  referenceNumber: string;
+  referenceNumber?: string;
   itemId: string;
   warehouseId: string;
   quantity: Decimal.Value;
@@ -72,7 +73,7 @@ export async function createOpeningStock(database: PrismaClient, command: Create
       data: {
         companyId: command.companyId,
         warehouseId: command.warehouseId,
-        number: command.referenceNumber,
+        number: command.referenceNumber?.trim() || await nextBusinessCode(tx, command.companyId, "INVENTORY_OPENING", command.occurredAt),
         reason: "Saldo inicial de implementación",
         status: "APPROVED",
         lines: { create: { itemId: command.itemId, quantity, unitCost } },

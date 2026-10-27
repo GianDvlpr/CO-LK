@@ -12,6 +12,7 @@ const recipe: RecipeDocumentData = {
     version: 2,
     yieldQuantity: "10",
     calculatedCost: "120.5",
+    costCurrency: "PEN",
     manualCost: "150",
     notes: "Versión de prueba",
     isActive: true,

@@ -7,7 +7,7 @@ import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { createsInventoryFormulaCycle } from "@/modules/inventory/domain/inventory-formula-cycle";
-import { calculateRecipeCost, resolveItemUnitCost } from "@/modules/recipes/domain/recipe-cost";
+import { resolveRecipeVersionCost } from "@/modules/recipes/application/recipe-cost-service";
 
 const decimal = z.union([z.string().min(1), z.number()]);
 const updateSchema = z.object({
@@ -83,18 +83,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       let targetVersion = latest.version;
       if (versionChanged) {
         const ingredientItemIds = ingredients.map((ingredient) => ingredient.itemId);
-        const costItems = await tx.inventoryItem.findMany({ where: { id: { in: ingredientItemIds }, companyId: user.companyId }, select: { id: true, referenceNetPrice: true, referenceTaxRate: true, balances: { where: { lotId: null }, select: { onHandQuantity: true, averageUnitCost: true } } } });
-        const unitCostByItem = new Map(costItems.map((item) => [item.id, resolveItemUnitCost(item)]));
-        const calculatedCost = calculateRecipeCost(ingredients.map((ingredient) => ({ quantity: ingredient.quantity, unitCost: unitCostByItem.get(ingredient.itemId) ?? 0 })));
+        const costItems = await tx.inventoryItem.findMany({ where: { id: { in: ingredientItemIds }, companyId: user.companyId }, select: { id: true, referenceNetPrice: true, currency: { select: { code: true } } } });
+        const cost = await resolveRecipeVersionCost(tx, user.companyId, costItems, ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: ingredient.quantity })));
         if (editInPlace) {
-          await tx.recipeVersion.update({ where: { id: latest.id }, data: { yieldQuantity, notes: input.notes ?? latest.notes, calculatedCost, manualCost } });
+          await tx.recipeVersion.update({ where: { id: latest.id }, data: { yieldQuantity, notes: input.notes ?? latest.notes, calculatedCost: cost.amount, costCurrency: cost.currency, manualCost } });
           if (input.ingredients) {
             await tx.recipeIngredient.deleteMany({ where: { recipeVersionId: latest.id } });
             await tx.recipeIngredient.createMany({ data: ingredients.map((ingredient) => ({ recipeVersionId: latest.id, itemId: ingredient.itemId, quantity: ingredient.quantity })) });
           }
         } else {
           targetVersion = latest.version + 1;
-          await tx.recipeVersion.create({ data: { recipeId: recipe.id, version: targetVersion, yieldQuantity, notes: input.notes ?? latest.notes, isActive: false, calculatedCost, manualCost, ingredients: { create: ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: ingredient.quantity })) } } });
+          await tx.recipeVersion.create({ data: { recipeId: recipe.id, version: targetVersion, yieldQuantity, notes: input.notes ?? latest.notes, isActive: false, calculatedCost: cost.amount, costCurrency: cost.currency, manualCost, ingredients: { create: ingredients.map((ingredient) => ({ itemId: ingredient.itemId, quantity: ingredient.quantity })) } } });
         }
       }
 

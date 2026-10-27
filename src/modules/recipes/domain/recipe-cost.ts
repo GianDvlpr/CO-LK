@@ -1,36 +1,41 @@
 import Decimal from "decimal.js";
 
-export type ItemCostBalance = { onHandQuantity: Decimal.Value; averageUnitCost: Decimal.Value };
-export type ItemCostInput = {
-  balances: ItemCostBalance[];
-  referenceNetPrice: Decimal.Value | null;
-  referenceTaxRate: Decimal.Value | null;
-};
+export const BASE_COST_CURRENCY = "PEN";
 
-// Costo unitario de un ítem: promedio ponderado del stock disponible y, si no hay
-// stock, el costo de referencia con IGV. Sin datos, cero.
+export type ItemCostInput = { referenceNetPrice: Decimal.Value | null };
+
+// Costo unitario del insumo: precio de referencia neto (sin IGV) en su moneda.
 export function resolveItemUnitCost(item: ItemCostInput): Decimal {
-  let quantity = new Decimal(0);
-  let value = new Decimal(0);
-  for (const balance of item.balances) {
-    const onHand = new Decimal(balance.onHandQuantity);
-    if (!onHand.greaterThan(0)) continue;
-    quantity = quantity.add(onHand);
-    value = value.add(onHand.mul(new Decimal(balance.averageUnitCost)));
-  }
-  if (quantity.greaterThan(0)) return value.div(quantity).toDecimalPlaces(6);
-
-  if (item.referenceNetPrice !== null && item.referenceNetPrice !== undefined) {
-    const net = new Decimal(item.referenceNetPrice);
-    const taxRate = item.referenceTaxRate !== null && item.referenceTaxRate !== undefined ? new Decimal(item.referenceTaxRate) : new Decimal(0);
-    const total = net.mul(new Decimal(1).add(taxRate.div(100)));
-    if (total.greaterThan(0)) return total.toDecimalPlaces(6);
-  }
-  return new Decimal(0);
+  if (item.referenceNetPrice === null || item.referenceNetPrice === undefined) return new Decimal(0);
+  const net = new Decimal(item.referenceNetPrice);
+  if (!net.isFinite() || net.isNegative() || !net.greaterThan(0)) return new Decimal(0);
+  return net.toDecimalPlaces(6);
 }
 
-export function calculateRecipeCost(ingredients: { quantity: Decimal.Value; unitCost: Decimal.Value }[]): Decimal {
-  return ingredients
-    .reduce((total, ingredient) => total.add(new Decimal(ingredient.quantity).mul(new Decimal(ingredient.unitCost))), new Decimal(0))
-    .toDecimalPlaces(6);
+export type RecipeCostIngredient = { quantity: Decimal.Value; unitCost: Decimal.Value; currencyCode: string };
+
+// Suma el costo en la moneda común de los insumos. Si hay monedas distintas, convierte
+// a la moneda base (PEN) con las tasas vigentes; los insumos sin tasa aportan cero.
+export function calculateRecipeCost(ingredients: RecipeCostIngredient[], rates: Map<string, Decimal>) {
+  const currencies = new Set<string>();
+  for (const ingredient of ingredients) {
+    const cost = new Decimal(ingredient.quantity).mul(new Decimal(ingredient.unitCost));
+    if (!cost.greaterThan(0)) continue;
+    currencies.add(ingredient.currencyCode);
+  }
+  const singleCurrency = currencies.size === 1 ? [...currencies][0] : null;
+  const target = singleCurrency ?? BASE_COST_CURRENCY;
+  const missingRates = new Set<string>();
+  let amount = new Decimal(0);
+
+  for (const ingredient of ingredients) {
+    const cost = new Decimal(ingredient.quantity).mul(new Decimal(ingredient.unitCost));
+    if (!cost.greaterThan(0)) continue;
+    if (ingredient.currencyCode === target) { amount = amount.add(cost); continue; }
+    const rate = rates.get(ingredient.currencyCode);
+    if (!rate) { missingRates.add(ingredient.currencyCode); continue; }
+    amount = amount.add(cost.mul(rate));
+  }
+
+  return { amount: amount.toDecimalPlaces(6), currency: target, missingRates: [...missingRates] };
 }
