@@ -17,7 +17,8 @@ export async function POST(request: Request) {
   if (!parsed.success) return apiError("VALIDATION_ERROR", "El stock inicial contiene datos inválidos.", 400);
   try {
     const user = await requirePermission("inventory.opening_import");
-    return apiSuccess(await createOpeningStock(prisma, { ...parsed.data, companyId: user.companyId, createdById: user.id }), 201);
+    const movement = await createOpeningStock(prisma, { ...parsed.data, companyId: user.companyId, createdById: user.id });
+    return apiSuccess({ id: movement.id, itemId: movement.itemId, warehouseId: movement.warehouseId, quantity: movement.quantity.toString(), postingSequence: movement.postingSequence.toString() }, 201);
   } catch (error) {
     if (error instanceof AuthError) return apiError(error.code, error.message, error.status);
     if (error instanceof InventoryApplicationError) return apiError(error.code, error.message, 422);
