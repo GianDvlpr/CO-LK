@@ -6,7 +6,7 @@ Actualizado: 26/10/2026.
 
 - Gate de fase 0 aprobado y registrado (10/10 decisiones).
 - Base Next.js, React, TypeScript, Ant Design y estructura modular.
-- Navegación responsive y pantallas de referencia para todos los módulos del MVP.
+- Navegación responsive y pantallas de referencia para todos los módulos del MVP, con pestañas internas persistentes por usuario, reutilización de módulos abiertos y límite de ocho pestañas.
 - Plantillas Excel de Compras, Almacén, Recetas, Pedidos y Productos.
 - Proyecto Neon vinculado a la rama `production`, variables locales descargadas y MCP configurado.
 - Clientes Pusher de navegador y servidor; clave pública y cluster configurados.

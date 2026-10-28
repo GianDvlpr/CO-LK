@@ -55,6 +55,7 @@ const dependencies = [
 ];
 
 const criticalRules = [
+  { key: "workspace-tabs", label: "¿Cómo uso las pestañas de módulos?", children: <p>Al seleccionar un módulo en el menú lateral se abre una pestaña interna debajo de la barra superior. Una pestaña existente se reutiliza y recuerda la última subvista visitada. Puedes mantener hasta ocho módulos, cerrar una pestaña o usar el menú de opciones para cerrar las demás. Analítica permanece disponible como pestaña principal.</p> },
   { key: "stock", label: "¿Cuándo cambia el stock?", children: <p>Una compra solo ingresa stock al aprobarse. Una receta no mueve existencias. Producción consume al iniciar e ingresa productos terminados al finalizar. Pick & Pack descuenta al despachar.</p> },
   { key: "finished", label: "¿Dónde registro un producto terminado?", children: <p>En Productos, nunca como alta manual de Almacén. Al crear matriz, tallas y colores se genera cada SKU y su existencia terminada con stock cero.</p> },
   { key: "waste", label: "¿Cómo manejo la merma?", children: <p>Si el sobrante es medible, almacenado y reutilizable, regístralo en Almacén como tipo Merma y podrás usarlo después como ingrediente. La pérdida real del proceso se declara por material al finalizar la orden de producción, porque puede variar entre órdenes.</p> },

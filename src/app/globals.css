@@ -179,6 +179,48 @@ a {
   background: rgb(23 33 28 / 92%) !important;
 }
 
+.workspace-tabs-bar {
+  position: sticky;
+  z-index: 45;
+  top: 76px;
+  min-width: 0;
+  padding: 7px 18px 0;
+  background: rgb(255 255 255 / 92%);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(14px);
+}
+
+:root[data-theme="dark"] .workspace-tabs-bar {
+  background: rgb(23 33 28 / 94%);
+}
+
+.workspace-tabs-bar .ant-tabs-nav {
+  min-width: 0;
+  margin: 0;
+}
+
+.workspace-tabs-bar .ant-tabs-tab {
+  max-width: 220px;
+  padding-block: 7px !important;
+}
+
+.workspace-tabs-bar .ant-tabs-tab-btn,
+.workspace-tab-label {
+  min-width: 0;
+}
+
+.workspace-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.workspace-tab-label > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .header-title {
   margin: 0;
   color: var(--ink);
@@ -1236,6 +1278,16 @@ a {
     height: 62px;
     gap: 4px;
     padding-inline: 8px;
+  }
+
+  .workspace-tabs-bar {
+    top: 62px;
+    padding: 5px 8px 0;
+  }
+
+  .workspace-tabs-bar .ant-tabs-tab {
+    max-width: 150px;
+    padding: 6px 9px !important;
   }
 
   .header-navigation,
