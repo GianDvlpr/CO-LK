@@ -184,7 +184,7 @@ a {
   z-index: 45;
   top: 76px;
   min-width: 0;
-  padding: 7px 18px 0;
+  padding: 4px 18px 0;
   background: rgb(255 255 255 / 92%);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(14px);
@@ -201,7 +201,8 @@ a {
 
 .workspace-tabs-bar .ant-tabs-tab {
   max-width: 220px;
-  padding-block: 7px !important;
+  padding-block: 4px !important;
+  font-size: 13px;
 }
 
 .workspace-tabs-bar .ant-tabs-tab-btn,
@@ -212,7 +213,13 @@ a {
 .workspace-tab-label {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
+  line-height: 1.2;
+}
+
+.workspace-tab-label .anticon,
+.workspace-tabs-bar .ant-tabs-tab-remove {
+  font-size: 12px;
 }
 
 .workspace-tab-label > span:last-child {
@@ -1282,12 +1289,12 @@ a {
 
   .workspace-tabs-bar {
     top: 62px;
-    padding: 5px 8px 0;
+    padding: 3px 8px 0;
   }
 
   .workspace-tabs-bar .ant-tabs-tab {
     max-width: 150px;
-    padding: 6px 9px !important;
+    padding: 4px 7px !important;
   }
 
   .header-navigation,
