@@ -5,10 +5,11 @@ import { apiError, apiSuccess } from "@/lib/http/api-response";
 import { AuthError } from "@/modules/auth/application/auth-errors";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
-import { createProductionOrder, ProductionError } from "@/modules/production/application/production-service";
+import { createIntermediateProductionOrder, createProductionOrder, ProductionError } from "@/modules/production/application/production-service";
 import { productionSheetSchema, serializeProductionSheet } from "@/modules/production/domain/production-sheet";
 
 const schema = productionSheetSchema.extend({
+  targetType: z.literal("PRODUCT").optional(),
   warehouseId: z.uuid(),
   productVariantId: z.uuid().optional(),
   recipeVersionId: z.uuid(),
@@ -20,6 +21,18 @@ const schema = productionSheetSchema.extend({
   recipeRuns: z.union([z.string(), z.number()]).optional(),
   priority: z.coerce.number().int().min(1).max(3).default(2),
   plannedAt: z.coerce.date().optional(),
+});
+
+const intermediateSchema = z.object({
+  targetType: z.literal("INTERMEDIATE"),
+  warehouseId: z.uuid(),
+  recipeVersionId: z.uuid(),
+  plannedQuantity: z.union([z.string(), z.number()]),
+  machineId: z.uuid().optional(),
+  priority: z.coerce.number().int().min(1).max(3).default(2),
+  plannedAt: z.coerce.date().optional(),
+  operatorName: z.string().trim().max(150).optional().or(z.literal("")),
+  outputLotCode: z.string().trim().max(120).optional().or(z.literal("")),
 });
 
 function known(error: unknown) {
@@ -37,6 +50,7 @@ export async function GET() {
       include: {
         warehouse: { select: { code: true, name: true } },
         productVariant: { include: { product: { select: { id: true, code: true, matrixCode: true, name: true } }, size: { select: { name: true } }, color: { select: { id: true, code: true, name: true } }, secondaryColor: { select: { id: true, code: true, name: true } } } },
+        outputItem: { select: { id: true, code: true, name: true, lotTrackingMode: true, unit: { select: { symbol: true } } } },
         recipeVersion: { include: { recipe: { select: { code: true, name: true } } } },
         secondaryRecipeVersion: { include: { recipe: { select: { code: true, name: true } } } },
         customerBrand: { select: { id: true, name: true, active: true } },
@@ -53,7 +67,16 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try { requireSameOrigin(request); } catch (error) { if (error instanceof AuthError) return apiError(error.code, error.message, error.status); throw error; }
-  const parsed = schema.safeParse(await request.json().catch(() => null));
+  const body = await request.json().catch(() => null);
+  if (body?.targetType === "INTERMEDIATE") {
+    const parsed = intermediateSchema.safeParse(body);
+    if (!parsed.success) return apiError("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "La orden contiene datos inválidos.", 400);
+    try {
+      const user = await requirePermission("production.create");
+      return apiSuccess(await createIntermediateProductionOrder(prisma, { ...parsed.data, companyId: user.companyId, userId: user.id }), 201);
+    } catch (error) { const response = known(error); if (response) return response; throw error; }
+  }
+  const parsed = schema.safeParse(body);
   if (!parsed.success) return apiError("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "La orden contiene datos inválidos.", 400);
   try {
     const user = await requirePermission("production.create");

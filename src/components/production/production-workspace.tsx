@@ -10,7 +10,7 @@ import type { FormInstance } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import Decimal from "decimal.js";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
@@ -43,13 +43,15 @@ type Variant = {
   secondaryColor?: { id: string; code: string; name: string };
 };
 export type Order = {
-  id: string; number: string; status: string; priority: number; recipeRuns: string; secondaryRecipeRuns?: string;
+  id: string; number: string; targetType: "PRODUCT" | "INTERMEDIATE"; status: string; priority: number; recipeRuns: string; secondaryRecipeRuns?: string;
   plannedQuantity: string; producedQuantity: string; plannedAt?: string; productionTurns?: Turn[];
+  laborTariff: string; energyTariff: string; waterTariff: string; machineryCost: string; outputLotCode?: string;
   machineEquipment?: string;
   salesOrders: { salesOrder: { id: string; number: string; customer: { id: string; name: string } } }[]; materialItem?: { id: string; code: string; name: string; unit: { symbol: string } };
   machine?: { id: string; code: string; name: string; type: string; status: string };
   warehouse: { code: string; name: string };
-  productVariant: Variant;
+  productVariant?: Variant | null;
+  outputItem?: { id: string; code: string; name: string; lotTrackingMode: string; unit: { symbol: string } } | null;
   recipeVersion: { version: number; recipe: { code: string; name: string } };
   secondaryRecipeVersion?: { version: number; recipe: { code: string; name: string } };
   materials: Material[];
@@ -62,6 +64,7 @@ type Options = {
   warehouses: { id: string; code: string; name: string }[];
   variants: Variant[];
   recipes: { id: string; productId: string; code: string; name: string; product: { id: string; code: string; name: string }; versions: { id: string; version: number; yieldQuantity: string; ingredients: { quantity: string; item: { id: string; code: string; name: string; unit: { symbol: string } } }[] }[] }[];
+  intermediateRecipes: { id: string; code: string; name: string; outputItem: { id: string; code: string; name: string; lotTrackingMode: string; unit: { symbol: string } }; versions: { id: string; version: number; yieldQuantity: string; costStructure?: { laborTariff: string; energyTariff: string; waterTariff: string; machineryCost: string } | null; ingredients: { quantity: string; item: { id: string; code: string; name: string; unit: { symbol: string } } }[] }[] }[];
   machines: { id: string; code: string; name: string; type: string; status: string }[];
   materials: { id: string; code: string; name: string; type: string; unit: { symbol: string } }[];
   salesOrders: { id: string; number: string; customer: { id: string; name: string }; promisedAt?: string; lines: { id: string; productVariantId: string; quantity: string }[] }[];
@@ -71,7 +74,8 @@ type FormValues = SheetValues & {
   warehouseId: string; recipeVersionId: string; secondaryRecipeVersionId?: string; salesOrderIds?: string[];
   materialItemId?: string; machineId?: string; priority: number; plannedAt?: Dayjs;
 };
-type CompleteValues = { outputs: { productVariantId: string; quantity: number }[]; waste: { productionMaterialId: string; quantity: number }[] };
+type IntermediateFormValues = { warehouseId: string; recipeVersionId: string; plannedQuantity: number; machineId?: string; priority: number; plannedAt?: Dayjs; operatorName?: string; outputLotCode?: string };
+type CompleteValues = { producedQuantity?: number; outputs?: { productVariantId: string; quantity: number }[]; waste: { productionMaterialId: string; quantity: number }[] };
 
 const componentLabels: Record<ComponentValue["componentType"], string> = {
   CERCO_VIRA: "Cerco / vira", INSERTO_PUNTA: "Inserto punta", INSERTO_TALON: "Inserto talón", OTRO: "Otro detalle",
@@ -203,7 +207,9 @@ function sheetPayload(values: SheetValues) {
 }
 
 function orderToSheet(order: Order, variants: Variant[]): SheetValues {
-  const productVariants = variants.filter((variant) => variant.product.id === order.productVariant.product.id);
+  if (!order.productVariant) throw new Error("La orden de insumo elaborado no usa programación por talla.");
+  const orderVariant = order.productVariant;
+  const productVariants = variants.filter((variant) => variant.product.id === orderVariant.product.id);
   const sizeProgram = (order.sizeProgram ?? []).map((item) => {
     if (item.productVariantId) return item;
     const variant = productVariants.find((candidate) => candidate.size.name.replace(/^Talla\s+/i, "") === item.size.replace(/^Talla\s+/i, "") && (!item.color || colorLabel(candidate).toLocaleUpperCase() === item.color.toLocaleUpperCase()));
@@ -222,13 +228,16 @@ function orderToSheet(order: Order, variants: Variant[]): SheetValues {
 export function ProductionWorkspace({ permissions }: { permissions: string[] }) {
   const searchParams = useSearchParams();
   const requestedRecipeVersionId = searchParams.get("recipeVersionId") ?? undefined;
+  const requestedIntermediate = searchParams.get("target") === "INTERMEDIATE";
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(Boolean(requestedRecipeVersionId));
+  const [open, setOpen] = useState(Boolean(requestedRecipeVersionId) && !requestedIntermediate);
+  const [intermediateOpen, setIntermediateOpen] = useState(Boolean(requestedRecipeVersionId) && requestedIntermediate);
   const [editOrder, setEditOrder] = useState<Order>();
   const [completeOrder, setCompleteOrder] = useState<Order>();
   const [viewMode, setViewMode] = useState<"list" | "board">("list");
   const [search, setSearch] = useState("");
   const [form] = Form.useForm<FormValues>();
+  const [intermediateForm] = Form.useForm<IntermediateFormValues>();
   const [quickWarehouseOpen, setQuickWarehouseOpen] = useState(false);
   const [quickMachineOpen, setQuickMachineOpen] = useState(false);
   const [quickMaterialOpen, setQuickMaterialOpen] = useState(false);
@@ -238,14 +247,23 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   const secondaryRecipeVersionId = Form.useWatch("secondaryRecipeVersionId", form);
   const program = (Form.useWatch("sizeProgram", form) ?? []) as SizeProgram[];
   const completeOutputs = Form.useWatch("outputs", completeForm) ?? [];
+  const intermediateRecipeVersionId = Form.useWatch("recipeVersionId", intermediateForm);
+  const intermediatePlannedQuantity = Form.useWatch("plannedQuantity", intermediateForm) ?? 0;
   const orders = useQuery({ queryKey: ["production"], queryFn: () => api<{ items: Order[] }>("/api/v1/production") });
-  const filteredOrders = (orders.data?.items ?? []).filter((order) => matchesSearch(search, order.number, order.productVariant.sku, order.productVariant.product.name, order.machine?.name, order.machineEquipment));
+  const filteredOrders = (orders.data?.items ?? []).filter((order) => matchesSearch(search, order.number, order.productVariant?.sku, order.productVariant?.product.name, order.outputItem?.code, order.outputItem?.name, order.machine?.name, order.machineEquipment));
   const options = useQuery({ queryKey: ["production-options"], queryFn: () => api<Options>("/api/v1/production/options") });
   const selectedRecipe = options.data?.recipes.find((recipe) => recipe.versions[0]?.id === recipeVersionId);
   const secondaryRecipe = options.data?.recipes.find((recipe) => recipe.versions[0]?.id === secondaryRecipeVersionId);
   const allowedVariants = selectedRecipe ? options.data?.variants.filter((variant) => variant.product.id === selectedRecipe.product.id) ?? [] : [];
   const firstProgramVariant = allowedVariants.find((variant) => variant.id === program.find((item) => item?.productVariantId)?.productVariantId);
-  const editVariants = editOrder ? options.data?.variants.filter((variant) => variant.product.id === editOrder.productVariant.product.id) ?? [] : [];
+  const editVariants = editOrder?.productVariant ? options.data?.variants.filter((variant) => variant.product.id === editOrder.productVariant!.product.id) ?? [] : [];
+  const selectedIntermediateRecipe = options.data?.intermediateRecipes.find((recipe) => recipe.versions[0]?.id === intermediateRecipeVersionId);
+  const selectedIntermediateVersion = selectedIntermediateRecipe?.versions[0];
+  const intermediateRuns = selectedIntermediateVersion && Number(selectedIntermediateVersion.yieldQuantity) > 0 ? new Decimal(intermediatePlannedQuantity || 0).div(selectedIntermediateVersion.yieldQuantity) : new Decimal(0);
+  const intermediateDirectCost = selectedIntermediateVersion?.costStructure ? new Decimal(selectedIntermediateVersion.costStructure.laborTariff).add(selectedIntermediateVersion.costStructure.energyTariff).add(selectedIntermediateVersion.costStructure.waterTariff).add(selectedIntermediateVersion.costStructure.machineryCost).mul(intermediateRuns) : new Decimal(0);
+  useEffect(() => {
+    if (requestedIntermediate && selectedIntermediateVersion && !intermediateForm.getFieldValue("plannedQuantity")) intermediateForm.setFieldValue("plannedQuantity", Number(selectedIntermediateVersion.yieldQuantity));
+  }, [intermediateForm, requestedIntermediate, selectedIntermediateVersion]);
   const selectedSalesOrderIds = Form.useWatch("salesOrderIds", form) ?? [];
   const selectedCustomerIds = [...new Set((options.data?.salesOrders ?? []).filter((order) => selectedSalesOrderIds.includes(order.id)).map((order) => order.customer.id))];
   const createBrands = selectedCustomerIds.length === 1 ? (options.data?.customerBrands ?? []).filter((brand) => brand.customerId === selectedCustomerIds[0]) : [];
@@ -258,6 +276,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   const refresh = async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ["production"] }), queryClient.invalidateQueries({ queryKey: ["inventory"] }), queryClient.invalidateQueries({ queryKey: ["kardex"] }), queryClient.invalidateQueries({ queryKey: ["calendar"] }), queryClient.invalidateQueries({ queryKey: ["orders"] })]); };
 
   const create = useMutation({ mutationFn: (values: FormValues) => api("/api/v1/production", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...sheetPayload(values), warehouseId: values.warehouseId, recipeVersionId: values.recipeVersionId, secondaryRecipeVersionId: values.secondaryRecipeVersionId, salesOrderIds: values.salesOrderIds ?? [], materialItemId: values.materialItemId, machineId: values.machineId, priority: values.priority, plannedAt: values.plannedAt?.format("YYYY-MM-DD") }) }), onSuccess: async () => { toast.success("Orden creada en estado pendiente."); setOpen(false); form.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
+  const createIntermediate = useMutation({ mutationFn: (values: IntermediateFormValues) => api("/api/v1/production", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...values, targetType: "INTERMEDIATE", plannedAt: values.plannedAt?.format("YYYY-MM-DD") }) }), onSuccess: async () => { toast.success("Orden de insumo elaborado creada en estado pendiente."); setIntermediateOpen(false); intermediateForm.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
   const update = useMutation({ mutationFn: ({ id, values }: { id: string; values: SheetValues }) => api(`/api/v1/production/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(sheetPayload(values)) }), onSuccess: async () => { toast.success("Orden de producción actualizada."); setEditOrder(undefined); editForm.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
   const transition = useMutation({ mutationFn: ({ id, action, body }: { id: string; action: string; body?: object }) => api(`/api/v1/production/${id}/${action}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body ?? {}) }), onSuccess: async (_, variables) => { toast.success(variables.action === "release" ? "Materiales reservados." : variables.action === "start" ? "Orden iniciada y materiales descontados." : "Producción finalizada e ingresada al almacén."); setCompleteOrder(undefined); completeForm.resetFields(); await refresh(); }, onError: (error) => toast.error(error.message) });
   const startFromBoard = useMutation({ mutationFn: async (order: Order) => { if (order.status === "DRAFT") await api(`/api/v1/production/${order.id}/release`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); return api(`/api/v1/production/${order.id}/start`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); }, onSuccess: async () => { toast.success("Orden iniciada y materiales descontados del kardex."); await refresh(); }, onError: (error) => toast.error(error.message) });
@@ -282,26 +301,31 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   };
 
   const openCompletion = (order: Order) => {
+    const waste = order.materials.map((material) => ({ productionMaterialId: material.id, quantity: Number(material.actualWasteQuantity ?? 0) }));
+    if (order.targetType === "INTERMEDIATE") {
+      setCompleteOrder(order);
+      completeForm.setFieldsValue({ producedQuantity: Number(order.plannedQuantity), outputs: [], waste });
+      return;
+    }
+    if (!order.productVariant) return toast.error("La orden no tiene una variante de producto válida.");
     const scheduled = order.sizeProgram ?? [];
     const turnTotals = new Map<string, number>();
     for (const turn of order.productionTurns ?? []) for (const item of turn.quantities) turnTotals.set(item.productVariantId, (turnTotals.get(item.productVariantId) ?? 0) + Number(item.quantity));
     const outputs = scheduled.length ? scheduled.map((item) => ({ productVariantId: item.productVariantId, quantity: turnTotals.get(item.productVariantId) || Number(item.requestedPairs) })) : [{ productVariantId: order.productVariant.id, quantity: Number(order.plannedQuantity) }];
-    const waste = order.materials.map((material) => ({ productionMaterialId: material.id, quantity: Number(material.actualWasteQuantity ?? 0) }));
     setCompleteOrder(order); completeForm.setFieldsValue({ outputs, waste });
   };
 
   const columns: ColumnsType<Order> = [
     { title: "Orden", dataIndex: "number", width: 135, render: (value, row) => <><strong>{value}</strong><br /><Tag color={row.priority === 1 ? "red" : row.priority === 2 ? "gold" : "blue"}>Prioridad {row.priority}</Tag></> },
     { title: "Pedidos", width: 180, render: (_, row) => row.salesOrders.length ? row.salesOrders.map((link) => link.salesOrder.number).join(", ") : "—" },
-    { title: "Producto / seriado", width: 300, render: (_, row) => <><strong>{row.productVariant.product.code} · {row.productVariant.product.name}</strong><br /><Typography.Text type="secondary">Matriz {row.productVariant.product.matrixCode} · {colorLabel(row.productVariant)} · Tallas {(row.sizeProgram ?? []).map((item) => item.size).join(", ")}</Typography.Text></> },
+    { title: "Resultado", width: 300, render: (_, row) => row.targetType === "INTERMEDIATE" && row.outputItem ? <><Tag color="purple">Insumo elaborado</Tag><br /><strong>{row.outputItem.code} · {row.outputItem.name}</strong><br /><Typography.Text type="secondary">Receta {row.recipeVersion.recipe.code} · {new Decimal(row.recipeRuns).toFixed(3)} ejecuciones</Typography.Text></> : row.productVariant ? <><Tag color="blue">Producto terminado</Tag><br /><strong>{row.productVariant.product.code} · {row.productVariant.product.name}</strong><br /><Typography.Text type="secondary">Matriz {row.productVariant.product.matrixCode} · {colorLabel(row.productVariant)} · Tallas {(row.sizeProgram ?? []).map((item) => item.size).join(", ")}</Typography.Text></> : "—" },
     { title: "Máquina", width: 180, render: (_, row) => row.machine ? `${row.machine.code} · ${row.machine.name}` : "—" },
-    { title: "Planificado", dataIndex: "plannedQuantity", width: 110, align: "right", render: (value) => `${new Decimal(value).toFixed(0)} pares` },
-    { title: "Producido", dataIndex: "producedQuantity", width: 110, align: "right", render: (value) => `${new Decimal(value).toFixed(0)} pares` },
+    { title: "Planificado", dataIndex: "plannedQuantity", width: 120, align: "right", render: (value, row) => `${new Decimal(value).toFixed(row.targetType === "INTERMEDIATE" ? 3 : 0)} ${row.targetType === "INTERMEDIATE" ? row.outputItem?.unit.symbol ?? "und." : "pares"}` },
+    { title: "Producido", dataIndex: "producedQuantity", width: 120, align: "right", render: (value, row) => `${new Decimal(value).toFixed(row.targetType === "INTERMEDIATE" ? 3 : 0)} ${row.targetType === "INTERMEDIATE" ? row.outputItem?.unit.symbol ?? "und." : "pares"}` },
     { title: "Estado", dataIndex: "status", width: 115, render: (value) => { const [label, color] = statuses[value] ?? [value, "default"]; return <Tag color={color}>{label}</Tag>; } },
     { title: "Acciones", fixed: "right", width: 430, render: (_, row) => <Space wrap>
-      <Button size="small" icon={<FileExcelOutlined />} href={`/api/v1/production/${row.id}/export?format=xlsx`}>Excel</Button>
-      <Button size="small" icon={<FilePdfOutlined />} href={`/api/v1/production/${row.id}/export?format=pdf`}>PDF</Button>
-      {permissions.includes("production.create") && !["COMPLETED", "CANCELLED"].includes(row.status) ? <Button size="small" icon={<EditOutlined />} onClick={() => { setEditOrder(row); editForm.setFieldsValue(orderToSheet(row, options.data?.variants ?? [])); }}>Editar</Button> : null}
+      {row.targetType === "PRODUCT" ? <><Button size="small" icon={<FileExcelOutlined />} href={`/api/v1/production/${row.id}/export?format=xlsx`}>Excel</Button><Button size="small" icon={<FilePdfOutlined />} href={`/api/v1/production/${row.id}/export?format=pdf`}>PDF</Button></> : null}
+      {row.targetType === "PRODUCT" && row.productVariant && permissions.includes("production.create") && !["COMPLETED", "CANCELLED"].includes(row.status) ? <Button size="small" icon={<EditOutlined />} onClick={() => { setEditOrder(row); editForm.setFieldsValue(orderToSheet(row, options.data?.variants ?? [])); }}>Editar</Button> : null}
       {row.status === "DRAFT" && permissions.includes("production.release") ? <Button size="small" onClick={() => Modal.confirm({ title: `¿Liberar ${row.number}?`, content: "Se validará y reservará el stock de formulaciones y componentes.", okText: "Liberar", onOk: () => transition.mutateAsync({ id: row.id, action: "release" }) })}>Liberar</Button> : null}
       {row.status === "RELEASED" && permissions.includes("production.start") ? <Button size="small" type="primary" icon={<RocketOutlined />} onClick={() => Modal.confirm({ title: `¿Iniciar ${row.number}?`, content: "Se descontarán del kardex los materiales y componentes reservados.", okText: "Iniciar", onOk: () => transition.mutateAsync({ id: row.id, action: "start" }) })}>Iniciar</Button> : null}
       {row.status === "IN_PROGRESS" && permissions.includes("production.complete") ? <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => openCompletion(row)}>Finalizar</Button> : null}
@@ -329,9 +353,9 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
 
   return <>
     <div className="page-heading"><ModuleHeadingIntro title="Producción" eyebrow="Manufactura" description="Órdenes de fabricación por producto, formulación, talla y turno." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar orden, producto, SKU o máquina" /><Segmented value={viewMode} onChange={(value) => setViewMode(value as "list" | "board")} options={[{ value: "list", label: "Lista", icon: <UnorderedListOutlined /> }, { value: "board", label: "Tablero", icon: <AppstoreOutlined /> }]} /><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => orders.refetch()} /></Tooltip><Button icon={<FilePdfOutlined />} href="/api/v1/production/blank">Formato en blanco</Button></Space></div>
-    <Card className="section-card production-board-card" title={viewMode === "list" ? "Órdenes de producción" : "Tablero de producción"} extra={permissions.includes("production.create") ? <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Nueva orden</Button> : null}>
+    <Card className="section-card production-board-card" title={viewMode === "list" ? "Órdenes de producción" : "Tablero de producción"} extra={permissions.includes("production.create") ? <Space wrap><Button icon={<PlusOutlined />} onClick={() => setIntermediateOpen(true)}>Nuevo insumo elaborado</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Nuevo producto terminado</Button></Space> : null}>
       {orders.error ? <Alert type="error" showIcon message={orders.error.message} style={{ marginBottom: 16 }} /> : null}
-      {viewMode === "list" ? <Table rowKey="id" loading={orders.isLoading} columns={columns} dataSource={filteredOrders} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" sticky={false} pagination={false} columns={materialColumns} dataSource={row.materials} /> }} scroll={{ x: 1510 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay órdenes de producción" /> }} /> : <ProductionKanban orders={filteredOrders} onMove={moveOrder} onOpen={(order) => { if (!permissions.includes("production.create")) return; setEditOrder(order); editForm.setFieldsValue(orderToSheet(order, options.data?.variants ?? [])); }} />}
+      {viewMode === "list" ? <Table rowKey="id" loading={orders.isLoading} columns={columns} dataSource={filteredOrders} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" sticky={false} pagination={false} columns={materialColumns} dataSource={row.materials} /> }} scroll={{ x: 1510 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay órdenes de producción" /> }} /> : <ProductionKanban orders={filteredOrders} onMove={moveOrder} onOpen={(order) => { if (!permissions.includes("production.create") || !order.productVariant) return; setEditOrder(order); editForm.setFieldsValue(orderToSheet(order, options.data?.variants ?? [])); }} />}
     </Card>
 
     <Modal className="compact-form-modal" title="Nueva orden de producción" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Crear orden pendiente" confirmLoading={create.isPending} width={1180} destroyOnHidden>
@@ -360,23 +384,40 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
       </Form>
     </Modal>
 
+    <Modal className="compact-form-modal" title="Nueva orden de insumo elaborado" open={intermediateOpen} onCancel={() => setIntermediateOpen(false)} onOk={() => intermediateForm.submit()} okText="Crear orden pendiente" confirmLoading={createIntermediate.isPending} width={880} destroyOnHidden>
+      <Alert type="info" showIcon message="Proceso formal con costos productivos" description="Al iniciar se consumirán los ingredientes. Al finalizar, el costo de materiales, mano de obra, energía, agua y maquinaria quedará incorporado al costo promedio del insumo resultante." style={{ marginBottom: 16 }} />
+      <Form form={intermediateForm} layout="vertical" onFinish={(values) => createIntermediate.mutate(values)} initialValues={{ recipeVersionId: requestedIntermediate ? requestedRecipeVersionId : undefined, priority: 2, plannedAt: dayjs() }}>
+        <div className="modal-form-grid modal-form-grid-2">
+          <Form.Item name="warehouseId" label="Almacén" rules={[{ required: true }]}><CreatableSelect createLabel="Nuevo almacén" createDisabled={!permissions.includes("catalogs.manage")} onCreate={() => setQuickWarehouseOpen(true)} showSearch optionFilterProp="label" options={options.data?.warehouses.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} /></Form.Item>
+          <Form.Item name="plannedAt" label="Fecha programada" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>
+          <Form.Item className="form-span-all" name="recipeVersionId" label="Receta del insumo" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" onChange={(id) => { const recipe = options.data?.intermediateRecipes.find((item) => item.versions[0]?.id === id); intermediateForm.setFieldValue("plannedQuantity", recipe ? Number(recipe.versions[0].yieldQuantity) : undefined); intermediateForm.setFieldValue("outputLotCode", undefined); }} options={options.data?.intermediateRecipes.filter((recipe) => recipe.versions[0]).map((recipe) => ({ value: recipe.versions[0].id, label: `${recipe.code} · ${recipe.outputItem.code} · ${recipe.outputItem.name} · rinde ${recipe.versions[0].yieldQuantity} ${recipe.outputItem.unit.symbol}` }))} /></Form.Item>
+          <Form.Item name="plannedQuantity" label={`Cantidad planificada${selectedIntermediateRecipe ? ` (${selectedIntermediateRecipe.outputItem.unit.symbol})` : ""}`} rules={[{ required: true }]}><InputNumber min={0.000001} precision={6} style={{ width: "100%" }} /></Form.Item>
+          <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}><Select options={[1, 2, 3].map((value) => ({ value, label: `Prioridad ${value}` }))} /></Form.Item>
+          <Form.Item name="machineId" label="Máquina"><CreatableSelect createLabel="Nueva máquina" createDisabled={!permissions.includes("machinery.create")} onCreate={() => setQuickMachineOpen(true)} allowClear showSearch optionFilterProp="label" options={options.data?.machines.map((machine) => ({ value: machine.id, label: `${machine.code} · ${machine.name}${machine.status === "MAINTENANCE" ? " · En mantenimiento" : ""}` }))} /></Form.Item>
+          <Form.Item name="operatorName" label="Operario"><Input maxLength={150} /></Form.Item>
+          {selectedIntermediateRecipe?.outputItem.lotTrackingMode !== "NONE" ? <Form.Item name="outputLotCode" label="Lote de salida" rules={selectedIntermediateRecipe?.outputItem.lotTrackingMode === "REQUIRED" ? [{ required: true }] : undefined}><Input maxLength={120} /></Form.Item> : null}
+        </div>
+        {selectedIntermediateVersion ? <Alert type="success" showIcon message={`${intermediateRuns.toFixed(3)} ejecuciones de receta · costos productivos S/ ${intermediateDirectCost.toFixed(2)}`} description={<Space size={[4, 4]} wrap>{selectedIntermediateVersion.ingredients.map((ingredient) => <Tag key={ingredient.item.id}>{ingredient.item.code}: {new Decimal(ingredient.quantity).mul(intermediateRuns).toFixed(3)} {ingredient.item.unit.symbol}</Tag>)}</Space>} /> : null}
+      </Form>
+    </Modal>
+
     <Modal className="compact-form-modal" title={`Editar ${editOrder?.number ?? "orden"}`} open={Boolean(editOrder)} onCancel={() => setEditOrder(undefined)} onOk={() => editForm.submit()} okText="Guardar cambios" confirmLoading={update.isPending} width={1180} destroyOnHidden>
       <Form form={editForm} layout="vertical" onFinish={(values) => editOrder && update.mutate({ id: editOrder.id, values })}>
-        {editOrder ? <Alert type="info" showIcon message={`${editOrder.recipeVersion.recipe.name}${editOrder.secondaryRecipeVersion ? ` + ${editOrder.secondaryRecipeVersion.recipe.name}` : ""} · ${editOrder.productVariant.product.matrixCode} · ${colorLabel(editOrder.productVariant)}`} style={{ marginBottom: 12 }} /> : null}
+        {editOrder?.productVariant ? <Alert type="info" showIcon message={`${editOrder.recipeVersion.recipe.name}${editOrder.secondaryRecipeVersion ? ` + ${editOrder.secondaryRecipeVersion.recipe.name}` : ""} · ${editOrder.productVariant.product.matrixCode} · ${colorLabel(editOrder.productVariant)}`} style={{ marginBottom: 12 }} /> : null}
         <ProductionDetailsFields form={editForm} variants={editVariants} materials={options.data?.materials ?? []} customerBrands={editBrands} structureLocked={editOrder?.status !== "DRAFT"} canCreateItem={permissions.includes("inventory.create_item")} />
       </Form>
     </Modal>
 
-    <Modal className="compact-form-modal" title={`Finalizar ${completeOrder?.number ?? "orden"}`} open={Boolean(completeOrder)} onCancel={() => setCompleteOrder(undefined)} onOk={() => completeForm.submit()} okText="Ingresar productos terminados" confirmLoading={transition.isPending} width={820} destroyOnHidden>
-      <Alert type="warning" showIcon message="Confirma la producción buena y la merma real del proceso." description={`Total a ingresar: ${completeOutputs.reduce((sum, item) => sum + Number(item?.quantity ?? 0), 0).toFixed(0)} pares. La merma se informa ahora porque puede variar en cada orden.`} style={{ marginBottom: 16 }} />
+    <Modal className="compact-form-modal" title={`Finalizar ${completeOrder?.number ?? "orden"}`} open={Boolean(completeOrder)} onCancel={() => setCompleteOrder(undefined)} onOk={() => completeForm.submit()} okText={completeOrder?.targetType === "INTERMEDIATE" ? "Ingresar insumo al almacén" : "Ingresar productos terminados"} confirmLoading={transition.isPending} width={820} destroyOnHidden>
+      <Alert type="warning" showIcon message="Confirma la producción buena y la merma real del proceso." description={completeOrder?.targetType === "INTERMEDIATE" ? `El costo de materiales más S/ ${new Decimal(completeOrder.laborTariff).add(completeOrder.energyTariff).add(completeOrder.waterTariff).add(completeOrder.machineryCost).toFixed(2)} de costos productivos se incorporará al valor del insumo.` : `Total a ingresar: ${completeOutputs.reduce((sum, item) => sum + Number(item?.quantity ?? 0), 0).toFixed(0)} pares. La merma se informa ahora porque puede variar en cada orden.`} style={{ marginBottom: 16 }} />
       <Form form={completeForm} layout="vertical" onFinish={(values) => completeOrder && transition.mutate({ id: completeOrder.id, action: "complete", body: values })}>
-        <Form.List name="outputs">{(fields) => <Space direction="vertical" style={{ width: "100%" }}>{fields.map((field) => { const variantId = completeOutputs[field.name]?.productVariantId; const schedule = completeOrder?.sizeProgram?.find((item) => item.productVariantId === variantId); return <div key={field.key} className="purchase-form-grid"><Form.Item {...field} name={[field.name, "productVariantId"]} hidden><Input /></Form.Item><Form.Item label="SKU / talla"><Input disabled value={schedule ? `${schedule.sku} · Talla ${schedule.size}` : completeOrder?.productVariant.sku} /></Form.Item><Form.Item {...field} name={[field.name, "quantity"]} label="Cantidad buena" rules={[{ required: true }]}><InputNumber min={0} max={schedule?.requestedPairs ? Number(schedule.requestedPairs) : undefined} precision={0} style={{ width: "100%" }} /></Form.Item></div>; })}</Space>}</Form.List>
+        {completeOrder?.targetType === "INTERMEDIATE" ? <Form.Item name="producedQuantity" label={`Cantidad obtenida (${completeOrder.outputItem?.unit.symbol ?? "und."})`} rules={[{ required: true }]}><InputNumber min={0.000001} max={Number(completeOrder.plannedQuantity)} precision={6} style={{ width: "100%" }} /></Form.Item> : <Form.List name="outputs">{(fields) => <Space direction="vertical" style={{ width: "100%" }}>{fields.map((field) => { const variantId = completeOutputs[field.name]?.productVariantId; const schedule = completeOrder?.sizeProgram?.find((item) => item.productVariantId === variantId); return <div key={field.key} className="purchase-form-grid"><Form.Item {...field} name={[field.name, "productVariantId"]} hidden><Input /></Form.Item><Form.Item label="SKU / talla"><Input disabled value={schedule ? `${schedule.sku} · Talla ${schedule.size}` : completeOrder?.productVariant?.sku} /></Form.Item><Form.Item {...field} name={[field.name, "quantity"]} label="Cantidad buena" rules={[{ required: true }]}><InputNumber min={0} max={schedule?.requestedPairs ? Number(schedule.requestedPairs) : undefined} precision={0} style={{ width: "100%" }} /></Form.Item></div>; })}</Space>}</Form.List>}
         <Divider titlePlacement="left">Merma real por material</Divider>
         <Form.List name="waste">{(fields) => <Space direction="vertical" style={{ width: "100%" }}>{fields.map((field) => { const material = completeOrder?.materials[field.name]; return <div key={field.key} className="purchase-form-grid"><Form.Item {...field} name={[field.name, "productionMaterialId"]} hidden><Input /></Form.Item><Form.Item label="Material"><Input disabled value={material ? `${material.item.code} · ${material.item.name}` : ""} /></Form.Item><Form.Item {...field} name={[field.name, "quantity"]} label={`Merma real${material ? ` (${material.item.unit.symbol})` : ""}`} rules={[{ required: true }]}><InputNumber min={0} max={material ? Number(material.consumedQuantity) : undefined} precision={6} style={{ width: "100%" }} /></Form.Item></div>; })}</Space>}</Form.List>
       </Form>
     </Modal>
-    <WarehouseQuickCreateModal open={quickWarehouseOpen} onCancel={() => setQuickWarehouseOpen(false)} onCreated={(warehouse) => { form.setFieldValue("warehouseId", warehouse.id); setQuickWarehouseOpen(false); }} />
-    <MachineQuickCreateModal open={quickMachineOpen} onCancel={() => setQuickMachineOpen(false)} onCreated={(machine) => { form.setFieldValue("machineId", machine.id); setQuickMachineOpen(false); }} />
+    <WarehouseQuickCreateModal open={quickWarehouseOpen} onCancel={() => setQuickWarehouseOpen(false)} onCreated={(warehouse) => { if (intermediateOpen) intermediateForm.setFieldValue("warehouseId", warehouse.id); else form.setFieldValue("warehouseId", warehouse.id); setQuickWarehouseOpen(false); }} />
+    <MachineQuickCreateModal open={quickMachineOpen} onCancel={() => setQuickMachineOpen(false)} onCreated={(machine) => { if (intermediateOpen) intermediateForm.setFieldValue("machineId", machine.id); else form.setFieldValue("machineId", machine.id); setQuickMachineOpen(false); }} />
     <ItemQuickCreateModal open={quickMaterialOpen} defaultType="RAW_MATERIAL" onCancel={() => setQuickMaterialOpen(false)} onCreated={(item) => { form.setFieldValue("materialItemId", item.id); setQuickMaterialOpen(false); }} />
   </>;
 }

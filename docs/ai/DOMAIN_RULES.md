@@ -149,13 +149,14 @@ El kardex es inmutable. Correcciones contables deben realizarse mediante movimie
 ## 7. Recetas
 
 - Recetas es el único lugar donde se define la combinación de ingredientes; no se mantiene una fórmula paralela en Almacén.
-- Una receta tiene un solo destino: un producto final para Producción o un ítem `INTERMEDIATE` para Almacén.
+- Una receta tiene un solo resultado: un producto final o un ítem `INTERMEDIATE`. El insumo elaborado puede ejecutarse directamente hacia Almacén o mediante una orden formal de Producción.
 - Una versión contiene rendimiento manual: cuántos pares, unidades o kilos produce una ejecución completa.
 - Sus ingredientes contienen material y cantidad estándar.
 - Crear o activar una receta no descuenta stock.
 - Activar congela la versión que podrá enviarse a Producción o Almacén.
 - Enviar a Producción abre la creación de una orden con la receta preseleccionada; el consumo ocurre al iniciar la orden y el producto final ingresa al terminarla.
-- Enviar a Almacén descuenta inmediatamente los ingredientes, registra kardex y aumenta el stock del insumo resultante con costo promedio calculado desde el valor consumido.
+- Enviar a Almacén es el flujo directo: descuenta inmediatamente los ingredientes, registra kardex y aumenta el stock del insumo resultante con costo promedio calculado desde el valor consumido.
+- Crear orden de producción para un insumo elaborado aplica el flujo Pendiente → Liberada → En curso → Finalizada. Al iniciar consume ingredientes; al finalizar ingresa la cantidad real obtenida y capitaliza materiales más las tarifas productivas copiadas desde la estructura de costos.
 - Las recetas de insumos se validan contra dependencias circulares: un resultado no puede depender directa ni indirectamente de sí mismo.
 - La receta no contiene merma teórica ni porcentaje de merma.
 - La merma real se declara al ejecutar el destino. Una merma física recuperable puede ser ingrediente si existe como ítem `WASTE` en Almacén.
@@ -195,6 +196,9 @@ Reglas:
 - La merma real debe ser mayor o igual a cero y no superar la cantidad consumida del material.
 - Registrar merma al final no descuenta otra vez el stock: el material completo ya se consumió al iniciar.
 - El costo consumido completo, incluida la porción declarada como merma, se distribuye entre los pares buenos terminados.
+- Una orden puede producir un producto terminado por tallas o un ítem `INTERMEDIATE`. Las órdenes de insumo elaborado no usan SKU, talla, color, pedido ni formulación C2.
+- Al crear una orden se copian como histórico los importes aplicables de mano de obra, energía, agua y maquinaria, escalados por las ejecuciones de receta. Cambiar después la estructura de costos no altera la orden existente.
+- Al finalizar, el costo de salida es materiales consumidos más los cuatro costos productivos de la orden. Ese total se divide entre la cantidad real buena e ingresa al costo promedio del producto o insumo resultante.
 - Finalizar ingresa el producto terminado al SKU correspondiente y actualiza pedido/stock.
 - El documento se exporta en Excel y PDF con tamaño físico A5, pero no imprime la palabra “A5” en la cabecera.
 - Además del PDF con datos, existe un formato A5 en blanco (sin valores) para llenarlo a mano.

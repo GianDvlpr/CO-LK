@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       }) : Promise.resolve([]),
       permissions.has("production.read") ? prisma.productionOrder.findMany({
         where: { companyId: user.companyId, plannedAt: { gte: from, lte: to } },
-        select: { id: true, number: true, status: true, plannedAt: true, warehouseId: true, warehouse: { select: { name: true } }, productVariant: { select: { sku: true, product: { select: { name: true } } } } },
+        select: { id: true, number: true, status: true, plannedAt: true, warehouseId: true, warehouse: { select: { name: true } }, productVariant: { select: { sku: true, product: { select: { name: true } } } }, outputItem: { select: { code: true, name: true } } },
       }) : Promise.resolve([]),
       permissions.has("pick_pack.read") ? prisma.pickPackOrder.findMany({
         where: { companyId: user.companyId, OR: [{ salesOrder: { promisedAt: { gte: from, lte: to } } }, { salesOrder: { promisedAt: null }, createdAt: { gte: from, lte: to } }] },
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
       }),
       ...production.map((order) => ({
         id: `production:${order.id}`, source: "PRODUCTION", kind: "PLANNED", title: `Producción ${order.number}`,
-        subtitle: `${order.productVariant.sku} · ${order.productVariant.product.name}`, startAt: dateOnly(order.plannedAt!), endAt: null, allDay: false,
+        subtitle: order.outputItem ? `${order.outputItem.code} · ${order.outputItem.name}` : order.productVariant ? `${order.productVariant.sku} · ${order.productVariant.product.name}` : "Resultado no disponible", startAt: dateOnly(order.plannedAt!), endAt: null, allDay: false,
         status: order.status, priority: "NORMAL", href: "/dashboard/production", warehouseId: order.warehouseId, warehouse: order.warehouse.name, machineId: null, machine: null,
       })),
       ...pickPack.map((order) => ({

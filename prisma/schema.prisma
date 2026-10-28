@@ -82,6 +82,11 @@ enum ProductionOrderStatus {
   CANCELLED
 }
 
+enum ProductionTargetType {
+  PRODUCT
+  INTERMEDIATE
+}
+
 enum MachineType {
   PRESS
   INJECTOR
@@ -459,6 +464,7 @@ model InventoryItem {
   recipeOutputs              Recipe[]                          @relation("RecipeInventoryOutput")
   productionMaterials        ProductionMaterial[]
   productionOrderMaterials   ProductionOrder[]                 @relation("ProductionOrderMaterialItem")
+  productionOrderOutputs     ProductionOrder[]                 @relation("ProductionOrderOutputItem")
   productionComponents       ProductionComponent[]
   formulaOutputs             InventoryFormula[]                @relation("InventoryFormulaOutput")
   formulaIngredients         InventoryFormulaIngredient[]      @relation("InventoryFormulaIngredientItem")
@@ -985,7 +991,9 @@ model ProductionOrder {
   id                       String                      @id @default(uuid()) @db.Uuid
   companyId                String                      @map("company_id") @db.Uuid
   warehouseId              String                      @map("warehouse_id") @db.Uuid
-  productVariantId         String                      @map("product_variant_id") @db.Uuid
+  targetType               ProductionTargetType        @default(PRODUCT) @map("target_type")
+  productVariantId         String?                     @map("product_variant_id") @db.Uuid
+  outputItemId             String?                     @map("output_item_id") @db.Uuid
   recipeVersionId          String                      @map("recipe_version_id") @db.Uuid
   secondaryRecipeVersionId String?                     @map("secondary_recipe_version_id") @db.Uuid
   customerBrandId          String?                     @map("customer_brand_id") @db.Uuid
@@ -996,6 +1004,11 @@ model ProductionOrder {
   secondaryRecipeRuns      Decimal?                    @map("secondary_recipe_runs") @db.Decimal(18, 6)
   plannedQuantity          Decimal                     @map("planned_quantity") @db.Decimal(18, 6)
   producedQuantity         Decimal                     @default(0) @map("produced_quantity") @db.Decimal(18, 6)
+  laborTariff              Decimal                     @default(0) @map("labor_tariff") @db.Decimal(18, 6)
+  energyTariff             Decimal                     @default(0) @map("energy_tariff") @db.Decimal(18, 6)
+  waterTariff              Decimal                     @default(0) @map("water_tariff") @db.Decimal(18, 6)
+  machineryCost            Decimal                     @default(0) @map("machinery_cost") @db.Decimal(18, 6)
+  outputLotCode            String?                     @map("output_lot_code")
   status                   ProductionOrderStatus       @default(DRAFT)
   priority                 Int                         @default(2)
   plannedAt                DateTime?                   @map("planned_at")
@@ -1019,7 +1032,8 @@ model ProductionOrder {
   createdAt                DateTime                    @default(now()) @map("created_at")
   company                  Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   warehouse                Warehouse                   @relation(fields: [warehouseId], references: [id])
-  productVariant           ProductVariant              @relation(fields: [productVariantId], references: [id])
+  productVariant           ProductVariant?             @relation(fields: [productVariantId], references: [id])
+  outputItem               InventoryItem?              @relation("ProductionOrderOutputItem", fields: [outputItemId], references: [id])
   recipeVersion            RecipeVersion               @relation("PrimaryProductionRecipe", fields: [recipeVersionId], references: [id])
   secondaryRecipeVersion   RecipeVersion?              @relation("SecondaryProductionRecipe", fields: [secondaryRecipeVersionId], references: [id])
   customerBrand            CustomerBrand?              @relation(fields: [customerBrandId], references: [id], onDelete: SetNull)
@@ -1032,6 +1046,7 @@ model ProductionOrder {
 
   @@unique([companyId, number])
   @@index([companyId, status, plannedAt])
+  @@index([outputItemId, status])
   @@index([customerBrandId])
   @@map("production_orders")
 }

@@ -21,9 +21,9 @@ function KanbanCard({ order }: { order: Order }) {
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
   return <article ref={setNodeRef} style={style} className={`production-kanban-card${isDragging ? " dragging" : ""}`}>
     <div className="production-kanban-card-head"><strong>{order.number}</strong>{!disabled ? <button ref={setActivatorNodeRef} type="button" className="kanban-drag-handle" aria-label={`Mover ${order.number}`} title="Mantén presionado y arrastra" {...attributes} {...listeners}><DragOutlined aria-hidden /></button> : <Tag>{order.status === "COMPLETED" ? "Cerrada" : "Cancelada"}</Tag>}</div>
-    <span className="production-kanban-product">{order.productVariant.product.name}</span>
-    <small>{order.productVariant.product.matrixCode} · {order.productVariant.color.name}{order.productVariant.secondaryColor ? ` / ${order.productVariant.secondaryColor.name}` : ""} · {(order.sizeProgram ?? []).map((item) => item.size).join(", ") || order.productVariant.size.name}</small>
-    <div className="production-kanban-progress"><span>Producido</span><strong>{new Decimal(order.producedQuantity).toFixed(0)} / {new Decimal(order.plannedQuantity).toFixed(0)}</strong></div>
+    <span className="production-kanban-product">{order.outputItem?.name ?? order.productVariant?.product.name ?? "Resultado no disponible"}</span>
+    <small>{order.outputItem ? `${order.outputItem.code} · ${order.outputItem.unit.symbol}` : order.productVariant ? `${order.productVariant.product.matrixCode} · ${order.productVariant.color.name}${order.productVariant.secondaryColor ? ` / ${order.productVariant.secondaryColor.name}` : ""} · ${(order.sizeProgram ?? []).map((item) => item.size).join(", ") || order.productVariant.size.name}` : "—"}</small>
+    <div className="production-kanban-progress"><span>Producido</span><strong>{new Decimal(order.producedQuantity).toFixed(order.outputItem ? 3 : 0)} / {new Decimal(order.plannedQuantity).toFixed(order.outputItem ? 3 : 0)}</strong></div>
     <div className="production-kanban-meta"><span>{order.machine ? `${order.machine.code} · ${order.machine.name}` : order.machineEquipment || "Sin máquina"}</span><span>{order.plannedAt ? dayjs(order.plannedAt.slice(0, 10)).format("DD/MM/YYYY") : "Sin fecha"}</span></div>
   </article>;
 }
@@ -31,9 +31,9 @@ function KanbanCard({ order }: { order: Order }) {
 function KanbanCardOverlay({ order }: { order: Order }) {
   return <article className="production-kanban-card overlay">
     <div className="production-kanban-card-head"><strong>{order.number}</strong><span className="kanban-drag-handle is-preview"><DragOutlined aria-hidden /></span></div>
-    <span className="production-kanban-product">{order.productVariant.product.name}</span>
-    <small>{order.productVariant.product.matrixCode} · {order.productVariant.color.name}{order.productVariant.secondaryColor ? ` / ${order.productVariant.secondaryColor.name}` : ""} · {(order.sizeProgram ?? []).map((item) => item.size).join(", ") || order.productVariant.size.name}</small>
-    <div className="production-kanban-progress"><span>Producido</span><strong>{new Decimal(order.producedQuantity).toFixed(0)} / {new Decimal(order.plannedQuantity).toFixed(0)}</strong></div>
+    <span className="production-kanban-product">{order.outputItem?.name ?? order.productVariant?.product.name ?? "Resultado no disponible"}</span>
+    <small>{order.outputItem ? `${order.outputItem.code} · ${order.outputItem.unit.symbol}` : order.productVariant ? `${order.productVariant.product.matrixCode} · ${order.productVariant.color.name}${order.productVariant.secondaryColor ? ` / ${order.productVariant.secondaryColor.name}` : ""} · ${(order.sizeProgram ?? []).map((item) => item.size).join(", ") || order.productVariant.size.name}` : "—"}</small>
+    <div className="production-kanban-progress"><span>Producido</span><strong>{new Decimal(order.producedQuantity).toFixed(order.outputItem ? 3 : 0)} / {new Decimal(order.plannedQuantity).toFixed(order.outputItem ? 3 : 0)}</strong></div>
     <div className="production-kanban-meta"><span>{order.machine ? `${order.machine.code} · ${order.machine.name}` : order.machineEquipment || "Sin máquina"}</span><span>{order.plannedAt ? dayjs(order.plannedAt.slice(0, 10)).format("DD/MM/YYYY") : "Sin fecha"}</span></div>
   </article>;
 }

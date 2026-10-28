@@ -29,13 +29,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       where: { id, companyId: user.companyId },
       include: {
         productVariant: true,
-        recipeVersion: { include: { ingredients: true } },
-        secondaryRecipeVersion: { include: { ingredients: true } },
+        recipeVersion: { include: { ingredients: true, costStructure: true } },
+        secondaryRecipeVersion: { include: { ingredients: true, costStructure: true } },
         salesOrders: { include: { salesOrder: { include: { lines: true } } } },
         components: true,
       },
     });
     if (!existing) return apiError("PRODUCTION_NOT_FOUND", "La orden no existe.", 404);
+    if (existing.targetType !== "PRODUCT" || !existing.productVariant) return apiError("PRODUCTION_EDIT_UNAVAILABLE", "La ficha por talla solo aplica a órdenes de producto terminado.", 422);
+    const existingVariant = existing.productVariant;
     if (existing.status === "COMPLETED" || existing.status === "CANCELLED") return apiError("PRODUCTION_LOCKED", "Una orden finalizada o cancelada ya no puede editarse.", 422);
 
     const variantIds = Array.from(new Set([
@@ -45,11 +47,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     ].filter((value): value is string => Boolean(value))));
     const componentIds = Array.from(new Set(parsed.data.components.map((item) => item.itemId)));
     const [variants, componentItems] = await prisma.$transaction([
-      prisma.productVariant.findMany({ where: { id: { in: variantIds }, active: true, productId: existing.productVariant.productId, product: { companyId: user.companyId } }, include: { size: true, color: true, secondaryColor: true } }),
+      prisma.productVariant.findMany({ where: { id: { in: variantIds }, active: true, productId: existingVariant.productId, product: { companyId: user.companyId } }, include: { size: true, color: true, secondaryColor: true } }),
       prisma.inventoryItem.findMany({ where: { id: { in: componentIds }, companyId: user.companyId, active: true }, select: { id: true } }),
     ]);
     if (variants.length !== variantIds.length || componentItems.length !== componentIds.length) return apiError("PRODUCTION_INVALID_REFERENCE", "Una talla o componente ya no está disponible.", 422);
-    if (variants.some((variant) => variant.colorId !== existing.productVariant.colorId || (variant.secondaryColorId ?? null) !== (existing.productVariant.secondaryColorId ?? null))) return apiError("PRODUCTION_INVALID_COLOR_PAIR", "Todas las tallas deben conservar la combinación C1/C2 de la orden.", 422);
+    if (variants.some((variant) => variant.colorId !== existingVariant.colorId || (variant.secondaryColorId ?? null) !== (existingVariant.secondaryColorId ?? null))) return apiError("PRODUCTION_INVALID_COLOR_PAIR", "Todas las tallas deben conservar la combinación C1/C2 de la orden.", 422);
     const variantById = new Map(variants.map((variant) => [variant.id, variant]));
     const normalized = {
       ...parsed.data,
@@ -112,7 +114,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           brandColor: values.brandColor || null,
           customerBrandId: values.customerBrandId ?? null,
           productVariantId: values.sizeProgram[0].productVariantId,
-          ...(existing.status === "DRAFT" ? { plannedQuantity, recipeRuns: plannedQuantity.div(existing.recipeVersion.yieldQuantity.toString()).toDecimalPlaces(6), secondaryRecipeRuns: existing.secondaryRecipeVersion ? plannedQuantity.div(existing.secondaryRecipeVersion.yieldQuantity.toString()).toDecimalPlaces(6) : null } : {}),
+          ...(existing.status === "DRAFT" ? (() => {
+            const primaryRuns = plannedQuantity.div(existing.recipeVersion.yieldQuantity.toString()).toDecimalPlaces(6);
+            const secondaryRuns = existing.secondaryRecipeVersion ? plannedQuantity.div(existing.secondaryRecipeVersion.yieldQuantity.toString()).toDecimalPlaces(6) : null;
+            const tariff = (field: "laborTariff" | "energyTariff" | "waterTariff" | "machineryCost") => new Decimal(existing.recipeVersion.costStructure?.[field].toString() ?? 0).mul(primaryRuns).add(new Decimal(existing.secondaryRecipeVersion?.costStructure?.[field].toString() ?? 0).mul(secondaryRuns ?? 0)).toDecimalPlaces(6);
+            return { plannedQuantity, recipeRuns: primaryRuns, secondaryRecipeRuns: secondaryRuns, laborTariff: tariff("laborTariff"), energyTariff: tariff("energyTariff"), waterTariff: tariff("waterTariff"), machineryCost: tariff("machineryCost") };
+          })() : {}),
           sizeProgram: values.sizeProgram as Prisma.InputJsonValue,
           productionTurns: values.productionTurns as Prisma.InputJsonValue,
           dailyProduction: values.dailyProduction as Prisma.InputJsonValue,

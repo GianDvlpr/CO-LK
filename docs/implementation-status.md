@@ -52,7 +52,7 @@ Actualizado: 26/10/2026.
 - Las imágenes conservan en PostgreSQL el identificador público, URL segura, archivo, MIME, tamaño, autor, orden y fecha; carga y eliminación requieren `products.image_manage` y aislamiento por empresa.
 - Módulo operativo de Recetas como fuente única de formulaciones, con borradores, versiones, rendimiento, ingredientes y destino Producción o Almacén.
 - Activación transaccional de la última versión con auditoría y outbox; crear o activar una receta no genera movimientos de inventario.
-- Las recetas con destino Producción abren una orden preseleccionada. Las recetas con destino Almacén descuentan ingredientes, registran kardex e ingresan el insumo elaborado con costo promedio y merma real.
+- Las recetas de producto abren una orden preseleccionada. Las recetas de insumo elaborado ofrecen dos rutas: elaboración directa hacia Almacén o una orden formal de Producción con reserva, consumo, cierre y merma real.
 - Edición de recetas: los borradores se corrigen en su versión actual y una receta activa genera una versión nueva que se publica al activarla, sin interrumpir la versión vigente.
 - Recetas archivables y reactivables; la eliminación solo procede cuando no tienen órdenes de producción ni transformaciones asociadas.
 - Formato PDF A5 apaisado descargable por receta con su última versión, ingredientes y notas.
@@ -62,7 +62,7 @@ Actualizado: 26/10/2026.
 - Los formularios permiten crear al vuelo el dato maestro faltante (ítem de almacén, producto, almacén, proveedor, cliente, moneda, unidad o máquina) y lo dejan seleccionado.
 - Enviar a Producción y Almacén usa siempre la versión activa de la receta; los PDFs sanitizan caracteres fuera de WinAnsi para no fallar al descargarse.
 - La edición tolera ingredientes desactivados sin cambios y la importación de una nueva versión conserva el estado y el nombre de la receta.
-- Flujo operativo de Producción: crear orden, reservar materiales, iniciar consumiendo inventario y completar ingresando producto terminado.
+- Flujo operativo de Producción para productos terminados e insumos elaborados: crear orden, reservar materiales, iniciar consumiendo inventario y completar ingresando la salida real. El cierre capitaliza materiales más mano de obra, energía, agua y maquinaria copiados como histórico al crear la orden.
 - Vista Kanban de Producción con tarjetas arrastrables, filtros por texto y máquina, columnas de estado y transiciones reales que respetan permisos, reservas, consumos y cierre con cantidad producida.
 - Consumo de materias primas con costo promedio congelado y asignación FIFO automática de lotes; el costo real consumido se transfiere al producto terminado.
 - Cada orden conserva la versión exacta de receta, ejecuciones, cantidades planificadas, consumidas y merma real informada al cierre, auditoría y eventos outbox.

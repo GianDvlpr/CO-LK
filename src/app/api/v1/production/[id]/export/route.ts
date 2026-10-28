@@ -23,14 +23,16 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       },
     });
     if (!order) return apiError("PRODUCTION_NOT_FOUND", "La orden no existe.", 404);
+    if (order.targetType !== "PRODUCT" || !order.productVariant) return apiError("PRODUCTION_FORMAT_UNAVAILABLE", "El formato A5 por talla solo aplica a productos terminados.", 422);
+    const documentOrder = { ...order, productVariant: order.productVariant };
     const baseName = `orden-produccion-${order.number.replace(/[^a-zA-Z0-9-_]/g, "-")}`;
     const format = new URL(request.url).searchParams.get("format")?.toLowerCase();
     if (format === "pdf") {
-      const pdf = await buildProductionOrderPdf(order);
+      const pdf = await buildProductionOrderPdf(documentOrder);
       await prisma.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module: "production", entity: "ProductionOrder", entityId: order.id, action: "EXPORT", ipAddress: getRequestIp(request), userAgent: getRequestUserAgent(request), requestPath: new URL(request.url).pathname, afterData: { number: order.number, format: "PDF" } } });
       return new Response(Buffer.from(pdf), { headers: { "content-type": "application/pdf", "content-disposition": `attachment; filename="${baseName}.pdf"`, "cache-control": "no-store" } });
     }
-    const workbook = await buildProductionOrderWorkbook(order);
+    const workbook = await buildProductionOrderWorkbook(documentOrder);
     const buffer = await workbook.xlsx.writeBuffer();
     await prisma.auditLog.create({ data: { companyId: user.companyId, userId: user.id, module: "production", entity: "ProductionOrder", entityId: order.id, action: "EXPORT", ipAddress: getRequestIp(request), userAgent: getRequestUserAgent(request), requestPath: new URL(request.url).pathname, afterData: { number: order.number, format: "XLSX" } } });
     return new Response(buffer, { headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "content-disposition": `attachment; filename="${baseName}.xlsx"`, "cache-control": "no-store" } });

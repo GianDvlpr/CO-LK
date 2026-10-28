@@ -5,6 +5,7 @@ import { validateProductionSheetTotals } from "@/modules/production/domain/produ
 import { customerBrandName, validateCustomerBrand } from "@/modules/production/domain/production-brand";
 import { nextBusinessCode } from "@/lib/database/business-code";
 import { productVariantColorLabel } from "@/modules/products/domain/product-sku";
+import { calculateProductionOutputCost } from "@/modules/production/domain/production-cost";
 
 export class ProductionError extends Error { constructor(public readonly code: string, message: string) { super(message); this.name = "ProductionError"; } }
 async function sequence(tx: Prisma.TransactionClient, companyId: string) { const value = await tx.correlativeCounter.upsert({ where: { companyId_scope_year: { companyId, scope: "INVENTORY_POSTING", year: 0 } }, update: { value: { increment: 1 } }, create: { companyId, scope: "INVENTORY_POSTING", year: 0, value: 1 }, select: { value: true } }); return BigInt(value.value); }
@@ -33,8 +34,8 @@ export async function createProductionOrder(database: PrismaClient, command: {
     const salesOrderIds = Array.from(new Set(command.salesOrderIds ?? []));
     const [warehouse, version, secondaryVersion, machine, salesOrders, materialItem, componentItems, customerBrand] = await Promise.all([
       tx.warehouse.findFirst({ where: { id: command.warehouseId, companyId: command.companyId, active: true } }),
-      tx.recipeVersion.findFirst({ where: { id: command.recipeVersionId, isActive: true, recipe: { companyId: command.companyId, status: "ACTIVE", productId: { not: null } } }, include: { recipe: true, ingredients: true } }),
-      command.secondaryRecipeVersionId ? tx.recipeVersion.findFirst({ where: { id: command.secondaryRecipeVersionId, isActive: true, recipe: { companyId: command.companyId, status: "ACTIVE", productId: { not: null } } }, include: { recipe: true, ingredients: true } }) : null,
+      tx.recipeVersion.findFirst({ where: { id: command.recipeVersionId, isActive: true, recipe: { companyId: command.companyId, status: "ACTIVE", productId: { not: null } } }, include: { recipe: true, ingredients: true, costStructure: true } }),
+      command.secondaryRecipeVersionId ? tx.recipeVersion.findFirst({ where: { id: command.secondaryRecipeVersionId, isActive: true, recipe: { companyId: command.companyId, status: "ACTIVE", productId: { not: null } } }, include: { recipe: true, ingredients: true, costStructure: true } }) : null,
       command.machineId ? tx.machine.findFirst({ where: { id: command.machineId, companyId: command.companyId, status: { not: "OUT_OF_SERVICE" } } }) : null,
       salesOrderIds.length ? tx.salesOrder.findMany({ where: { id: { in: salesOrderIds }, companyId: command.companyId, status: { not: "CANCELLED" } }, include: { lines: { where: { productionOrderId: null } } } }) : [],
       command.materialItemId ? tx.inventoryItem.findFirst({ where: { id: command.materialItemId, companyId: command.companyId, active: true } }) : null,
@@ -89,6 +90,10 @@ export async function createProductionOrder(database: PrismaClient, command: {
     if (!primaryYield.greaterThan(0) || (secondaryYield && !secondaryYield.greaterThan(0))) throw new ProductionError("PRODUCTION_INVALID_RECIPE_YIELD", "El rendimiento de cada formulación debe ser mayor que cero.");
     const runs = plannedQuantity.div(primaryYield).toDecimalPlaces(6);
     const secondaryRuns = secondaryYield ? plannedQuantity.div(secondaryYield).toDecimalPlaces(6) : null;
+    const appliedTariff = (field: "laborTariff" | "energyTariff" | "waterTariff" | "machineryCost") =>
+      new Decimal(version.costStructure?.[field].toString() ?? 0).mul(runs)
+        .add(new Decimal(secondaryVersion?.costStructure?.[field].toString() ?? 0).mul(secondaryRuns ?? 0))
+        .toDecimalPlaces(6);
     const sheetIssue = validateProductionSheetTotals({ sizeProgram: normalizedProgram, productionTurns: normalizedTurns.map((turn) => ({ ...turn, date: new Date(turn.date) })), components: (command.components ?? []).map((item) => ({ ...item, quantity: Number(item.quantity), colorDetail: item.colorDetail ?? "" })) }, plannedQuantity);
     if (sheetIssue) throw new ProductionError("PRODUCTION_SHEET_INVALID", sheetIssue);
     const number = command.number ?? await nextBusinessCode(tx, command.companyId, "PRODUCTION", command.plannedAt);
@@ -104,6 +109,8 @@ export async function createProductionOrder(database: PrismaClient, command: {
       customerBrandId: command.customerBrandId || null,
       materialItemId: command.materialItemId || null, machineId: command.machineId || null,
       number, recipeRuns: runs, secondaryRecipeRuns: secondaryRuns, plannedQuantity, priority: command.priority ?? 2, plannedAt: command.plannedAt,
+      laborTariff: appliedTariff("laborTariff"), energyTariff: appliedTariff("energyTariff"),
+      waterTariff: appliedTariff("waterTariff"), machineryCost: appliedTariff("machineryCost"),
       machineEquipment: machine ? `${machine.code} · ${machine.name}` : command.machineEquipment || null,
       operatorName: command.operatorName || null, modelLogo: command.modelLogo || customerBrandName(customerBrand) || null,
       materialLoad: materialItem ? `${materialItem.code} · ${materialItem.name}` : command.materialLoad || null,
@@ -118,6 +125,49 @@ export async function createProductionOrder(database: PrismaClient, command: {
     } });
     if (salesOrderIds.length) await tx.salesOrderLine.updateMany({ where: { salesOrderId: { in: salesOrderIds }, productVariantId: { in: normalizedProgram.map((item) => item.productVariantId) }, productionOrderId: null }, data: { productionOrderId: order.id } });
     await event(tx, command.companyId, command.userId, order.id, "CREATE", "DRAFT"); return order;
+  });
+}
+
+export async function createIntermediateProductionOrder(database: PrismaClient, command: {
+  companyId: string; userId: string; warehouseId: string; recipeVersionId: string;
+  plannedQuantity: Decimal.Value; machineId?: string; priority?: number; plannedAt?: Date;
+  operatorName?: string; outputLotCode?: string;
+}) {
+  const plannedQuantity = new Decimal(command.plannedQuantity).toDecimalPlaces(6);
+  if (!plannedQuantity.greaterThan(0)) throw new ProductionError("PRODUCTION_INVALID_QUANTITY", "La cantidad planificada debe ser mayor que cero.");
+  return database.$transaction(async (tx) => {
+    const [warehouse, version, machine] = await Promise.all([
+      tx.warehouse.findFirst({ where: { id: command.warehouseId, companyId: command.companyId, active: true } }),
+      tx.recipeVersion.findFirst({
+        where: { id: command.recipeVersionId, isActive: true, recipe: { companyId: command.companyId, status: "ACTIVE", outputItemId: { not: null } } },
+        include: { recipe: { include: { outputItem: true } }, ingredients: true, costStructure: true },
+      }),
+      command.machineId ? tx.machine.findFirst({ where: { id: command.machineId, companyId: command.companyId, status: { not: "OUT_OF_SERVICE" } } }) : null,
+    ]);
+    const outputItem = version?.recipe.outputItem;
+    if (!warehouse || !version || !outputItem || (command.machineId && !machine)) throw new ProductionError("PRODUCTION_INVALID_REFERENCE", "El almacén, la receta o la máquina no es válido para esta orden.");
+    if (outputItem.type !== "INTERMEDIATE") throw new ProductionError("PRODUCTION_INVALID_OUTPUT", "La receta debe producir un insumo elaborado.");
+    const outputLotCode = command.outputLotCode?.trim() || null;
+    if (outputItem.lotTrackingMode === "REQUIRED" && !outputLotCode) throw new ProductionError("PRODUCTION_LOT_REQUIRED", "El insumo resultante requiere un lote de salida.");
+    const yieldQuantity = new Decimal(version.yieldQuantity.toString());
+    if (!yieldQuantity.greaterThan(0)) throw new ProductionError("PRODUCTION_INVALID_RECIPE_YIELD", "El rendimiento de la receta debe ser mayor que cero.");
+    const runs = plannedQuantity.div(yieldQuantity).toDecimalPlaces(6);
+    const tariff = (field: "laborTariff" | "energyTariff" | "waterTariff" | "machineryCost") => new Decimal(version.costStructure?.[field].toString() ?? 0).mul(runs).toDecimalPlaces(6);
+    const number = await nextBusinessCode(tx, command.companyId, "PRODUCTION", command.plannedAt);
+    const order = await tx.productionOrder.create({ data: {
+      companyId: command.companyId, warehouseId: command.warehouseId, targetType: "INTERMEDIATE",
+      productVariantId: null, outputItemId: outputItem.id, recipeVersionId: version.id,
+      machineId: command.machineId || null, number, recipeRuns: runs, plannedQuantity,
+      priority: command.priority ?? 2, plannedAt: command.plannedAt, operatorName: command.operatorName || null,
+      machineEquipment: machine ? `${machine.code} · ${machine.name}` : null,
+      materialLoad: `${outputItem.code} · ${outputItem.name}`, outputLotCode,
+      sizeProgram: [], dailyProduction: [], productionTurns: [],
+      laborTariff: tariff("laborTariff"), energyTariff: tariff("energyTariff"),
+      waterTariff: tariff("waterTariff"), machineryCost: tariff("machineryCost"),
+      materials: { create: version.ingredients.map((ingredient) => ({ itemId: ingredient.itemId, plannedQuantity: new Decimal(ingredient.quantity.toString()).mul(runs).toDecimalPlaces(6) })) },
+    } });
+    await event(tx, command.companyId, command.userId, order.id, "CREATE", "DRAFT");
+    return order;
   });
 }
 
@@ -181,27 +231,8 @@ export async function completeProductionOrder(database: PrismaClient, command: {
   if (rawWaste.some((entry) => entry.quantity.isNegative())) throw new ProductionError("PRODUCTION_INVALID_WASTE", "La merma real no puede ser negativa.");
   if (new Set(rawWaste.map((entry) => entry.productionMaterialId)).size !== rawWaste.length) throw new ProductionError("PRODUCTION_INVALID_WASTE", "Cada material debe aparecer una sola vez en la merma real.");
   return database.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM production_orders WHERE id = ${command.orderId}::uuid FOR UPDATE`; const order = await tx.productionOrder.findFirst({ where: { id: command.orderId, companyId: command.companyId }, include: { productVariant: true, materials: true, salesOrders: { select: { salesOrderId: true } } } });
+    await tx.$queryRaw`SELECT id FROM production_orders WHERE id = ${command.orderId}::uuid FOR UPDATE`; const order = await tx.productionOrder.findFirst({ where: { id: command.orderId, companyId: command.companyId }, include: { productVariant: true, outputItem: true, materials: true, salesOrders: { select: { salesOrderId: true } } } });
     if (!order) throw new ProductionError("PRODUCTION_NOT_FOUND", "La orden no existe."); if (order.status !== "IN_PROGRESS") throw new ProductionError("PRODUCTION_INVALID_STATE", "Solo puede completarse una orden en proceso.");
-    const programmed = Array.isArray(order.sizeProgram) ? order.sizeProgram.filter((item): item is ProductionProgramEntry => Boolean(item && typeof item === "object" && "size" in item && "requestedPairs" in item)) : [];
-    const scheduledByVariant = new Map(programmed.filter((item) => item.productVariantId).map((item) => [item.productVariantId!, new Decimal(item.requestedPairs)]));
-    const outputs = requestedOutputs.length > 0
-      ? requestedOutputs
-      : [{ productVariantId: order.productVariantId, quantity: new Decimal(command.producedQuantity ?? 0) }];
-    if (outputs.some((output) => !output.quantity.greaterThan(0))) throw new ProductionError("PRODUCTION_INVALID_QUANTITY", "La cantidad producida debe ser mayor que cero.");
-    if (scheduledByVariant.size > 0) {
-      for (const output of outputs) {
-        const limit = scheduledByVariant.get(output.productVariantId);
-        if (!limit) throw new ProductionError("PRODUCTION_INVALID_VARIANT", "La talla y color producidos no forman parte de la programación.");
-        if (output.quantity.greaterThan(limit)) throw new ProductionError("PRODUCTION_INVALID_QUANTITY", "La cantidad producida no puede superar la curva programada para esa talla y color.");
-      }
-    } else if (outputs.some((output) => output.productVariantId !== order.productVariantId)) {
-      throw new ProductionError("PRODUCTION_INVALID_VARIANT", "Esta orden antigua solo puede ingresar stock a su variante principal.");
-    }
-    const produced = outputs.reduce((total, output) => total.add(output.quantity), new Decimal(0));
-    if (produced.greaterThan(order.plannedQuantity.toString())) throw new ProductionError("PRODUCTION_INVALID_QUANTITY", "La producción total no puede superar la cantidad planificada.");
-    const variants = await tx.productVariant.findMany({ where: { id: { in: outputs.map((output) => output.productVariantId) }, active: true, productId: order.productVariant.productId, product: { companyId: command.companyId } } });
-    if (variants.length !== outputs.length) throw new ProductionError("PRODUCTION_INVALID_VARIANT", "Una de las tallas o colores ya no es una variante activa del producto.");
     const materialById = new Map(order.materials.map((material) => [material.id, material]));
     for (const waste of rawWaste) {
       const material = materialById.get(waste.productionMaterialId);
@@ -212,8 +243,55 @@ export async function completeProductionOrder(database: PrismaClient, command: {
       const quantity = rawWaste.find((entry) => entry.productionMaterialId === material.id)?.quantity ?? new Decimal(0);
       await tx.productionMaterial.update({ where: { id: material.id }, data: { actualWasteQuantity: quantity } });
     }
+    const consumed = await tx.stockMovement.aggregate({ where: { referenceType: "PRODUCTION_ORDER", referenceId: order.id, type: "PRODUCTION_CONSUMPTION" }, _sum: { movementValue: true } });
+    const materialCost = new Decimal(consumed._sum.movementValue?.toString() ?? 0).abs();
+    const outputCost = (quantity: Decimal.Value) => calculateProductionOutputCost({ materialCost, laborCost: order.laborTariff.toString(), energyCost: order.energyTariff.toString(), waterCost: order.waterTariff.toString(), machineryCost: order.machineryCost.toString(), outputQuantity: quantity });
+
+    if (order.targetType === "INTERMEDIATE") {
+      const produced = new Decimal(command.producedQuantity ?? 0).toDecimalPlaces(6);
+      if (!produced.greaterThan(0) || produced.greaterThan(order.plannedQuantity.toString())) throw new ProductionError("PRODUCTION_INVALID_QUANTITY", "La cantidad obtenida debe ser mayor que cero y no superar la cantidad planificada.");
+      if (!order.outputItem) throw new ProductionError("PRODUCTION_INVALID_OUTPUT", "La orden no tiene un insumo resultante válido.");
+      if (requestedOutputs.length) throw new ProductionError("PRODUCTION_INVALID_OUTPUT", "Una orden de insumo elaborado no se cierra por tallas.");
+      const { totalCost, unitCost } = outputCost(produced);
+      await lock(tx, order.warehouseId, order.outputItem.id, null);
+      const current = await tx.stockBalance.findFirst({ where: { warehouseId: order.warehouseId, itemId: order.outputItem.id, lotId: null } });
+      const next = calculateMovingAverage({ currentQuantity: current?.onHandQuantity.toString() ?? 0, currentValue: current?.inventoryValue.toString() ?? 0, incomingQuantity: produced, incomingUnitCost: unitCost });
+      const balanceData = { onHandQuantity: next.onHandQuantity, inventoryValue: next.inventoryValue, averageUnitCost: next.averageUnitCost };
+      if (current) await tx.stockBalance.update({ where: { id: current.id }, data: balanceData }); else await tx.stockBalance.create({ data: { warehouseId: order.warehouseId, itemId: order.outputItem.id, lotId: null, ...balanceData } });
+      let lotId: string | null = null;
+      if (order.outputLotCode) {
+        const lot = await tx.inventoryLot.upsert({ where: { warehouseId_itemId_lotCode: { warehouseId: order.warehouseId, itemId: order.outputItem.id, lotCode: order.outputLotCode } }, update: {}, create: { warehouseId: order.warehouseId, itemId: order.outputItem.id, lotCode: order.outputLotCode, receivedAt: new Date() } });
+        lotId = lot.id;
+        await lock(tx, order.warehouseId, order.outputItem.id, lotId);
+        const currentLot = await tx.stockBalance.findFirst({ where: { warehouseId: order.warehouseId, itemId: order.outputItem.id, lotId } });
+        const nextLot = calculateMovingAverage({ currentQuantity: currentLot?.onHandQuantity.toString() ?? 0, currentValue: currentLot?.inventoryValue.toString() ?? 0, incomingQuantity: produced, incomingUnitCost: unitCost });
+        const lotData = { onHandQuantity: nextLot.onHandQuantity, inventoryValue: nextLot.inventoryValue, averageUnitCost: nextLot.averageUnitCost };
+        if (currentLot) await tx.stockBalance.update({ where: { id: currentLot.id }, data: lotData }); else await tx.stockBalance.create({ data: { warehouseId: order.warehouseId, itemId: order.outputItem.id, lotId, ...lotData } });
+      }
+      await tx.stockMovement.create({ data: { itemId: order.outputItem.id, warehouseId: order.warehouseId, lotId, type: "PRODUCTION_OUTPUT", quantity: produced, unitCost, movementValue: totalCost, balanceAfter: next.onHandQuantity, valueAfter: next.inventoryValue, averageCostAfter: next.averageUnitCost, referenceType: "PRODUCTION_ORDER", referenceId: order.id, postingSequence: await sequence(tx, command.companyId), createdById: command.userId } });
+      const result = await tx.productionOrder.update({ where: { id: order.id }, data: { status: "COMPLETED", producedQuantity: produced, completedAt: new Date() } });
+      await event(tx, command.companyId, command.userId, order.id, "COMPLETE", "COMPLETED");
+      return result;
+    }
+
+    if (!order.productVariant || !order.productVariantId) throw new ProductionError("PRODUCTION_INVALID_OUTPUT", "La orden no tiene un producto terminado válido.");
+    const programmed = Array.isArray(order.sizeProgram) ? order.sizeProgram.filter((item): item is ProductionProgramEntry => Boolean(item && typeof item === "object" && "size" in item && "requestedPairs" in item)) : [];
+    const scheduledByVariant = new Map(programmed.filter((item) => item.productVariantId).map((item) => [item.productVariantId!, new Decimal(item.requestedPairs)]));
+    const outputs = requestedOutputs.length > 0 ? requestedOutputs : [{ productVariantId: order.productVariantId, quantity: new Decimal(command.producedQuantity ?? 0) }];
+    if (outputs.some((output) => !output.quantity.greaterThan(0))) throw new ProductionError("PRODUCTION_INVALID_QUANTITY", "La cantidad producida debe ser mayor que cero.");
+    if (scheduledByVariant.size > 0) {
+      for (const output of outputs) {
+        const limit = scheduledByVariant.get(output.productVariantId);
+        if (!limit) throw new ProductionError("PRODUCTION_INVALID_VARIANT", "La talla y color producidos no forman parte de la programación.");
+        if (output.quantity.greaterThan(limit)) throw new ProductionError("PRODUCTION_INVALID_QUANTITY", "La cantidad producida no puede superar la curva programada para esa talla y color.");
+      }
+    } else if (outputs.some((output) => output.productVariantId !== order.productVariantId)) throw new ProductionError("PRODUCTION_INVALID_VARIANT", "Esta orden antigua solo puede ingresar stock a su variante principal.");
+    const produced = outputs.reduce((total, output) => total.add(output.quantity), new Decimal(0));
+    if (produced.greaterThan(order.plannedQuantity.toString())) throw new ProductionError("PRODUCTION_INVALID_QUANTITY", "La producción total no puede superar la cantidad planificada.");
+    const variants = await tx.productVariant.findMany({ where: { id: { in: outputs.map((output) => output.productVariantId) }, active: true, productId: order.productVariant.productId, product: { companyId: command.companyId } } });
+    if (variants.length !== outputs.length) throw new ProductionError("PRODUCTION_INVALID_VARIANT", "Una de las tallas o colores ya no es una variante activa del producto.");
     const variantById = new Map(variants.map((variant) => [variant.id, variant]));
-    const consumed = await tx.stockMovement.aggregate({ where: { referenceType: "PRODUCTION_ORDER", referenceId: order.id, type: "PRODUCTION_CONSUMPTION" }, _sum: { movementValue: true } }); const totalCost = new Decimal(consumed._sum.movementValue?.toString() ?? 0).abs(); const unitCost = totalCost.div(produced).toDecimalPlaces(6);
+    const { totalCost, unitCost } = outputCost(produced);
     let postedValue = new Decimal(0);
     for (const [index, output] of outputs.entries()) {
       const variant = variantById.get(output.productVariantId)!;
