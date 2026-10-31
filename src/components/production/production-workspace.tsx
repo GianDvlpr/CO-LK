@@ -1,16 +1,17 @@
 "use client";
 
 import {
-  AppstoreOutlined, CheckOutlined, DeleteOutlined, EditOutlined, FileExcelOutlined,
+  AppstoreOutlined, CheckOutlined, DeleteOutlined, DownOutlined, EditOutlined, FileExcelOutlined,
   FilePdfOutlined, PlusOutlined, ReloadOutlined, RocketOutlined, UnorderedListOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, DatePicker, Divider, Empty, Form, Input, InputNumber, Modal, Segmented, Select, Space, Tag, Tooltip, Typography } from "antd";
+import { Alert, Button, Card, DatePicker, Divider, Dropdown, Empty, Form, Input, InputNumber, Modal, Segmented, Select, Space, Tag, Tooltip, Typography } from "antd";
 import type { FormInstance } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import Decimal from "decimal.js";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
@@ -352,7 +353,7 @@ export function ProductionWorkspace({ permissions }: { permissions: string[] }) 
   };
 
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Producción" eyebrow="Manufactura" description="Órdenes de fabricación por producto, formulación, talla y turno." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar orden, producto, SKU o máquina" /><Segmented value={viewMode} onChange={(value) => setViewMode(value as "list" | "board")} options={[{ value: "list", label: "Lista", icon: <UnorderedListOutlined /> }, { value: "board", label: "Tablero", icon: <AppstoreOutlined /> }]} /><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => orders.refetch()} /></Tooltip><Button icon={<FilePdfOutlined />} href="/api/v1/production/blank">Formato en blanco</Button></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Producción" eyebrow="Manufactura" description="Órdenes de fabricación por producto, formulación, talla y turno." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar orden, producto, SKU o máquina" /><Segmented value={viewMode} onChange={(value) => setViewMode(value as "list" | "board")} options={[{ value: "list", label: "Lista", icon: <UnorderedListOutlined /> }, { value: "board", label: "Tablero", icon: <AppstoreOutlined /> }]} /><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => orders.refetch()} /></Tooltip><Dropdown menu={{ items: [{ key: "a5", label: <Link href="/api/v1/production/blank?layout=a5">1 ficha en A5</Link> }, { key: "a4-2up", label: <Link href="/api/v1/production/blank?layout=a4-2up">2 fichas en A4</Link> }] }} trigger={["click"]}><Button icon={<FilePdfOutlined />}>Formato en blanco <DownOutlined /></Button></Dropdown></Space></div>
     <Card className="section-card production-board-card" title={viewMode === "list" ? "Órdenes de producción" : "Tablero de producción"} extra={permissions.includes("production.create") ? <Space wrap><Button icon={<PlusOutlined />} onClick={() => setIntermediateOpen(true)}>Nuevo insumo elaborado</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Nuevo producto terminado</Button></Space> : null}>
       {orders.error ? <Alert type="error" showIcon message={orders.error.message} style={{ marginBottom: 16 }} /> : null}
       {viewMode === "list" ? <Table rowKey="id" sticky={false} loading={orders.isLoading} columns={columns} dataSource={filteredOrders} expandable={{ expandedRowRender: (row) => <Table rowKey="id" size="small" sticky={false} pagination={false} columns={materialColumns} dataSource={row.materials} /> }} scroll={{ x: 1510 }} pagination={{ pageSize: 8, pageSizeOptions: [8, 16, 32] }} locale={{ emptyText: <Empty description="Aún no hay órdenes de producción" /> }} /> : <ProductionKanban orders={filteredOrders} onMove={moveOrder} onOpen={(order) => { if (!permissions.includes("production.create") || !order.productVariant) return; setEditOrder(order); editForm.setFieldsValue(orderToSheet(order, options.data?.variants ?? [])); }} />}

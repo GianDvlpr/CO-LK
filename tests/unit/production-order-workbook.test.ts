@@ -81,12 +81,16 @@ describe("orden de producción A5", () => {
     expect(fillOf(20, 2)).toMatchObject({ fgColor: { argb: "FFFFF1AD" } });
   });
 
-  it("genera un PDF A5 descargable", async () => {
+  it("mantiene el PDF de una orden en formato A5", async () => {
     const pdf = await buildProductionOrderPdf(documentData);
     expect(new TextDecoder().decode(pdf.slice(0, 4))).toBe("%PDF");
+    const document = await PDFDocument.load(pdf);
+    const { width, height } = document.getPage(0).getSize();
+    expect(Math.round(width)).toBe(595);
+    expect(Math.round(height)).toBe(420);
   });
 
-  it("genera un formato en blanco A5 de una sola página", async () => {
+  it("genera un formato en blanco individual A5", async () => {
     const pdf = await buildBlankProductionOrderPdf();
     expect(new TextDecoder().decode(pdf.slice(0, 4))).toBe("%PDF");
     const document = await PDFDocument.load(pdf);
@@ -94,6 +98,16 @@ describe("orden de producción A5", () => {
     const { width, height } = document.getPage(0).getSize();
     expect(Math.round(width)).toBe(595);
     expect(Math.round(height)).toBe(420);
+  });
+
+  it("genera dos formatos en blanco A5 en una hoja A4", async () => {
+    const pdf = await buildBlankProductionOrderPdf("a4-2up");
+    expect(new TextDecoder().decode(pdf.slice(0, 4))).toBe("%PDF");
+    const document = await PDFDocument.load(pdf);
+    expect(document.getPageCount()).toBe(1);
+    const { width, height } = document.getPage(0).getSize();
+    expect(Math.round(width)).toBe(595);
+    expect(Math.round(height)).toBe(842);
   });
 
   it("rechaza una programación que no coincide con el plan", () => {

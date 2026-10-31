@@ -6,6 +6,7 @@ import {
 } from "@/modules/production/application/production-order-document";
 
 const A5_LANDSCAPE: [number, number] = [595.28, 419.53];
+const A4_PORTRAIT: [number, number] = [595.28, 841.89];
 const navy = rgb(23 / 255, 56 / 255, 77 / 255);
 const light = rgb(232 / 255, 240 / 255, 244 / 255);
 const input = rgb(1, 241 / 255, 173 / 255);
@@ -33,6 +34,31 @@ function cell(page: PDFPage, font: PDFFont, bold: PDFFont, inputValue: { x: numb
 function section(page: PDFPage, bold: PDFFont, top: number, text: string, left: number, width: number) {
   cell(page, bold, bold, { x: left, top, width, height: 16, text, dark: true, size: 7.2 });
   return top - 16;
+}
+
+async function buildTwoUpA4(source: PDFDocument, title: string) {
+  const sourceBytes = await source.save();
+  const output = await PDFDocument.create();
+  const embeddedPages = await output.embedPdf(sourceBytes);
+  const [pageWidth, pageHeight] = A4_PORTRAIT;
+  const slotHeight = pageHeight / 2;
+
+  for (const embeddedPage of embeddedPages) {
+    const page = output.addPage(A4_PORTRAIT);
+    const scale = Math.min(pageWidth / embeddedPage.width, slotHeight / embeddedPage.height);
+    const width = embeddedPage.width * scale;
+    const height = embeddedPage.height * scale;
+    const x = (pageWidth - width) / 2;
+    const slotOffset = (slotHeight - height) / 2;
+
+    page.drawPage(embeddedPage, { x, y: slotHeight + slotOffset, width, height });
+    page.drawPage(embeddedPage, { x, y: slotOffset, width, height });
+    page.drawLine({ start: { x: 0, y: slotHeight }, end: { x: pageWidth, y: slotHeight }, thickness: 0.5, color: grid, opacity: 0.55, dashArray: [4, 3] });
+  }
+
+  output.setTitle(title);
+  output.setAuthor("LK INNOVACION");
+  return output.save();
 }
 
 export async function buildProductionOrderPdf(order: ProductionOrderDocumentData) {
@@ -135,7 +161,9 @@ export async function buildProductionOrderPdf(order: ProductionOrderDocumentData
   return document.save();
 }
 
-export async function buildBlankProductionOrderPdf() {
+export type BlankProductionOrderPdfLayout = "a5" | "a4-2up";
+
+export async function buildBlankProductionOrderPdf(layout: BlankProductionOrderPdfLayout = "a5") {
   const document = await PDFDocument.create();
   const font = await document.embedFont(StandardFonts.Helvetica);
   const bold = await document.embedFont(StandardFonts.HelveticaBold);
@@ -197,7 +225,9 @@ export async function buildBlankProductionOrderPdf() {
   for (let index = 0; index < 3; index += 1) drawBlankRow(`Turno ${index + 1}`, emptyValues, "", "", 15);
   cell(page, font, bold, { x: margin, top, width, height: 16, text: "Observaciones / incidencias: ", label: true, size: 5.8 });
 
-  document.setTitle("Formato de orden de producción en blanco");
+  const title = "Formato de orden de producción en blanco";
+  if (layout === "a4-2up") return buildTwoUpA4(document, title);
+  document.setTitle(title);
   document.setAuthor("LK INNOVACION");
   return document.save();
 }
