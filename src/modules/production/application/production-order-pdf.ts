@@ -31,8 +31,8 @@ function cell(page: PDFPage, font: PDFFont, bold: PDFFont, inputValue: { x: numb
   page.drawText(text, { x: inputValue.center ? x + Math.max(3, (width - textWidth) / 2) : x + 3, y: top - height + (height - size) / 2 + 1, size, font: selectedFont, color: inputValue.dark ? white : navy });
 }
 
-function section(page: PDFPage, bold: PDFFont, top: number, text: string, left: number, width: number) {
-  cell(page, bold, bold, { x: left, top, width, height: 16, text, dark: true, size: 7.2 });
+function section(page: PDFPage, bold: PDFFont, top: number, text: string, left: number, width: number, size = 7.2) {
+  cell(page, bold, bold, { x: left, top, width, height: 16, text, dark: true, size });
   return top - 16;
 }
 
@@ -104,7 +104,7 @@ export async function buildProductionOrderPdf(order: ProductionOrderDocumentData
   });
   top -= 5;
 
-  top = section(page, bold, top, "PROGRAMACIÓN Y CONTROL DE PARES POR TALLA", margin, width);
+  top = section(page, bold, top, "PROGRAMACIÓN Y CONTROL DE PARES POR TALLA", margin, width, 8.2);
   const program = programEntries(order.sizeProgram);
   const turns = productionTurns(order.productionTurns);
   const firstColumn = 100;
@@ -112,10 +112,10 @@ export async function buildProductionOrderPdf(order: ProductionOrderDocumentData
   const expectedColumn = 64;
   const sizeWidth = program.length ? (width - firstColumn - totalColumn - expectedColumn) / program.length : width - firstColumn - totalColumn - expectedColumn;
   const drawProgramRow = (label: string, values: (string | number)[], total: string | number, expected: string | number, rowHeight: number, isHeader = false, isPlanned = false) => {
-    cell(page, font, bold, { x: margin, top, width: firstColumn, height: rowHeight, text: label, label: true });
-    values.forEach((value, index) => cell(page, font, bold, { x: margin + firstColumn + sizeWidth * index, top, width: sizeWidth, height: rowHeight, text: String(value ?? ""), label: isHeader, highlight: isPlanned, center: true, size: isHeader ? 6 : 7 }));
-    cell(page, font, bold, { x: margin + width - totalColumn - expectedColumn, top, width: totalColumn, height: rowHeight, text: String(total), label: isHeader, center: true, size: isHeader ? 6 : 7 });
-    cell(page, font, bold, { x: margin + width - expectedColumn, top, width: expectedColumn, height: rowHeight, text: String(expected), label: isHeader, center: true, size: isHeader ? 5.5 : 6.5 });
+    cell(page, font, bold, { x: margin, top, width: firstColumn, height: rowHeight, text: label, label: true, size: 7.2 });
+    values.forEach((value, index) => cell(page, font, bold, { x: margin + firstColumn + sizeWidth * index, top, width: sizeWidth, height: rowHeight, text: String(value ?? ""), label: isHeader, highlight: isPlanned, center: true, size: isHeader ? 7 : 8 }));
+    cell(page, font, bold, { x: margin + width - totalColumn - expectedColumn, top, width: totalColumn, height: rowHeight, text: String(total), label: isHeader, center: true, size: isHeader ? 7 : 8 });
+    cell(page, font, bold, { x: margin + width - expectedColumn, top, width: expectedColumn, height: rowHeight, text: String(expected), label: isHeader, center: true, size: isHeader ? 6.5 : 7.5 });
     top -= rowHeight;
   };
   const expectedTotal = program.reduce((sum, item) => sum + Number(item.requestedPairs), 0);
@@ -132,19 +132,19 @@ export async function buildProductionOrderPdf(order: ProductionOrderDocumentData
     drawProgramRow(turn ? `Turno ${index + 1} · ${formatDate(turn.date)}` : `Turno ${index + 1}`, values, total, "", turnHeight);
   }
   const observations = turns.slice(0, 8).map((turn) => turn.observations).filter(Boolean).join(" | ");
-  cell(page, font, bold, { x: margin, top, width, height: 16, text: `Observaciones / incidencias: ${observations}${turns.length > 8 ? " · Continúa en la página siguiente" : ""}`, label: true, size: 5.8 });
+  cell(page, font, bold, { x: margin, top, width, height: 16, text: `Observaciones / incidencias: ${observations}${turns.length > 8 ? " · Continúa en la página siguiente" : ""}`, label: true, size: 6.8 });
 
   for (let offset = 8; offset < turns.length; offset += 14) {
     const continuation = document.addPage(A5_LANDSCAPE);
     let continuationTop = pageHeight - margin;
     cell(continuation, font, bold, { x: margin, top: continuationTop, width, height: 20, text: `ORDEN DE PRODUCCIÓN ${order.number}  |  CONTROL DE TURNOS`, dark: true, size: 8 });
     continuationTop -= 25;
-    continuationTop = section(continuation, bold, continuationTop, "CONTINUACIÓN DE PROGRAMACIÓN Y CONTROL DE PARES POR TALLA", margin, width);
+    continuationTop = section(continuation, bold, continuationTop, "CONTINUACIÓN DE PROGRAMACIÓN Y CONTROL DE PARES POR TALLA", margin, width, 8.2);
     const continuationRow = (label: string, values: (string | number)[], total: string | number, expected: string | number, rowHeight: number, header = false) => {
-      cell(continuation, font, bold, { x: margin, top: continuationTop, width: firstColumn, height: rowHeight, text: label, label: true });
-      values.forEach((value, index) => cell(continuation, font, bold, { x: margin + firstColumn + sizeWidth * index, top: continuationTop, width: sizeWidth, height: rowHeight, text: String(value ?? ""), label: header, center: true, size: header ? 6 : 7 }));
-      cell(continuation, font, bold, { x: margin + width - totalColumn - expectedColumn, top: continuationTop, width: totalColumn, height: rowHeight, text: String(total), label: header, center: true, size: header ? 6 : 7 });
-      cell(continuation, font, bold, { x: margin + width - expectedColumn, top: continuationTop, width: expectedColumn, height: rowHeight, text: String(expected), label: header, center: true, size: header ? 5.5 : 6.5 });
+      cell(continuation, font, bold, { x: margin, top: continuationTop, width: firstColumn, height: rowHeight, text: label, label: true, size: 7.2 });
+      values.forEach((value, index) => cell(continuation, font, bold, { x: margin + firstColumn + sizeWidth * index, top: continuationTop, width: sizeWidth, height: rowHeight, text: String(value ?? ""), label: header, center: true, size: header ? 7 : 8 }));
+      cell(continuation, font, bold, { x: margin + width - totalColumn - expectedColumn, top: continuationTop, width: totalColumn, height: rowHeight, text: String(total), label: header, center: true, size: header ? 7 : 8 });
+      cell(continuation, font, bold, { x: margin + width - expectedColumn, top: continuationTop, width: expectedColumn, height: rowHeight, text: String(expected), label: header, center: true, size: header ? 6.5 : 7.5 });
       continuationTop -= rowHeight;
     };
     continuationRow("Talla", program.map((item) => item.size), "TOTAL", "TOTAL ESPERADO", 16, true);
@@ -153,7 +153,7 @@ export async function buildProductionOrderPdf(order: ProductionOrderDocumentData
       continuationRow(`Turno ${offset + index + 1} · ${formatDate(turn.date)}`, values, values.reduce<number>((sum, value) => sum + Number(value || 0), 0) || "", "", 20);
     });
     const continuationObservations = turns.slice(offset, offset + 14).map((turn, index) => turn.observations ? `T${offset + index + 1}: ${turn.observations}` : "").filter(Boolean).join(" | ");
-    cell(continuation, font, bold, { x: margin, top: continuationTop, width, height: 16, text: `Observaciones / incidencias: ${continuationObservations}`, label: true, size: 5.8 });
+    cell(continuation, font, bold, { x: margin, top: continuationTop, width, height: 16, text: `Observaciones / incidencias: ${continuationObservations}`, label: true, size: 6.8 });
   }
 
   document.setTitle(`Orden de producción ${order.number}`);
@@ -206,7 +206,7 @@ export async function buildBlankProductionOrderPdf(layout: BlankProductionOrderP
   });
   top -= 5;
 
-  top = section(page, bold, top, "PROGRAMACIÓN Y CONTROL DE PARES POR TALLA", margin, width);
+  top = section(page, bold, top, "PROGRAMACIÓN Y CONTROL DE PARES POR TALLA", margin, width, 8.2);
   const sizeCount = 6;
   const firstColumn = 100;
   const totalColumn = 42;
@@ -214,16 +214,16 @@ export async function buildBlankProductionOrderPdf(layout: BlankProductionOrderP
   const sizeWidth = (width - firstColumn - totalColumn - expectedColumn) / sizeCount;
   const emptyValues = Array.from({ length: sizeCount }, () => "");
   const drawBlankRow = (label: string, values: string[], total: string, expected: string, rowHeight: number, header = false, highlight = false) => {
-    cell(page, font, bold, { x: margin, top, width: firstColumn, height: rowHeight, text: label, label: true });
-    values.forEach((value, index) => cell(page, font, bold, { x: margin + firstColumn + sizeWidth * index, top, width: sizeWidth, height: rowHeight, text: value, label: header, highlight, center: true, size: header ? 6 : 7 }));
-    cell(page, font, bold, { x: margin + width - totalColumn - expectedColumn, top, width: totalColumn, height: rowHeight, text: total, label: header, center: true, size: header ? 6 : 7 });
-    cell(page, font, bold, { x: margin + width - expectedColumn, top, width: expectedColumn, height: rowHeight, text: expected, label: header, center: true, size: header ? 5.5 : 6.5 });
+    cell(page, font, bold, { x: margin, top, width: firstColumn, height: rowHeight, text: label, label: true, size: 7.2 });
+    values.forEach((value, index) => cell(page, font, bold, { x: margin + firstColumn + sizeWidth * index, top, width: sizeWidth, height: rowHeight, text: value, label: header, highlight, center: true, size: header ? 7 : 8 }));
+    cell(page, font, bold, { x: margin + width - totalColumn - expectedColumn, top, width: totalColumn, height: rowHeight, text: total, label: header, center: true, size: header ? 7 : 8 });
+    cell(page, font, bold, { x: margin + width - expectedColumn, top, width: expectedColumn, height: rowHeight, text: expected, label: header, center: true, size: header ? 6.5 : 7.5 });
     top -= rowHeight;
   };
   drawBlankRow("Talla", emptyValues, "TOTAL", "TOTAL ESPERADO", 14, true);
   drawBlankRow("A fabricar", emptyValues, "", "", 15, false, true);
   for (let index = 0; index < 3; index += 1) drawBlankRow(`Turno ${index + 1}`, emptyValues, "", "", 15);
-  cell(page, font, bold, { x: margin, top, width, height: 16, text: "Observaciones / incidencias: ", label: true, size: 5.8 });
+  cell(page, font, bold, { x: margin, top, width, height: 16, text: "Observaciones / incidencias: ", label: true, size: 6.8 });
 
   const title = "Formato de orden de producción en blanco";
   if (layout === "a4-2up") return buildTwoUpA4(document, title);
