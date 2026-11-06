@@ -73,11 +73,27 @@ export const appModules = [
     phase: 2,
   },
   {
+    key: "quotations",
+    label: "Cotizaciones",
+    href: "/dashboard/quotations",
+    description: "Propuestas comerciales, vigencia, aprobación y conversión a pedido.",
+    permission: "quotations.read",
+    phase: 5,
+  },
+  {
     key: "orders",
     label: "Pedidos",
     href: "/dashboard/orders",
     description: "Pedidos, reservas, faltantes y despacho.",
     permission: "orders.read",
+    phase: 5,
+  },
+  {
+    key: "sales",
+    label: "Ventas",
+    href: "/dashboard/sales",
+    description: "Documentos comerciales, pagos, saldos y trazabilidad de pedidos despachados.",
+    permission: "sales.read",
     phase: 5,
   },
   {

@@ -1,6 +1,6 @@
 # Reglas vigentes del negocio
 
-Actualizado: 26/10/2026.
+Actualizado: 06/11/2026.
 
 Este documento resume el comportamiento que no debe cambiarse accidentalmente. Ante duda, confirmar la implementación en el esquema, los servicios y las pruebas.
 
@@ -222,7 +222,22 @@ Reglas:
 - La ficha de parámetros se descarga como PDF A4 vertical generado por el servidor, sin depender de la impresión del navegador.
 - La hoja impresa reproduce valores aprobados internamente y no sustituye manuales, bloqueo de seguridad ni capacitación del fabricante.
 
-## 10. Pedidos, Pick & Pack y despacho
+## 10. Cotizaciones, Pedidos, Pick & Pack y despacho
+
+Cotización:
+
+```text
+DRAFT → SENT → APPROVED → CONVERTED
+   ├──────────→ REJECTED
+   └──────────→ EXPIRED, al superar la vigencia
+```
+
+- Usa código automático `COT-AAAA-######`, cliente, moneda, tipo de cambio, vigencia, descuento, IGV y condiciones comerciales.
+- No reserva stock, no genera producción y no crea movimientos de kardex.
+- El PDF conserva la moneda y los importes de la cotización.
+- Solo una cotización aprobada puede convertirse una vez en Pedido.
+- La conversión crea un Pedido en borrador; si la moneda no es PEN, convierte el precio neto descontado a soles con el tipo de cambio guardado.
+- La reserva de stock ocurre después, cuando se confirma el Pedido.
 
 Pedido:
 
@@ -248,6 +263,20 @@ PENDING → PICKING → PACKING → READY → DISPATCHED
 - El formato se descarga como PDF A5 apaisado generado por el servidor; no usa la página de impresión del navegador.
 - Despachar descuenta lo realmente empacado y libera reservas no utilizadas.
 - Un reintento no debe duplicar la salida del kardex.
+
+Venta:
+
+```text
+DRAFT → ISSUED → VOIDED, solo si no tiene pagos
+```
+
+- Se genera desde uno o varios pedidos `DISPATCHED` del mismo cliente y cada pedido solo puede pertenecer a una venta.
+- Usa la cantidad realmente empacada en Pick & Pack; la cantidad no se edita en Ventas.
+- Crear, emitir, pagar o anular una venta no mueve stock: el kardex ya se actualizó durante el despacho.
+- Registra código automático `VTA-AAAA-######`, tipo de documento, serie, número, moneda, tipo de cambio, descuento, IGV y vencimiento.
+- La emisión es interna y no representa facturación electrónica ni comunicación con SUNAT.
+- Una venta emitida admite pagos parciales sin superar el saldo; el estado de pago es Pendiente, Parcial o Pagada.
+- Una venta con pagos registrados no puede anularse en este MVP.
 
 ## 11. Calendario y tablero
 

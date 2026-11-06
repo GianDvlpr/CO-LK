@@ -26,6 +26,8 @@ const permissionCodes = [
   "production.read", "production.create", "production.release", "production.start", "production.complete", "production.cancel", "production.scrap",
   "machinery.read", "machinery.create", "machinery.maintenance",
   "products.read", "products.create", "products.update", "products.image_manage", "products.export",
+  "quotations.read", "quotations.create", "quotations.update", "quotations.send", "quotations.approve", "quotations.reject", "quotations.convert", "quotations.print",
+  "sales.read", "sales.create", "sales.update", "sales.issue", "sales.void", "sales.payment", "sales.print",
   "orders.read", "orders.create", "orders.update", "orders.confirm", "orders.link_production", "orders.dispatch", "orders.deliver", "orders.cancel", "orders.export",
   "pick_pack.read", "pick_pack.create", "pick_pack.update", "pick_pack.ready", "pick_pack.print",
   "calendar.read", "calendar.create", "calendar.update", "calendar.delete",
@@ -51,6 +53,7 @@ async function removeDemoCompany() {
   await prisma.importJob.deleteMany({ where: { companyId: demo.id } });
   await prisma.productImage.deleteMany({ where: { product: { companyId: demo.id } } });
   await prisma.pickPackOrder.deleteMany({ where: { companyId: demo.id } });
+  await prisma.sale.deleteMany({ where: { companyId: demo.id } });
   await prisma.salesOrder.deleteMany({ where: { companyId: demo.id } });
   await prisma.stockReservation.deleteMany({ where: { warehouse: { companyId: demo.id } } });
   await prisma.productionOrder.deleteMany({ where: { companyId: demo.id } });
@@ -715,7 +718,10 @@ async function main() {
   });
 
   const draftOrder = await createDemoSalesOrder({ companyId: company.id, number: `PED-${businessYear}-000002`, customerId: customerRetail.id, requestedAt: relativeDate(-1), promisedAt: relativeDate(5), notes: "Pedido de muestra pendiente de confirmación", lines: [{ productVariantId: industrial41Black.id, quantity: 4, unitPrice: 25.9 }] });
-  void draftOrder;
+  await prisma.quotation.create({ data: { companyId: company.id, customerId: customerRetail.id, currencyId: pen.id, number: `COT-${businessYear}-000100`, status: "DRAFT", issueDate: relativeDate(0), validUntil: relativeDate(15), promisedAt: relativeDate(20), exchangeRate: 1, discountRate: 0, taxRate: 18, paymentTerms: "50 % de adelanto y saldo contra entrega", deliveryTerms: "Entrega en planta del cliente", notes: "Cotización demo editable", lines: { create: [{ productVariantId: urban38Black.id, quantity: 12, unitPrice: 18.9 }, { productVariantId: urban39Black.id, quantity: 12, unitPrice: 18.9 }] } } });
+  await prisma.quotation.create({ data: { companyId: company.id, customerId: customerStore.id, currencyId: pen.id, number: `COT-${businessYear}-000101`, status: "SENT", issueDate: relativeDate(-3), validUntil: relativeDate(7), promisedAt: relativeDate(12), exchangeRate: 1, discountRate: 5, taxRate: 18, paymentTerms: "Crédito a 15 días", deliveryTerms: "Recojo coordinado", notes: "Propuesta enviada al cliente", lines: { create: [{ productVariantId: urban38Bicolor.id, quantity: 20, unitPrice: 23.5 }, { productVariantId: urban39Bicolor.id, quantity: 20, unitPrice: 23.5 }] } } });
+  await prisma.quotation.create({ data: { companyId: company.id, customerId: customerCorporate.id, currencyId: pen.id, number: `COT-${businessYear}-000102`, status: "APPROVED", issueDate: relativeDate(-2), validUntil: relativeDate(8), promisedAt: relativeDate(14), exchangeRate: 1, discountRate: 3, taxRate: 18, paymentTerms: "Transferencia contra entrega", deliveryTerms: "Despacho a Arequipa", notes: "Lista para convertir a pedido", lines: { create: [{ productVariantId: industrial41Black.id, quantity: 18, unitPrice: 26.5 }, { productVariantId: industrial42Black.id, quantity: 18, unitPrice: 26.5 }] } } });
+  await prisma.quotation.create({ data: { companyId: company.id, customerId: customerRetail.id, currencyId: pen.id, salesOrderId: draftOrder.id, number: `COT-${businessYear}-000103`, status: "CONVERTED", issueDate: relativeDate(-5), validUntil: relativeDate(5), promisedAt: relativeDate(5), exchangeRate: 1, discountRate: 0, taxRate: 18, paymentTerms: "Pago al contado", deliveryTerms: "Entrega en Lima", notes: "Convertida al pedido demo", lines: { create: [{ productVariantId: industrial41Black.id, quantity: 4, unitPrice: 25.9 }] } } });
   const pickingOrder = await createDemoSalesOrder({ companyId: company.id, number: `PED-${businessYear}-000003`, customerId: customerStore.id, requestedAt: relativeDate(-4), promisedAt: relativeDate(1), notes: "Entrega prioritaria a planta de calzado", lines: [{ productVariantId: urban38Black.id, quantity: 4, unitPrice: 18.5 }, { productVariantId: urban39Black.id, quantity: 3, unitPrice: 18.5 }] });
   await confirmDemoSalesOrder(company.id, pickingOrder.id, warehouse.id);
   const readyOrder = await createDemoSalesOrder({ companyId: company.id, number: `PED-${businessYear}-000004`, customerId: customerCorporate.id, requestedAt: relativeDate(-6), promisedAt: relativeDate(0), notes: "Recojo coordinado con cliente", lines: [{ productVariantId: urban39Black.id, quantity: 4, unitPrice: 18 }, { productVariantId: urban40Black.id, quantity: 5, unitPrice: 18 }] });
@@ -737,6 +743,15 @@ async function main() {
   await createPickPack(readyOrder.id, `PP-${businessYear}-000003`, "READY", 1);
   await createPickPack(dispatchedOrder.id, `PP-${businessYear}-000004`, "READY", 1);
   await dispatchDemoSalesOrder(company.id, dispatchedOrder.id, adminUser.id);
+
+  const demoSale = await prisma.sale.create({ data: {
+    companyId: company.id, customerId: customerRetail.id, currencyId: pen.id, number: `VTA-${businessYear}-000100`, status: "ISSUED", paymentStatus: "PARTIAL",
+    documentType: "SALE_NOTE", documentSeries: "NV01", documentNumber: "000100", issueDate: relativeDate(-3), dueDate: relativeDate(7), exchangeRate: 1, discountRate: 0, taxRate: 18,
+    paymentMethod: "TRANSFER", notes: "Venta demo generada desde un pedido ya despachado; no vuelve a mover stock.",
+    salesOrders: { create: [{ salesOrderId: dispatchedOrder.id }] },
+    lines: { create: [{ productVariantId: urban38Black.id, quantity: 3, unitPrice: 18.8 }, { productVariantId: urban40Black.id, quantity: 2, unitPrice: 18.8 }] },
+  } });
+  await prisma.salePayment.create({ data: { saleId: demoSale.id, amount: 50, paymentDate: relativeDate(-2), method: "TRANSFER", reference: "DEMO-OP-001", notes: "Adelanto de demostración", createdById: adminUser.id } });
 
   await prisma.importJob.create({ data: { companyId: company.id, createdById: adminUser.id, module: "INVENTORY", fileName: "plantilla_almacen_demo.xlsx", status: "COMPLETED", totalRows: 23, successRows: 23, errorRows: 0, finishedAt: relativeDate(-16) } });
   await prisma.importJob.create({ data: { companyId: company.id, createdById: adminUser.id, module: "PURCHASES", fileName: "compras_revision_demo.xlsx", status: "FAILED", totalRows: 4, successRows: 3, errorRows: 1, finishedAt: relativeDate(-2), errors: { create: [{ rowNumber: 5, field: "Documento / guía", code: "DUPLICATE_DOCUMENT", message: "La compra ya existe y fue omitida; los demás registros nuevos sí se procesaron.", rawData: { documento: "F001-001842" } }] } } });

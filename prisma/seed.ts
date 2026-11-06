@@ -19,6 +19,8 @@ const permissionCodes = [
   "production.read", "production.create", "production.release", "production.start", "production.complete", "production.cancel", "production.scrap",
   "machinery.read", "machinery.create", "machinery.maintenance",
   "products.read", "products.create", "products.update", "products.image_manage", "products.export",
+  "quotations.read", "quotations.create", "quotations.update", "quotations.send", "quotations.approve", "quotations.reject", "quotations.convert", "quotations.print",
+  "sales.read", "sales.create", "sales.update", "sales.issue", "sales.void", "sales.payment", "sales.print",
   "orders.read", "orders.create", "orders.update", "orders.confirm", "orders.link_production", "orders.dispatch", "orders.deliver", "orders.cancel", "orders.export",
   "pick_pack.read", "pick_pack.create", "pick_pack.update", "pick_pack.ready", "pick_pack.print",
   "calendar.read", "calendar.create", "calendar.update", "calendar.delete",

@@ -1,6 +1,6 @@
 # Estado de implementación
 
-Actualizado: 26/10/2026.
+Actualizado: 06/11/2026.
 
 ## Completado
 
@@ -68,6 +68,8 @@ Actualizado: 26/10/2026.
 - Cada orden conserva la versión exacta de receta, ejecuciones, cantidades planificadas, consumidas y merma real informada al cierre, auditoría y eventos outbox.
 - Documento de orden de producción en Excel y PDF A5, con un formato A5 en blanco descargable para llenar a mano.
 - Módulo operativo de Pedidos con cliente, fechas, variantes SKU, cantidades, precios e importes.
+- Módulo de Cotizaciones con correlativo COT, cliente, moneda y tipo de cambio, vigencia, descuento, IGV, condiciones comerciales, estados, PDF A4 y conversión única a Pedido en borrador sin afectar stock previamente.
+- Módulo de Ventas con correlativo VTA, consolidación de pedidos despachados del mismo cliente, cantidades reales de Pick & Pack, documento comercial interno, emisión, PDF A4, pagos parciales, saldo y anulación controlada sin duplicar movimientos de stock; facturación electrónica SUNAT queda fuera del alcance actual.
 - Confirmación transaccional de pedidos con reserva de producto terminado.
 - Módulo Pick & Pack con correlativo, prioridad, picking, packing, ubicaciones, lotes, incidencias, paquetes, transportista y documento de salida.
 - Flujo obligatorio `CONFIRMED → PICKING → PACKING → READY → DISPATCHED`; el despacho directo queda bloqueado.

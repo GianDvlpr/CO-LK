@@ -4,7 +4,9 @@ const domainPermissions = {
   recipes: "recipes.read",
   production: "production.read",
   products: "products.read",
+  quotations: "quotations.read",
   orders: "orders.read",
+  sales: "sales.read",
   pick_pack: "pick_pack.read",
   calendar: "calendar.read",
   whiteboard: "whiteboard.read",
@@ -17,7 +19,7 @@ export type RealtimeDomain = keyof typeof domainPermissions;
 
 export function realtimeDomain(eventName: string): RealtimeDomain | null {
   const raw = eventName.split(".")[0];
-  const aliases: Record<string, RealtimeDomain> = { purchase: "purchases", order: "orders", import: "imports", recipe: "recipes", product: "products", catalog: "catalogs", user: "users" };
+  const aliases: Record<string, RealtimeDomain> = { purchase: "purchases", quotation: "quotations", order: "orders", sale: "sales", import: "imports", recipe: "recipes", product: "products", catalog: "catalogs", user: "users" };
   const domain = aliases[raw] ?? raw;
   return domain in domainPermissions ? domain as RealtimeDomain : null;
 }

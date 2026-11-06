@@ -6,7 +6,9 @@ export const auditModuleLabels: Record<string, string> = {
   production: "Producción",
   machinery: "Maquinaria",
   products: "Productos",
+  quotations: "Cotizaciones",
   orders: "Pedidos",
+  sales: "Ventas",
   "pick-pack": "Pick & Pack",
   calendar: "Calendario",
   whiteboard: "Pizarra",
@@ -44,6 +46,11 @@ export const auditActionLabels: Record<string, string> = {
   START: "Inició proceso",
   COMPLETE: "Finalizó proceso",
   DISPATCH: "Despachó pedido",
+  SEND: "Envió cotización",
+  CONVERT: "Convirtió a pedido",
+  ISSUE: "Emitió venta",
+  VOID: "Anuló venta",
+  PAYMENT: "Registró pago",
 };
 
 export function auditActionLabel(action: string) {

@@ -8,6 +8,8 @@ describe("formatBusinessCode", () => {
     ["PURCHASE", "CMP-2026-000001"],
     ["PRODUCTION", "OP-2026-000001"],
     ["SALES_ORDER", "PED-2026-000001"],
+    ["QUOTATION", "COT-2026-000001"],
+    ["SALE", "VTA-2026-000001"],
     ["PICK_PACK", "PP-2026-000001"],
     ["INVENTORY_RAW", "MP-000001"],
     ["INVENTORY_WASTE", "MER-000001"],

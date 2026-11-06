@@ -59,6 +59,8 @@ export function NotificationCenter({ companyId, permissions }: { companyId: stri
           calendar: [["calendar"]],
           whiteboard: [["whiteboard"], ["whiteboards"]],
           product: [["products"]], recipe: [["recipes"]], import: [["imports"]], catalog: [["catalogs"]],
+          quotation: [["quotations"], ["orders"]],
+          sale: [["sales"], ["sale-options"]],
         };
         for (const key of keys[domain] ?? []) void queryClient.invalidateQueries({ queryKey: key });
         if (event.notification) toast.info(event.notification.title, { description: event.notification.message });

@@ -1,6 +1,6 @@
 # Contexto técnico para continuar LK INNOVACION
 
-Actualizado: 26/10/2026.
+Actualizado: 06/11/2026.
 
 ## 1. Qué es el sistema
 
@@ -75,7 +75,9 @@ La separación modular todavía es pragmática: varios módulos tienen Route Han
 | Producción | `/dashboard/production` | `/api/v1/production` |
 | Maquinaria | `/dashboard/machinery` | `/api/v1/machinery` |
 | Productos | `/dashboard/products` | `/api/v1/products` |
+| Cotizaciones | `/dashboard/quotations` | `/api/v1/quotations` |
 | Pedidos | `/dashboard/orders` | `/api/v1/orders` |
+| Ventas | `/dashboard/sales` | `/api/v1/sales` |
 | Pick & Pack | `/dashboard/pick-pack` | `/api/v1/pick-pack` |
 | Calendario | `/dashboard/calendar` | `/api/v1/calendar` |
 | Pizarra | `/dashboard/whiteboard` | `/api/v1/whiteboard` |
@@ -145,6 +147,8 @@ Se generan dentro de la transacción con bloqueo consultivo y `CorrelativeCounte
 | Producción | `OP-AAAA-000001` |
 | Maquinaria | `MAQ-000001` |
 | Pedido | `PED-AAAA-000001` |
+| Cotización | `COT-AAAA-000001` |
+| Venta | `VTA-AAAA-000001` |
 | Pick & Pack | `PP-AAAA-000001` |
 | Proveedor | `PROV-000001` |
 | Cliente | `CLI-000001` |
@@ -206,7 +210,7 @@ El sistema ya implementa:
 - estructura de costos por receta con materiales, tarifas directas y costo unitario;
 - producción por pedido, talla, color, formulaciones C1/C2, máquina, turnos, componentes, reserva, consumo, merma real al cierre y entrada terminada;
 - Excel y PDF de la orden de producción;
-- pedidos, Pick & Pack, formato imprimible y despacho;
+- cotizaciones con PDF, aprobación y conversión a pedido; pedidos, Pick & Pack, despacho y ventas con pagos parciales;
 - maquinaria y mantenimientos;
 - analítica, calendario, Kanban, biblioteca de pizarras compartidas y notificaciones;
 - plantillas, reportes e importaciones Excel para Compras, Almacén, Recetas, Productos y Pedidos.
@@ -227,7 +231,7 @@ No asumir que una plantilla binaria antigua de `docs/phase-0/excel-templates/` c
 
 ## 10. Riesgos y límites conocidos
 
-- No hay contabilidad general, planilla, facturación electrónica ni integración oficial directa con SUNAT.
+- No hay contabilidad general, planilla ni facturación electrónica; Ventas registra documentos internos y pagos, pero no envía comprobantes a SUNAT.
 - DNI/RUC depende de un proveedor externo y debe permitir ingreso manual si falla.
 - El outbox necesita un programador externo en producción para operar sin usuarios conectados.
 - Las pruebas E2E pueden fallar en sandboxes Windows que bloquean procesos; documentar la limitación sin omitir las demás comprobaciones.

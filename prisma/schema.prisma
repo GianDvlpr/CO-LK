@@ -114,6 +114,42 @@ enum SalesOrderStatus {
   CANCELLED
 }
 
+enum QuotationStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  EXPIRED
+  CONVERTED
+}
+
+enum SaleStatus {
+  DRAFT
+  ISSUED
+  VOIDED
+}
+
+enum SalePaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+enum SaleDocumentType {
+  INVOICE
+  RECEIPT
+  SALE_NOTE
+  OTHER
+}
+
+enum SalePaymentMethod {
+  CASH
+  TRANSFER
+  CARD
+  CREDIT
+  OTHER
+}
+
 enum PickPackStatus {
   PENDING
   PICKING
@@ -194,7 +230,9 @@ model Company {
   productCostStructures    ProductCostStructure[]
   productionOrders         ProductionOrder[]
   customers                Customer[]
+  quotations               Quotation[]
   salesOrders              SalesOrder[]
+  sales                    Sale[]
   importJobs               ImportJob[]
   notifications            Notification[]
   outboxEvents             OutboxEvent[]
@@ -228,6 +266,7 @@ model User {
   sessions               Session[]
   endedSessions          Session[]               @relation("SessionEndedBy")
   userRoles              UserRole[]
+  salePayments           SalePayment[]
   auditLogs              AuditLog[]
   notifications          Notification[]
   imports                ImportJob[]
@@ -379,6 +418,8 @@ model Currency {
   exchangeRates  ExchangeRate[]
   purchases      Purchase[]
   inventoryItems InventoryItem[] @relation("InventoryItemCurrency")
+  quotations     Quotation[]
+  sales          Sale[]
 
   @@unique([companyId, code])
   @@map("currencies")
@@ -887,6 +928,8 @@ model ProductVariant {
   secondaryColor   Color?            @relation("ProductVariantSecondaryColor", fields: [secondaryColorId], references: [id])
   inventoryItem    InventoryItem     @relation(fields: [inventoryItemId], references: [id])
   orderLines       SalesOrderLine[]
+  quotationLines   QuotationLine[]
+  saleLines        SaleLine[]
   productionOrders ProductionOrder[]
 
   @@index([productId, sizeId, colorId, secondaryColorId])
@@ -1183,11 +1226,58 @@ model Customer {
   active         Boolean         @default(true)
   company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   salesOrders    SalesOrder[]
+  quotations     Quotation[]
+  sales          Sale[]
   brands         CustomerBrand[]
 
   @@unique([companyId, code])
   @@index([companyId, active, name])
   @@map("customers")
+}
+
+model Quotation {
+  id               String          @id @default(uuid()) @db.Uuid
+  companyId        String          @map("company_id") @db.Uuid
+  customerId       String          @map("customer_id") @db.Uuid
+  currencyId       String          @map("currency_id") @db.Uuid
+  salesOrderId     String?         @unique @map("sales_order_id") @db.Uuid
+  number           String
+  status           QuotationStatus @default(DRAFT)
+  issueDate        DateTime        @map("issue_date") @db.Date
+  validUntil       DateTime        @map("valid_until") @db.Date
+  promisedAt       DateTime?       @map("promised_at") @db.Date
+  exchangeRate     Decimal         @default(1) @map("exchange_rate") @db.Decimal(18, 6)
+  discountRate     Decimal         @default(0) @map("discount_rate") @db.Decimal(7, 4)
+  taxRate          Decimal         @default(18) @map("tax_rate") @db.Decimal(7, 4)
+  paymentTerms     String?         @map("payment_terms")
+  deliveryTerms    String?         @map("delivery_terms")
+  notes            String?
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  company          Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer         Customer        @relation(fields: [customerId], references: [id])
+  currency         Currency        @relation(fields: [currencyId], references: [id])
+  salesOrder       SalesOrder?     @relation(fields: [salesOrderId], references: [id])
+  lines            QuotationLine[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status, issueDate])
+  @@index([customerId, issueDate])
+  @@map("quotations")
+}
+
+model QuotationLine {
+  id               String         @id @default(uuid()) @db.Uuid
+  quotationId      String         @map("quotation_id") @db.Uuid
+  productVariantId String         @map("product_variant_id") @db.Uuid
+  quantity         Decimal        @db.Decimal(18, 6)
+  unitPrice        Decimal        @map("unit_price") @db.Decimal(18, 4)
+  quotation        Quotation      @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@unique([quotationId, productVariantId])
+  @@index([productVariantId])
+  @@map("quotation_lines")
 }
 
 model CustomerBrand {
@@ -1221,10 +1311,88 @@ model SalesOrder {
   lines            SalesOrderLine[]
   pickPackOrder    PickPackOrder?
   productionOrders ProductionOrderSalesOrder[]
+  quotation        Quotation?
+  saleLinks        SaleSalesOrder[]
 
   @@unique([companyId, number])
   @@index([companyId, status, requestedAt])
   @@map("sales_orders")
+}
+
+model Sale {
+  id             String            @id @default(uuid()) @db.Uuid
+  companyId      String            @map("company_id") @db.Uuid
+  customerId     String            @map("customer_id") @db.Uuid
+  currencyId     String            @map("currency_id") @db.Uuid
+  number         String
+  status         SaleStatus        @default(DRAFT)
+  paymentStatus  SalePaymentStatus @default(PENDING) @map("payment_status")
+  documentType   SaleDocumentType  @map("document_type")
+  documentSeries String?           @map("document_series")
+  documentNumber String?           @map("document_number")
+  issueDate      DateTime          @map("issue_date") @db.Date
+  dueDate        DateTime?         @map("due_date") @db.Date
+  exchangeRate   Decimal           @default(1) @map("exchange_rate") @db.Decimal(18, 6)
+  discountRate   Decimal           @default(0) @map("discount_rate") @db.Decimal(7, 4)
+  taxRate        Decimal           @default(18) @map("tax_rate") @db.Decimal(7, 4)
+  paymentMethod  SalePaymentMethod @default(TRANSFER) @map("payment_method")
+  notes          String?
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer       Customer          @relation(fields: [customerId], references: [id])
+  currency       Currency          @relation(fields: [currencyId], references: [id])
+  salesOrders    SaleSalesOrder[]
+  lines          SaleLine[]
+  payments       SalePayment[]
+
+  @@unique([companyId, number])
+  @@unique([companyId, documentType, documentSeries, documentNumber])
+  @@index([companyId, status, issueDate])
+  @@index([companyId, paymentStatus, dueDate])
+  @@index([customerId, issueDate])
+  @@map("sales")
+}
+
+model SaleSalesOrder {
+  saleId       String     @map("sale_id") @db.Uuid
+  salesOrderId String     @unique @map("sales_order_id") @db.Uuid
+  sale         Sale       @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id])
+
+  @@id([saleId, salesOrderId])
+  @@map("sale_sales_orders")
+}
+
+model SaleLine {
+  id               String         @id @default(uuid()) @db.Uuid
+  saleId           String         @map("sale_id") @db.Uuid
+  productVariantId String         @map("product_variant_id") @db.Uuid
+  quantity         Decimal        @db.Decimal(18, 6)
+  unitPrice        Decimal        @map("unit_price") @db.Decimal(18, 4)
+  sale             Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@unique([saleId, productVariantId])
+  @@index([productVariantId])
+  @@map("sale_lines")
+}
+
+model SalePayment {
+  id          String            @id @default(uuid()) @db.Uuid
+  saleId      String            @map("sale_id") @db.Uuid
+  amount      Decimal           @db.Decimal(18, 4)
+  paymentDate DateTime          @map("payment_date") @db.Date
+  method      SalePaymentMethod
+  reference   String?
+  notes       String?
+  createdById String            @map("created_by_id") @db.Uuid
+  createdAt   DateTime          @default(now()) @map("created_at")
+  sale        Sale              @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  createdBy   User              @relation(fields: [createdById], references: [id])
+
+  @@index([saleId, paymentDate])
+  @@map("sale_payments")
 }
 
 model ProductionOrderSalesOrder {
