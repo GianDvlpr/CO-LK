@@ -1,9 +1,10 @@
 "use client";
 
 import { AuditOutlined, CheckCircleOutlined, LinkOutlined, OrderedListOutlined } from "@ant-design/icons";
-import { Alert, Card, Col, Collapse, Row, Space, Table, Tag, Timeline, Typography } from "antd";
+import { Alert, Card, Col, Collapse, Row, Space, Steps, Table, Tabs, Tag, Timeline, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
+import { SystemDopGuide } from "@/components/guide/system-dop-guide";
 
 type FieldRow = { key: string; field: string; required: boolean; rule: string };
 
@@ -66,6 +67,55 @@ const criticalRules = [
   { key: "taxpayer", label: "Consulta DNI/RUC", children: <p>Selecciona primero el tipo de documento en Proveedores o Clientes. El sistema consulta desde el servidor, usa aleatoriamente una de las dos claves configuradas y prueba la segunda si la primera está limitada o no disponible.</p> },
 ];
 
+const systemFlowTabs = [
+  {
+    key: "masters",
+    label: "1. Insumos y productos",
+    children: <div className="guide-system-flow">
+      <Steps current={-1} responsive size="small" items={[
+        { title: "Catálogos", description: "Unidades, almacenes, proveedores, monedas, clientes, tallas y colores." },
+        { title: "Almacén", description: "Registra materias primas, insumos elaborados y mermas en su unidad base." },
+        { title: "Productos", description: "Define el modelo, código de matriz, tallas y colores C1/C2." },
+        { title: "Variantes y SKU", description: "Cada combinación genera su SKU y una existencia terminada con stock cero." },
+        { title: "Recetas", description: "Combina ingredientes, rendimiento y un resultado: producto o insumo elaborado." },
+        { title: "Costos", description: "Materiales más mano de obra, energía, agua y maquinaria por lote." },
+      ]} />
+      <Alert type="info" showIcon message="Dos formas de registrar existencias" description="Las materias primas, insumos elaborados y mermas se registran en Almacén. Los productos terminados nacen desde Productos al crear sus variantes; no se duplican manualmente en Almacén." />
+    </div>,
+  },
+  {
+    key: "production-flow",
+    label: "2. Compras y producción",
+    children: <div className="guide-system-flow">
+      <Steps current={-1} responsive size="small" items={[
+        { title: "Compra", description: "Proveedor, documento, presentación, cantidad, precio, moneda e IGV." },
+        { title: "Aprobación", description: "La compra aprobada ingresa materias primas y actualiza el costo promedio." },
+        { title: "Receta activa", description: "Define cuánto material consume una ejecución y cuál es su rendimiento." },
+        { title: "Elegir proceso", description: "Transformación directa a Almacén u orden formal de Producción." },
+        { title: "Reservar e iniciar", description: "La reserva no descuenta; al iniciar se consumen ingredientes y se registra Kardex." },
+        { title: "Finalizar", description: "Registra cantidad buena, merma real y costos productivos." },
+        { title: "Resultado", description: "Ingresa el producto terminado o insumo elaborado con su costo real." },
+      ]} />
+      <Alert type="warning" showIcon message="El stock cambia en momentos específicos" description="Compras ingresa stock al aprobar. Producción consume al iniciar e ingresa el resultado al finalizar. Crear o activar una receta no mueve existencias." />
+    </div>,
+  },
+  {
+    key: "commercial",
+    label: "3. Pedido, despacho y venta",
+    children: <div className="guide-system-flow">
+      <Steps current={-1} responsive size="small" items={[
+        { title: "Cotización", description: "Se envía, aprueba y convierte en pedido sin reservar stock todavía." },
+        { title: "Pedido", description: "Al confirmar reserva productos terminados; los faltantes pueden pasar a Producción." },
+        { title: "Pick & Pack", description: "Registra cantidades recogidas, empacadas, paquetes e incidencias." },
+        { title: "Despacho", description: "Descuenta del Kardex únicamente lo realmente empacado." },
+        { title: "Venta", description: "Consolida pedidos despachados del mismo cliente y genera el documento interno." },
+        { title: "Cobranza", description: "Controla pagos pendientes, parciales o completos y el saldo por cobrar." },
+      ]} />
+      <Alert type="success" showIcon message="Sin doble descuento de stock" description="Ventas documenta y cobra lo ya despachado; no vuelve a mover existencias. La GRE y la facturación electrónica con SUNAT quedan como integraciones futuras." />
+    </div>,
+  },
+];
+
 export function OperationsGuide() {
   return (
     <>
@@ -76,6 +126,12 @@ export function OperationsGuide() {
       <Alert type="info" showIcon message="Orden recomendado para iniciar" description="Configura accesos y Catálogos; registra materias primas y mermas; crea Productos y Recetas; luego opera Compras, Pedidos, Producción y Despacho." style={{ marginBottom: 18 }} />
       <Alert type="success" showIcon message="Códigos automáticos" description="Compras (CMP), materias primas (MP), mermas (MER), productos terminados (PT), recetas (REC), producción (OP), maquinaria (MAQ), pedidos (PED), Pick & Pack (PP), proveedores (PROV) y clientes (CLI) reciben su código al guardar. En Excel deja el código vacío para crear; conserva el código del reporte para reconocer un registro existente." style={{ marginBottom: 18 }} />
       <Alert type="info" showIcon message="Automatizaciones principales" description="Los SKU se generan desde Matriz-C1[-C2]-Talla; el stock se actualiza mediante documentos operativos; el Calendario concentra fechas y las alertas aparecen en Analítica y Notificaciones." style={{ marginBottom: 18 }} />
+
+      <Card className="section-card guide-flow-card" title={<Space><LinkOutlined />Flujo completo del sistema</Space>}>
+        <Tabs items={systemFlowTabs} defaultActiveKey="masters" />
+      </Card>
+
+      <SystemDopGuide />
 
       <Row gutter={[18, 18]}>
         <Col xs={24} lg={10}>
