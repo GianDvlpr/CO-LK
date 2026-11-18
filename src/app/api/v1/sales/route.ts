@@ -12,6 +12,7 @@ const include = {
   salesOrders: { include: { salesOrder: { select: { id: true, number: true } } }, orderBy: { salesOrder: { number: "asc" } } },
   lines: { include: { productVariant: { include: { product: { select: { code: true, name: true } }, size: { select: { name: true } }, color: { select: { name: true } }, secondaryColor: { select: { name: true } } } } } },
   payments: { include: { createdBy: { select: { name: true, username: true } } }, orderBy: [{ paymentDate: "asc" }, { createdAt: "asc" }] },
+  electronicDocuments: { orderBy: { createdAt: "desc" } },
 } satisfies Prisma.SaleInclude;
 
 export async function GET(request: Request) {

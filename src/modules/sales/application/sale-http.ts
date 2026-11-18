@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { apiError } from "@/lib/http/api-response";
 import { AuthError } from "@/modules/auth/application/auth-errors";
+import { ElectronicBillingError } from "@/modules/electronic-billing/application/errors";
 import { SaleError } from "@/modules/sales/application/sale-service";
 
 const decimal = z.union([z.string().trim().min(1), z.number()]);
@@ -31,6 +32,7 @@ export const paymentInputSchema = z.object({
 
 export function knownSaleError(error: unknown) {
   if (error instanceof AuthError) return apiError(error.code, error.message, error.status);
+  if (error instanceof ElectronicBillingError) return apiError(error.code, error.message, error.status);
   if (error instanceof SaleError) return apiError(error.code, error.message, error.code === "SALE_NOT_FOUND" ? 404 : 422);
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return apiError("SALE_DUPLICATE", "El código de venta, el documento o alguno de los pedidos ya está registrado.", 409);
   return null;

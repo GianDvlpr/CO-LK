@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { Prisma, type PrismaClient, type SaleDocumentType, type SalePaymentMethod } from "@prisma/client";
 import { nextBusinessCode } from "@/lib/database/business-code";
+import { issueElectronicSale, voidElectronicSale } from "@/modules/electronic-billing/application/electronic-document-service";
 import { paymentSummary, saleTotals } from "@/modules/sales/domain/sale-calculations";
 
 export class SaleError extends Error {
@@ -110,6 +111,14 @@ export async function updateSale(database: PrismaClient, command: SaleInput & { 
 }
 
 export async function issueSale(database: PrismaClient, command: { companyId: string; userId: string; saleId: string }) {
+  const type = await database.sale.findFirst({
+    where: { id: command.saleId, companyId: command.companyId },
+    select: { documentType: true },
+  });
+  if (!type) throw new SaleError("SALE_NOT_FOUND", "La venta no existe.");
+  if (type.documentType === "INVOICE" || type.documentType === "RECEIPT") {
+    return issueElectronicSale(database, command);
+  }
   return database.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM sales WHERE id = ${command.saleId}::uuid FOR UPDATE`;
     const sale = await tx.sale.findFirst({ where: { id: command.saleId, companyId: command.companyId }, include: { salesOrders: { include: { salesOrder: true } }, lines: true } });
@@ -124,7 +133,10 @@ export async function issueSale(database: PrismaClient, command: { companyId: st
   });
 }
 
-export async function voidSale(database: PrismaClient, command: { companyId: string; userId: string; saleId: string }) {
+export async function voidSale(database: PrismaClient, command: { companyId: string; userId: string; saleId: string; reason?: string }) {
+  const type = await database.sale.findFirst({ where: { id: command.saleId, companyId: command.companyId }, select: { documentType: true } });
+  if (!type) throw new SaleError("SALE_NOT_FOUND", "La venta no existe.");
+  if (type.documentType === "INVOICE" || type.documentType === "RECEIPT") return voidElectronicSale(database, command);
   return database.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM sales WHERE id = ${command.saleId}::uuid FOR UPDATE`;
     const sale = await tx.sale.findFirst({ where: { id: command.saleId, companyId: command.companyId }, include: { payments: { select: { amount: true } } } });

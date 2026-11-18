@@ -97,6 +97,14 @@ export const appModules = [
     phase: 5,
   },
   {
+    key: "electronic-billing",
+    label: "Comprobantes SUNAT",
+    href: "/dashboard/electronic-billing",
+    description: "Facturas, boletas, notas, guías, retenciones, percepciones y liquidaciones electrónicas.",
+    permission: "sales.read",
+    phase: 5,
+  },
+  {
     key: "pick-pack",
     label: "Pick & Pack",
     href: "/dashboard/pick-pack",

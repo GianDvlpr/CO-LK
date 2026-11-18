@@ -142,6 +142,33 @@ enum SaleDocumentType {
   OTHER
 }
 
+enum ElectronicDocumentKind {
+  INVOICE
+  RECEIPT
+  CREDIT_NOTE
+  DEBIT_NOTE
+  SENDER_GUIDE
+  CARRIER_GUIDE
+  RETENTION
+  PERCEPTION
+  PURCHASE_SETTLEMENT
+  DAILY_SUMMARY
+  VOIDED_DOCUMENT
+  REVERSION
+}
+
+enum ElectronicDocumentStatus {
+  SUBMITTING
+  PENDING
+  SENT
+  PROCESSING
+  ACCEPTED
+  ACCEPTED_WITH_OBSERVATION
+  REJECTED
+  ERROR
+  VOIDED
+}
+
 enum SalePaymentMethod {
   CASH
   TRANSFER
@@ -244,6 +271,7 @@ model Company {
   pickPackOrders           PickPackOrder[]
   calendarEvents           CalendarEvent[]
   whiteboards              Whiteboard[]
+  electronicDocuments      ElectronicDocument[]
 
   @@unique([taxId])
   @@map("companies")
@@ -278,6 +306,7 @@ model User {
   updatedWhiteboards     Whiteboard[]      @relation("WhiteboardUpdatedBy")
   whiteboardAssets       WhiteboardAsset[]
   productCostStructures  ProductCostStructure[]
+  electronicDocumentsCreated ElectronicDocument[]
 
   @@unique([companyId, email])
   @@index([companyId, status])
@@ -1345,6 +1374,7 @@ model Sale {
   salesOrders    SaleSalesOrder[]
   lines          SaleLine[]
   payments       SalePayment[]
+  electronicDocuments ElectronicDocument[]
 
   @@unique([companyId, number])
   @@unique([companyId, documentType, documentSeries, documentNumber])
@@ -1393,6 +1423,45 @@ model SalePayment {
 
   @@index([saleId, paymentDate])
   @@map("sale_payments")
+}
+
+model ElectronicDocument {
+  id               String                   @id @default(uuid()) @db.Uuid
+  companyId        String                   @map("company_id") @db.Uuid
+  saleId           String?                  @map("sale_id") @db.Uuid
+  createdById      String?                  @map("created_by_id") @db.Uuid
+  kind             ElectronicDocumentKind
+  status           ElectronicDocumentStatus @default(SUBMITTING)
+  businessKey      String                   @map("business_key")
+  idempotencyKey   String                   @map("idempotency_key")
+  remoteId         String?                  @map("remote_id")
+  series           String?
+  correlativo      String?
+  number           String?
+  remoteStatus     String?                  @map("remote_status")
+  sunatCode        String?                  @map("sunat_code")
+  sunatDescription String?                  @map("sunat_description")
+  sunatNotes       Json?                    @map("sunat_notes")
+  ticket           String?
+  response         Json?
+  lastError        String?                  @map("last_error")
+  attempts         Int                      @default(0)
+  submittedAt      DateTime?                @map("submitted_at")
+  acceptedAt       DateTime?                @map("accepted_at")
+  lastCheckedAt    DateTime?                @map("last_checked_at")
+  nextCheckAt      DateTime?                @map("next_check_at")
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
+  company          Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sale             Sale?                    @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  createdBy        User?                    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, businessKey])
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, kind, status, createdAt])
+  @@index([status, nextCheckAt])
+  @@index([saleId, createdAt])
+  @@map("electronic_documents")
 }
 
 model ProductionOrderSalesOrder {
