@@ -1,5 +1,4 @@
 import {
-  BillingRateLimitError,
   ElectronicBillingError,
   billingHttpError,
 } from "@/modules/electronic-billing/application/errors";
