@@ -115,7 +115,6 @@ function NoteFields({ kind }: { kind: "CREDIT_NOTE" | "DEBIT_NOTE" }) {
     ? [{ value: "01", label: "Anulación de la operación" }, { value: "02", label: "Anulación por error en RUC" }, { value: "06", label: "Devolución total" }, { value: "07", label: "Devolución parcial" }, { value: "09", label: "Disminución en el valor" }]
     : [{ value: "01", label: "Intereses por mora" }, { value: "02", label: "Aumento en el valor" }, { value: "03", label: "Penalidades u otros conceptos" }];
   return <>
-    <Alert type="info" showIcon message="La serie de la nota se toma automáticamente de la configuración del servidor." />
     <Section title="Documento afectado"><div className="purchase-form-grid">
       <Form.Item name="fecha_emision" label="Fecha de emisión" rules={required}><Input type="date" /></Form.Item>
       <Form.Item name="doc_afectado_tipo" label="Tipo de comprobante" rules={required}><Select options={[{ value: "01", label: "Factura" }, { value: "03", label: "Boleta" }]} /></Form.Item>
@@ -134,7 +133,6 @@ function SenderGuideFields() {
   const mode = Form.useWatch("mod_traslado");
   const form = Form.useFormInstance();
   return <>
-    <Alert type="info" showIcon message="La serie de la guía se toma automáticamente de la configuración del servidor." />
     <PartyFields prefix="destinatario" title="Destinatario" />
     <RouteFields onModeChange={(nextMode) => {
       if (nextMode === "01") form.setFieldsValue({ vehiculo: undefined, conductor: undefined });
@@ -156,7 +154,6 @@ function SenderGuideFields() {
 
 function CarrierGuideFields() {
   return <>
-    <Alert type="info" showIcon message="La serie de la guía transportista se toma automáticamente de la configuración." />
     <PartyFields prefix="remitente" title="Remitente" />
     <PartyFields prefix="destinatario" title="Destinatario" />
     <Section title="Documento relacionado"><div className="purchase-form-grid">

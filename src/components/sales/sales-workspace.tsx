@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckOutlined, CloseCircleOutlined, DollarOutlined, EditOutlined, FilePdfOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseCircleOutlined, DollarOutlined, EditOutlined, FilePdfOutlined, InfoCircleOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, DatePicker, Descriptions, Empty, Form, Input, InputNumber, Modal, Select, Space, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -140,10 +140,11 @@ export function SalesWorkspace({ permissions }: { permissions: string[] }) {
     <Modal className="compact-form-modal" title={editing ? `Editar ${editing.number}` : "Nueva venta"} open={open} onCancel={() => { setOpen(false); setEditing(undefined); }} onOk={() => form.submit()} okText={editing ? "Guardar cambios" : "Crear borrador"} confirmLoading={save.isPending} width={1000} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={(values) => save.mutate(values)}>
         <Form.Item name="salesOrderIds" label="Pedidos despachados" rules={[{ required: true }]} tooltip="Puedes consolidar varios pedidos si pertenecen al mismo cliente."><Select mode="multiple" maxTagCount="responsive" showSearch optionFilterProp="label" onChange={loadOrders} options={availableOrders.map((order) => ({ value: order.id, label: `${order.number} · ${order.customer.name}` }))} /></Form.Item>
-        {selectedDocumentType === "INVOICE" || selectedDocumentType === "RECEIPT" ? <Alert type={options.data?.electronicBilling.enabled ? "info" : "warning"} showIcon message={options.data?.electronicBilling.enabled ? `La numeración se asignará automáticamente al emitir (${selectedDocumentType === "INVOICE" ? options.data.electronicBilling.invoiceSeries : options.data.electronicBilling.receiptSeries ?? "serie de boleta pendiente"}).` : "La facturación electrónica todavía no está configurada en el servidor."} style={{ marginBottom: 16 }} /> : null}
+        {(selectedDocumentType === "INVOICE" || selectedDocumentType === "RECEIPT") && !options.data?.electronicBilling.enabled ? <Alert type="warning" showIcon message="La facturación electrónica todavía no está configurada en el servidor." style={{ marginBottom: 16 }} /> : null}
+        {selectedDocumentType === "RECEIPT" && options.data?.electronicBilling.enabled && !options.data.electronicBilling.receiptSeries ? <Alert type="warning" showIcon message="Configura la serie de boleta antes de emitir." style={{ marginBottom: 16 }} /> : null}
         <div className="purchase-form-grid">
           {editing ? <Form.Item label="Código"><Input disabled value={editing.number} /></Form.Item> : null}
-          <Form.Item name="documentType" label="Tipo de documento" rules={[{ required: true }]}><Select options={Object.entries(documentLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
+          <Form.Item name="documentType" label={<Space size={4}>Tipo de documento{(selectedDocumentType === "INVOICE" || selectedDocumentType === "RECEIPT") && options.data?.electronicBilling.enabled && (selectedDocumentType === "INVOICE" || options.data.electronicBilling.receiptSeries) ? <Tooltip title={`La numeración se asignará automáticamente al emitir (${selectedDocumentType === "INVOICE" ? options.data.electronicBilling.invoiceSeries : options.data.electronicBilling.receiptSeries}).`}><InfoCircleOutlined /></Tooltip> : null}</Space>} rules={[{ required: true }]}><Select options={Object.entries(documentLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
           {selectedDocumentType !== "INVOICE" && selectedDocumentType !== "RECEIPT" ? <Form.Item name="documentSeries" label="Serie"><Input placeholder="Ej. NV01" /></Form.Item> : null}
           {selectedDocumentType !== "INVOICE" && selectedDocumentType !== "RECEIPT" ? <Form.Item name="documentNumber" label="Número"><Input placeholder="Ej. 000001" /></Form.Item> : null}
           <Form.Item name="issueDate" label="Fecha de emisión" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>

@@ -1,6 +1,6 @@
 "use client";
 
-import { DownloadOutlined, PlusOutlined, ReloadOutlined, SendOutlined } from "@ant-design/icons";
+import { DownloadOutlined, InfoCircleOutlined, PlusOutlined, ReloadOutlined, SendOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Empty, Form, Modal, Select, Space, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -28,6 +28,25 @@ const statuses: Record<string, [string, string]> = {
   SUBMITTING: ["Enviando", "processing"], PENDING: ["Pendiente", "gold"], SENT: ["Enviado", "blue"],
   PROCESSING: ["Procesando", "processing"], ACCEPTED: ["Aceptado", "green"], ACCEPTED_WITH_OBSERVATION: ["Aceptado con observación", "cyan"],
   REJECTED: ["Rechazado", "red"], ERROR: ["Error", "red"], VOIDED: ["Anulado", "default"],
+};
+const seriesConfigByKind: Partial<Record<Kind, string>> = {
+  CREDIT_NOTE: "creditNote",
+  DEBIT_NOTE: "debitNote",
+  SENDER_GUIDE: "senderGuide",
+  CARRIER_GUIDE: "carrierGuide",
+  RETENTION: "retention",
+  PERCEPTION: "perception",
+  PURCHASE_SETTLEMENT: "purchaseSettlement",
+};
+const seriesNames: Record<string, string> = {
+  receipt: "boleta",
+  creditNote: "nota de crédito",
+  debitNote: "nota de débito",
+  senderGuide: "guía remitente",
+  carrierGuide: "guía transportista",
+  retention: "retención",
+  perception: "percepción",
+  purchaseSettlement: "liquidación de compra",
 };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
@@ -91,18 +110,20 @@ export function ElectronicBillingWorkspace({ permissions }: { permissions: strin
 
   const configuration = records.data?.configuration;
   const missingSeries = configuration ? Object.entries(configuration.series).filter(([key, value]) => key !== "invoice" && !value).map(([key]) => key) : [];
+  const selectedSeriesKey = seriesConfigByKind[selectedKind];
+  const selectedSeries = selectedSeriesKey ? configuration?.series[selectedSeriesKey] : null;
+  const selectedSeriesMissing = Boolean(configuration?.enabled && selectedSeriesKey && !selectedSeries);
   return <>
     <div className="page-heading"><ModuleHeadingIntro title="Comprobantes SUNAT" eyebrow="Facturación electrónica" description="Emite, consulta y descarga comprobantes, notas, guías, retenciones, percepciones y liquidaciones." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar documento, estado o cliente" /><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} onClick={() => records.refetch()} /></Tooltip></Space></div>
     {!configuration?.enabled && !records.isLoading ? <Alert type="warning" showIcon message="La facturación electrónica aún no está configurada para esta empresa." description="Configura la URL, credenciales y RUC en el servidor. Las credenciales nunca se envían al navegador." style={{ marginBottom: 16 }} /> : null}
-    {configuration?.enabled && missingSeries.length ? <Alert type="info" showIcon message="Hay series opcionales pendientes de configurar." description="Solo necesitas configurar la serie del tipo de documento que vas a usar. La factura ya utiliza F004." style={{ marginBottom: 16 }} /> : null}
-    <Card className="section-card" title="Documentos electrónicos" extra={permissions.includes("sales.issue") ? <Button type="primary" icon={<PlusOutlined />} disabled={!configuration?.enabled} onClick={openCreate}>Nuevo documento</Button> : null}>
+    <Card className="section-card" title="Documentos electrónicos" extra={<Space>{configuration?.enabled && missingSeries.length ? <Tooltip title={`Series aún no configuradas: ${missingSeries.map((key) => seriesNames[key] ?? key).join(", ")}. Solo son necesarias cuando uses esos documentos.`}><Tag icon={<InfoCircleOutlined />}>Series opcionales</Tag></Tooltip> : null}{permissions.includes("sales.issue") ? <Button type="primary" icon={<PlusOutlined />} disabled={!configuration?.enabled} onClick={openCreate}>Nuevo documento</Button> : null}</Space>}>
       {records.error ? <Alert type="error" showIcon message={records.error.message} style={{ marginBottom: 16 }} /> : null}
       <Table rowKey="id" loading={records.isLoading} columns={columns} dataSource={filtered} scroll={{ x: 1250 }} pagination={{ pageSize: 12, pageSizeOptions: [12, 24, 48] }} locale={{ emptyText: <Empty description="Aún no hay documentos electrónicos" /> }} />
     </Card>
-    <Modal title="Nuevo documento electrónico" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Revisar y enviar" okButtonProps={{ icon: <SendOutlined /> }} confirmLoading={create.isPending} width={1080} destroyOnHidden>
-      <Alert type="warning" showIcon message="Esta acción enviará el documento directamente a la plataforma de facturación." description="Revisa todos los datos antes de continuar. La serie configurada en el servidor se aplicará automáticamente." style={{ marginBottom: 16 }} />
+    <Modal title={<Space>Nuevo documento electrónico<Tooltip title="Esta acción enviará el documento directamente a la plataforma de facturación. Revisa todos los datos antes de continuar."><InfoCircleOutlined style={{ color: "var(--ant-color-warning)" }} /></Tooltip></Space>} open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} okText="Revisar y enviar" okButtonProps={{ icon: <SendOutlined />, disabled: selectedSeriesMissing }} confirmLoading={create.isPending} width={1080} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={(values) => create.mutate(values)}>
-        <Form.Item name="kind" label="Tipo de documento" rules={[{ required: true }]} extra="Las facturas y boletas se emiten desde Ventas."><Select onChange={changeKind} options={Object.entries(labels).filter(([key]) => !["INVOICE", "RECEIPT"].includes(key)).map(([value, label]) => ({ value, label }))} /></Form.Item>
+        <Form.Item name="kind" label={<Space size={4}>Tipo de documento{selectedSeries ? <Tooltip title={`La serie ${selectedSeries} se asignará automáticamente al emitir.`}><InfoCircleOutlined /></Tooltip> : null}</Space>} rules={[{ required: true }]} extra="Las facturas y boletas se emiten desde Ventas."><Select onChange={changeKind} options={Object.entries(labels).filter(([key]) => !["INVOICE", "RECEIPT"].includes(key)).map(([value, label]) => ({ value, label }))} /></Form.Item>
+        {selectedSeriesMissing ? <Alert type="warning" showIcon message={`Configura la serie de ${seriesNames[selectedSeriesKey!] ?? "este documento"} antes de emitir.`} style={{ marginBottom: 16 }} /> : null}
         <ElectronicDocumentFormFields kind={selectedKind} />
       </Form>
     </Modal>
