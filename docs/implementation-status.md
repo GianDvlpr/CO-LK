@@ -23,6 +23,7 @@ Actualizado: 06/11/2026.
 - RBAC alineado con la matriz aprobada y aislamiento de empresa obtenido desde la sesión.
 - Endpoints de autenticación, Compras y autorización privada de Pusher protegidos en servidor.
 - Dashboard protegido por sesión y navegación filtrada por permisos.
+- Navegación lateral organizada en categorías padre desplegables tipo acordeón; abre automáticamente el grupo de la vista activa y oculta categorías sin módulos permitidos.
 - Barra superior con nombre y `@usuario`, tipo de cambio USD vigente e histórico compacto de compra/venta; sincronización oficial desde SUNAT con respaldo e histórico BCRP, automática una vez por empresa y día después del primer login exitoso.
 - Acciones de creación ubicadas en el encabezado de sus respectivas tablas para mantener el contexto visual del módulo.
 - Pantalla operativa de Compras conectada a API: listado, alta multilínea, presentaciones, lotes, cálculo de IGV/total y aprobación.

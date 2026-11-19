@@ -194,6 +194,41 @@ export const helpModules = [
 
 export const allModules = [...appModules, ...administrationModules, ...helpModules];
 
+export const standaloneNavigationModuleKeys = ["dashboard", "guide"] as const;
+
+export const moduleNavigationGroups = [
+  {
+    key: "operations",
+    label: "Operaciones",
+    moduleKeys: ["purchases", "inventory", "pick-pack"],
+  },
+  {
+    key: "production",
+    label: "Producción",
+    moduleKeys: ["products", "recipes", "costs", "production", "machinery"],
+  },
+  {
+    key: "commercial",
+    label: "Comercial",
+    moduleKeys: ["quotations", "orders", "sales", "electronic-billing"],
+  },
+  {
+    key: "management",
+    label: "Gestión",
+    moduleKeys: ["calendar", "whiteboard"],
+  },
+  {
+    key: "master-data",
+    label: "Datos maestros",
+    moduleKeys: ["catalogs", "imports"],
+  },
+  {
+    key: "administration",
+    label: "Administración",
+    moduleKeys: ["users", "roles", "sessions", "audit"],
+  },
+] as const;
+
 export function findModuleByHref(href: string) {
   return allModules.find((module) => module.href === href);
 }

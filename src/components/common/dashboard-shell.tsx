@@ -29,13 +29,12 @@ import {
 import { Avatar, Button, Dropdown, Layout, Menu, Tabs } from "antd";
 import type { MenuProps } from "antd";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  administrationModules,
   allModules,
   appModules,
   findModuleByHref,
-  helpModules,
+  moduleNavigationGroups,
 } from "@/lib/config/modules";
 import type { AppModule } from "@/lib/config/modules";
 import { useUiStore } from "@/stores/ui-store";
@@ -78,6 +77,15 @@ const moduleIcons: Record<string, React.ReactNode> = {
   sessions: <ClockCircleOutlined />,
   audit: <FileSearchOutlined />,
   imports: <FileExcelOutlined />,
+};
+
+const navigationGroupIcons: Record<string, React.ReactNode> = {
+  operations: <ShoppingCartOutlined />,
+  production: <ToolOutlined />,
+  commercial: <DollarOutlined />,
+  management: <CalendarOutlined />,
+  "master-data": <DatabaseOutlined />,
+  administration: <SafetyCertificateOutlined />,
 };
 
 function toMenuItem(module: AppModule) {
@@ -132,13 +140,24 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   const setWorkspaceTabs = useUiStore((state) => state.setWorkspaceTabs);
 
   const selectedKey = useMemo(() => {
-    const candidates = [...appModules, ...administrationModules, ...helpModules]
+    const candidates = allModules
       .filter((module) => pathname.startsWith(module.href))
       .sort((a, b) => b.href.length - a.href.length);
     return candidates[0]?.href ?? "/dashboard";
   }, [pathname]);
 
   const currentModule = findModuleByHref(selectedKey);
+  const currentGroup = currentModule
+    ? moduleNavigationGroups.find((group) => group.moduleKeys.some((key) => key === currentModule.key))
+    : undefined;
+  const activeGroupKey = currentGroup ? `group:${currentGroup.key}` : undefined;
+  const [menuOpenState, setMenuOpenState] = useState<{ routeGroupKey?: string; openKeys: string[] }>(() => ({
+    routeGroupKey: activeGroupKey,
+    openKeys: activeGroupKey ? [activeGroupKey] : [],
+  }));
+  const openMenuKeys = menuOpenState.routeGroupKey === activeGroupKey
+    ? menuOpenState.openKeys
+    : activeGroupKey ? [activeGroupKey] : [];
   const allowedModules = useMemo(() => allModules.filter((module) => user.permissions.includes(module.permission)), [user.permissions]);
   const openTabs = useMemo(() => {
     const restored = restoreWorkspaceTabs(storedTabs, allowedModules);
@@ -162,9 +181,22 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
     });
   }, [currentModule, pathname]);
 
-  const allowedAppModules = appModules.filter((module) => user.permissions.includes(module.permission));
-  const allowedAdministrationModules = administrationModules.filter((module) => user.permissions.includes(module.permission));
-  const allowedHelpModules = helpModules.filter((module) => user.permissions.includes(module.permission));
+  const allowedModuleByKey = new Map(allowedModules.map((module) => [module.key, module]));
+  const dashboardModule = allowedModuleByKey.get("dashboard");
+  const guideModule = allowedModuleByKey.get("guide");
+  const groupedMenuItems = moduleNavigationGroups.flatMap((group) => {
+    const children = group.moduleKeys
+      .map((key) => allowedModuleByKey.get(key))
+      .filter((module): module is AppModule => Boolean(module))
+      .map(toMenuItem);
+    if (!children.length) return [];
+    return [{
+      key: `group:${group.key}`,
+      icon: navigationGroupIcons[group.key],
+      label: group.label,
+      children,
+    }];
+  });
   const closeTab = (key: string) => {
     if (key === "/dashboard") return;
     const index = openTabs.findIndex((tab) => tab.key === key);
@@ -188,21 +220,9 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
     label: <span className="workspace-tab-label">{moduleIcons[tab.moduleKey]}<span>{tab.label}</span></span>,
   }));
   const menuItems: MenuProps["items"] = [
-    {
-      type: "group",
-      label: "OPERACIÓN",
-      children: allowedAppModules.map(toMenuItem),
-    },
-    {
-      type: "group",
-      label: "ADMINISTRACIÓN",
-      children: allowedAdministrationModules.map(toMenuItem),
-    },
-    {
-      type: "group",
-      label: "AYUDA",
-      children: allowedHelpModules.map(toMenuItem),
-    },
+    ...(dashboardModule ? [toMenuItem(dashboardModule)] : []),
+    ...groupedMenuItems,
+    ...(guideModule ? [{ type: "divider" as const }, toMenuItem(guideModule)] : []),
   ];
 
   return (
@@ -224,7 +244,13 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
           theme="dark"
           items={menuItems}
           selectedKeys={[selectedKey]}
+          openKeys={openMenuKeys}
+          onOpenChange={(keys) => {
+            const newlyOpened = keys.find((key) => !openMenuKeys.includes(key));
+            setMenuOpenState({ routeGroupKey: activeGroupKey, openKeys: newlyOpened ? [newlyOpened] : [] });
+          }}
           onClick={({ key }) => {
+            if (!key.startsWith("/")) return;
             router.push(key);
             if (window.innerWidth < 992) setCollapsed(true);
           }}
