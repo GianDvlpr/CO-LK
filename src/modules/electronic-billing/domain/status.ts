@@ -19,7 +19,7 @@ export function remoteStatusValue(remote: RemoteDocument) {
   if (sunat && typeof sunat === "object" && "estado" in sunat) {
     return String((sunat as { estado?: unknown }).estado ?? "");
   }
-  return String(remote.sunat_status ?? remote.estado ?? remote.status ?? "pendiente");
+  return String(remote.sunat_status ?? remote.estado_sunat ?? remote.estado ?? remote.status ?? "pendiente");
 }
 
 export function isFinalElectronicStatus(status: ElectronicDocumentStatus) {

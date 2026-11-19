@@ -75,4 +75,30 @@ describe("ElectronicBillingClient", () => {
     expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({ "Idempotency-Key": "sale-789" });
     expect(fetcher.mock.calls[1][1]?.headers).toMatchObject({ "Idempotency-Key": "sale-789" });
   });
+
+  it("sincroniza las series activas usando las credenciales del servidor", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+      estado: "exito",
+      mensaje: "OK",
+      datos: [{ id: 4, tipo: "Factura", tipo_documento: "01", serie: "F004", correlativo: 8, siguiente_numero: "F004-9", sucursal: null, activo: true }],
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const client = new ElectronicBillingClient(config, fetcher as typeof fetch, async () => undefined);
+
+    const result = await client.getSeries();
+
+    expect(result[0]?.siguiente_numero).toBe("F004-9");
+    expect(fetcher.mock.calls[0]?.[0]).toBe("http://127.0.0.1:8000/api/v1/series");
+  });
+
+  it("reenvía un documento por la acción indicada", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+      estado: "exito", mensaje: "Enviado", datos: { id: 10, sunat_status: "enviado" },
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const client = new ElectronicBillingClient(config, fetcher as typeof fetch, async () => undefined);
+
+    await client.resendDocument("facturas", "10", "reenviar", "retry-10-2");
+
+    expect(fetcher.mock.calls[0]?.[0]).toBe("http://127.0.0.1:8000/api/v1/facturas/10/reenviar");
+    expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ method: "POST" });
+  });
 });

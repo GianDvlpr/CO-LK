@@ -30,7 +30,9 @@ function validate(input: SaleInput) {
   if (!input.salesOrderIds.length || new Set(input.salesOrderIds).size !== input.salesOrderIds.length) throw new SaleError("SALE_INVALID_ORDERS", "Selecciona al menos un pedido despachado sin repetirlo.");
   if (!input.lines.length || new Set(input.lines.map((line) => line.productVariantId)).size !== input.lines.length) throw new SaleError("SALE_INVALID_LINES", "La venta requiere precios para cada variante despachada.");
   if (input.dueDate && input.dueDate < input.issueDate) throw new SaleError("SALE_INVALID_DATES", "El vencimiento no puede ser anterior a la emisión.");
-  if (Boolean(input.documentSeries) !== Boolean(input.documentNumber)) throw new SaleError("SALE_INVALID_DOCUMENT", "La serie y el número del documento deben completarse juntos.");
+  const electronic = input.documentType === "INVOICE" || input.documentType === "RECEIPT";
+  if (electronic && input.documentNumber) throw new SaleError("SALE_INVALID_DOCUMENT", "La numeración de facturas y boletas se asigna automáticamente al emitir.");
+  if (!electronic && Boolean(input.documentSeries) !== Boolean(input.documentNumber)) throw new SaleError("SALE_INVALID_DOCUMENT", "La serie y el número del documento deben completarse juntos.");
   const discount = new Decimal(input.discountRate);
   if (discount.isNegative() || discount.greaterThan(100)) throw new SaleError("SALE_INVALID_DISCOUNT", "El descuento debe estar entre 0 y 100 %.");
   if (!new Decimal(input.exchangeRate).greaterThan(0)) throw new SaleError("SALE_INVALID_EXCHANGE_RATE", "El tipo de cambio debe ser mayor que cero.");

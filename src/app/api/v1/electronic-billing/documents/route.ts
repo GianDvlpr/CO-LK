@@ -4,7 +4,7 @@ import { apiError, apiSuccess } from "@/lib/http/api-response";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { requireSameOrigin } from "@/modules/auth/application/request-security";
 import { knownElectronicBillingError } from "@/modules/electronic-billing/application/electronic-billing-http";
-import { createStandaloneElectronicDocument } from "@/modules/electronic-billing/application/electronic-document-service";
+import { createStandaloneElectronicDocument, getRemoteBillingSeries } from "@/modules/electronic-billing/application/electronic-document-service";
 import { createElectronicDocumentSchema } from "@/modules/electronic-billing/application/schemas";
 
 export async function GET(request: Request) {
@@ -28,11 +28,23 @@ export async function GET(request: Request) {
     });
     const env = readServerEnv();
     const company = await prisma.company.findUnique({ where: { id: user.companyId }, select: { taxId: true } });
+    const enabled = Boolean(env.SUNAT_BILLING_API_KEY && env.SUNAT_BILLING_API_SECRET && company?.taxId === env.SUNAT_BILLING_COMPANY_RUC);
+    let availableSeries = [] as Awaited<ReturnType<typeof getRemoteBillingSeries>>;
+    let seriesError: string | null = null;
+    if (enabled) {
+      try {
+        availableSeries = await getRemoteBillingSeries(company?.taxId ?? null);
+      } catch (error) {
+        seriesError = error instanceof Error ? error.message : "No se pudieron sincronizar las series.";
+      }
+    }
     return apiSuccess({
       items,
       configuration: {
-        enabled: Boolean(env.SUNAT_BILLING_API_KEY && env.SUNAT_BILLING_API_SECRET && company?.taxId === env.SUNAT_BILLING_COMPANY_RUC),
+        enabled,
         companyRuc: env.SUNAT_BILLING_COMPANY_RUC ?? null,
+        availableSeries,
+        seriesError,
         series: {
           invoice: env.SUNAT_BILLING_INVOICE_SERIES,
           receipt: env.SUNAT_BILLING_RECEIPT_SERIES ?? null,

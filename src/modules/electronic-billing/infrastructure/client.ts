@@ -9,6 +9,7 @@ import type {
   CreditOrDebitNotePayload,
   InvoicePayload,
   RemoteDocument,
+  RemoteSeries,
 } from "@/modules/electronic-billing/domain/types";
 import type { ElectronicBillingConfig } from "@/modules/electronic-billing/infrastructure/config";
 
@@ -170,8 +171,25 @@ export class ElectronicBillingClient {
     return this.request<RemoteDocument>("reversiones", { method: "POST", body: payload, idempotencyKey });
   }
 
+  getSeries() {
+    return this.request<RemoteSeries[]>("series");
+  }
+
+  resendDocument(resource: string, remoteId: string, action: "enviar" | "reenviar", idempotencyKey: string) {
+    return this.request<RemoteDocument>(`${resource}/${encodeURIComponent(remoteId)}/${action}`, {
+      method: "POST",
+      body: {},
+      idempotencyKey,
+    });
+  }
+
+  getDocumentStatus(resource: string, remoteId: string, statusEndpoint = false) {
+    const suffix = statusEndpoint ? "/estado" : "";
+    return this.request<RemoteDocument>(`${resource}/${encodeURIComponent(remoteId)}${suffix}`);
+  }
+
   getDocument(resource: string, remoteId: string) {
-    return this.request<RemoteDocument>(`${resource}/${encodeURIComponent(remoteId)}`);
+    return this.getDocumentStatus(resource, remoteId);
   }
 
   downloadArtifact(resource: string, remoteId: string, artifact: "pdf" | "xml" | "cdr", format?: string) {

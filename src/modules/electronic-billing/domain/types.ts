@@ -39,7 +39,11 @@ export type BillingApiFailure = {
 };
 
 export type RemoteDocument = {
-  id: string | number;
+  id?: string | number;
+  id_resumen?: string | number;
+  id_anulacion?: string | number;
+  voided_id?: string | number;
+  identifier?: string;
   serie?: string;
   correlativo?: string | number;
   numero_completo?: string;
@@ -47,9 +51,24 @@ export type RemoteDocument = {
   sunat_code?: string | null;
   sunat_description?: string | null;
   sunat_notes?: string[] | null;
+  estado_sunat?: string;
+  codigo_sunat?: string | null;
+  descripcion_sunat?: string | null;
+  notas_sunat?: string[] | null;
   ticket?: string | null;
   num_ticket?: string | null;
   [key: string]: unknown;
+};
+
+export type RemoteSeries = {
+  id: number;
+  tipo: string;
+  tipo_documento: string;
+  serie: string;
+  correlativo: number;
+  siguiente_numero: string;
+  sucursal: { id: number; nombre: string; cod_local: string } | null;
+  activo: boolean;
 };
 
 export type BillingParty = {

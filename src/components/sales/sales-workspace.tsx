@@ -16,7 +16,8 @@ import { paymentSummary, saleTotals } from "@/modules/sales/domain/sale-calculat
 type Variant = { id: string; sku: string; product: { code: string; name: string }; size: { name: string }; color: { name: string }; secondaryColor?: { name: string } | null };
 type Currency = { id: string; code: string; name: string; symbol: string; isBase: boolean; exchangeRates: { rate: string; rateDate: string }[] };
 type OrderOption = { id: string; number: string; customer: { id: string; code: string; name: string }; saleLinks: { saleId: string }[]; pickPackOrder: { status: string; lines: { packedQuantity: string; salesOrderLine: { unitPrice: string; productVariantId: string; productVariant: Variant } }[] } };
-type Options = { igvRate: string; currencies: Currency[]; orders: OrderOption[]; electronicBilling: { enabled: boolean; invoiceSeries: string; receiptSeries?: string | null } };
+type RemoteSeries = { id: number; tipo: string; tipo_documento: string; serie: string; siguiente_numero: string; activo: boolean; sucursal: { nombre: string } | null };
+type Options = { igvRate: string; currencies: Currency[]; orders: OrderOption[]; electronicBilling: { enabled: boolean; series: RemoteSeries[]; seriesError?: string | null } };
 type SaleLine = { id: string; quantity: string; unitPrice: string; productVariant: Variant };
 type Payment = { id: string; amount: string; paymentDate: string; method: string; reference?: string; notes?: string; createdBy: { name: string; username: string } };
 type ElectronicDocument = { id: string; kind: string; status: string; remoteId?: string; number?: string; remoteStatus?: string; sunatDescription?: string; lastError?: string };
@@ -51,10 +52,12 @@ export function SalesWorkspace({ permissions }: { permissions: string[] }) {
   const options = useQuery({ queryKey: ["sale-options"], queryFn: () => api<Options>("/api/v1/sales/options") });
   const formLines = Form.useWatch("lines", form) ?? [];
   const selectedDocumentType = Form.useWatch("documentType", form);
+  const selectedDocumentSeries = Form.useWatch("documentSeries", form);
   const discountRate = Form.useWatch("discountRate", form) ?? 0;
   const currencyId = Form.useWatch("currencyId", form);
   const exchangeRate = Form.useWatch("exchangeRate", form) ?? 1;
   const selectedCurrency = options.data?.currencies.find((currency) => currency.id === currencyId);
+  const electronicSeries = (options.data?.electronicBilling.series ?? []).filter((item) => item.activo && item.tipo_documento === (selectedDocumentType === "INVOICE" ? "01" : selectedDocumentType === "RECEIPT" ? "03" : ""));
   const preview = saleTotals(formLines.map((line) => ({ quantity: line.quantity ?? 0, unitPrice: line.unitPrice ?? 0 })), discountRate, options.data?.igvRate ?? 18, exchangeRate);
   const filtered = (records.data?.items ?? []).filter((sale) => matchesSearch(search, sale.number, sale.customer.name, sale.customer.code, sale.documentSeries, sale.documentNumber, ...sale.salesOrders.map((item) => item.salesOrder.number)));
 
@@ -86,6 +89,15 @@ export function SalesWorkspace({ permissions }: { permissions: string[] }) {
     form.setFieldValue("lines", [...aggregate.entries()].map(([productVariantId, item]) => ({ productVariantId, quantity: Number(item.quantity), unitPrice: item.quantity.isZero() ? 0 : Number(item.value.div(item.quantity).toDecimalPlaces(4)), label: `${item.variant.sku} · ${item.variant.product.name} · Talla ${item.variant.size.name}` })));
   };
   const changeCurrency = (id: string) => { const currency = options.data?.currencies.find((item) => item.id === id); form.setFieldValue("exchangeRate", currency?.isBase ? 1 : Number(currency?.exchangeRates[0]?.rate ?? 1)); };
+  const changeDocumentType = (type: string) => {
+    form.setFieldValue("documentNumber", undefined);
+    if (type === "INVOICE" || type === "RECEIPT") {
+      const code = type === "INVOICE" ? "01" : "03";
+      form.setFieldValue("documentSeries", options.data?.electronicBilling.series.find((item) => item.activo && item.tipo_documento === code)?.serie);
+    } else {
+      form.setFieldValue("documentSeries", undefined);
+    }
+  };
   const openCreate = () => { const base = options.data?.currencies.find((currency) => currency.isBase) ?? options.data?.currencies[0]; setEditing(undefined); form.resetFields(); form.setFieldsValue({ issueDate: dayjs(), currencyId: base?.id, exchangeRate: base?.isBase ? 1 : Number(base?.exchangeRates[0]?.rate ?? 1), discountRate: 0, documentType: "SALE_NOTE", paymentMethod: "TRANSFER", salesOrderIds: [], lines: [] }); setOpen(true); };
   const openEdit = (sale: Sale) => { setEditing(sale); form.setFieldsValue({ salesOrderIds: sale.salesOrders.map((item) => item.salesOrder.id), currencyId: sale.currency.id, documentType: sale.documentType, documentSeries: sale.documentSeries, documentNumber: sale.documentNumber, issueDate: dayjs(sale.issueDate), dueDate: sale.dueDate ? dayjs(sale.dueDate) : undefined, exchangeRate: Number(sale.exchangeRate), discountRate: Number(sale.discountRate), paymentMethod: sale.paymentMethod, notes: sale.notes, lines: sale.lines.map((line) => ({ productVariantId: line.productVariant.id, quantity: Number(line.quantity), unitPrice: Number(line.unitPrice), label: `${line.productVariant.sku} · ${line.productVariant.product.name} · Talla ${line.productVariant.size.name}` })) }); setOpen(true); };
   const openPayment = (sale: Sale) => { setPaying(sale); const pending = summary(sale).payments.balance; paymentForm.setFieldsValue({ amount: Number(pending), paymentDate: dayjs(), method: sale.paymentMethod }); };
@@ -141,11 +153,12 @@ export function SalesWorkspace({ permissions }: { permissions: string[] }) {
       <Form form={form} layout="vertical" onFinish={(values) => save.mutate(values)}>
         <Form.Item name="salesOrderIds" label="Pedidos despachados" rules={[{ required: true }]} tooltip="Puedes consolidar varios pedidos si pertenecen al mismo cliente."><Select mode="multiple" maxTagCount="responsive" showSearch optionFilterProp="label" onChange={loadOrders} options={availableOrders.map((order) => ({ value: order.id, label: `${order.number} · ${order.customer.name}` }))} /></Form.Item>
         {(selectedDocumentType === "INVOICE" || selectedDocumentType === "RECEIPT") && !options.data?.electronicBilling.enabled ? <Alert type="warning" showIcon message="La facturación electrónica todavía no está configurada en el servidor." style={{ marginBottom: 16 }} /> : null}
-        {selectedDocumentType === "RECEIPT" && options.data?.electronicBilling.enabled && !options.data.electronicBilling.receiptSeries ? <Alert type="warning" showIcon message="Configura la serie de boleta antes de emitir." style={{ marginBottom: 16 }} /> : null}
+        {(selectedDocumentType === "INVOICE" || selectedDocumentType === "RECEIPT") && options.data?.electronicBilling.seriesError ? <Alert type="warning" showIcon message="No se pudieron sincronizar las series con la plataforma SUNAT." description={options.data.electronicBilling.seriesError} style={{ marginBottom: 16 }} action={<Button size="small" onClick={() => options.refetch()}>Reintentar</Button>} /> : null}
+        {(selectedDocumentType === "INVOICE" || selectedDocumentType === "RECEIPT") && options.data?.electronicBilling.enabled && !electronicSeries.length && !options.data.electronicBilling.seriesError ? <Alert type="warning" showIcon message={`No hay una serie activa para ${selectedDocumentType === "INVOICE" ? "facturas" : "boletas"}.`} description="Créala o actívala en la plataforma SUNAT y actualiza esta vista." style={{ marginBottom: 16 }} /> : null}
         <div className="purchase-form-grid">
           {editing ? <Form.Item label="Código"><Input disabled value={editing.number} /></Form.Item> : null}
-          <Form.Item name="documentType" label={<Space size={4}>Tipo de documento{(selectedDocumentType === "INVOICE" || selectedDocumentType === "RECEIPT") && options.data?.electronicBilling.enabled && (selectedDocumentType === "INVOICE" || options.data.electronicBilling.receiptSeries) ? <Tooltip title={`La numeración se asignará automáticamente al emitir (${selectedDocumentType === "INVOICE" ? options.data.electronicBilling.invoiceSeries : options.data.electronicBilling.receiptSeries}).`}><InfoCircleOutlined /></Tooltip> : null}</Space>} rules={[{ required: true }]}><Select options={Object.entries(documentLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
-          {selectedDocumentType !== "INVOICE" && selectedDocumentType !== "RECEIPT" ? <Form.Item name="documentSeries" label="Serie"><Input placeholder="Ej. NV01" /></Form.Item> : null}
+          <Form.Item name="documentType" label={<Space size={4}>Tipo de documento{(selectedDocumentType === "INVOICE" || selectedDocumentType === "RECEIPT") && selectedDocumentSeries ? <Tooltip title={`La numeración se asignará automáticamente al emitir (${selectedDocumentSeries}).`}><InfoCircleOutlined /></Tooltip> : null}</Space>} rules={[{ required: true }]}><Select onChange={changeDocumentType} options={Object.entries(documentLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
+          {selectedDocumentType === "INVOICE" || selectedDocumentType === "RECEIPT" ? <Form.Item name="documentSeries" label="Serie SUNAT" rules={[{ required: true, message: "Selecciona una serie activa." }]}><Select placeholder="Selecciona una serie" options={electronicSeries.map((item) => ({ value: item.serie, label: `${item.serie} · siguiente ${item.siguiente_numero}${item.sucursal ? ` · ${item.sucursal.nombre}` : ""}` }))} /></Form.Item> : <Form.Item name="documentSeries" label="Serie"><Input placeholder="Ej. NV01" /></Form.Item>}
           {selectedDocumentType !== "INVOICE" && selectedDocumentType !== "RECEIPT" ? <Form.Item name="documentNumber" label="Número"><Input placeholder="Ej. 000001" /></Form.Item> : null}
           <Form.Item name="issueDate" label="Fecha de emisión" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="dueDate" label="Fecha de vencimiento"><DatePicker style={{ width: "100%" }} /></Form.Item>

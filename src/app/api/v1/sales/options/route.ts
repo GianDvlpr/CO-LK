@@ -3,6 +3,7 @@ import { readServerEnv } from "@/lib/env/server";
 import { apiSuccess } from "@/lib/http/api-response";
 import { requirePermission } from "@/modules/auth/application/session-service";
 import { knownSaleError } from "@/modules/sales/application/sale-http";
+import { getRemoteBillingSeries } from "@/modules/electronic-billing/application/electronic-document-service";
 
 export async function GET() {
   try {
@@ -19,14 +20,24 @@ export async function GET() {
       }),
     ]);
     const env = readServerEnv();
+    const enabled = Boolean(env.SUNAT_BILLING_API_KEY && env.SUNAT_BILLING_API_SECRET && company.taxId === env.SUNAT_BILLING_COMPANY_RUC);
+    let series = [] as Awaited<ReturnType<typeof getRemoteBillingSeries>>;
+    let seriesError: string | null = null;
+    if (enabled) {
+      try {
+        series = await getRemoteBillingSeries(company.taxId);
+      } catch (error) {
+        seriesError = error instanceof Error ? error.message : "No se pudieron sincronizar las series.";
+      }
+    }
     return apiSuccess({
       igvRate: company.igvRate,
       currencies,
       orders,
       electronicBilling: {
-        enabled: Boolean(env.SUNAT_BILLING_API_KEY && env.SUNAT_BILLING_API_SECRET && company.taxId === env.SUNAT_BILLING_COMPANY_RUC),
-        invoiceSeries: env.SUNAT_BILLING_INVOICE_SERIES,
-        receiptSeries: env.SUNAT_BILLING_RECEIPT_SERIES ?? null,
+        enabled,
+        series,
+        seriesError,
       },
     });
   } catch (error) {

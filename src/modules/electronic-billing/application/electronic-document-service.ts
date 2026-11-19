@@ -3,9 +3,9 @@ import { ElectronicBillingError } from "@/modules/electronic-billing/application
 import type { CreateElectronicDocumentInput } from "@/modules/electronic-billing/application/schemas";
 import { mapSaleToBillingPayload } from "@/modules/electronic-billing/application/sale-mapper";
 import { isFinalElectronicStatus, nextPollingDate, normalizeRemoteStatus, remoteStatusValue } from "@/modules/electronic-billing/domain/status";
-import type { CreditOrDebitNotePayload, ElectronicDocumentKind, RemoteDocument } from "@/modules/electronic-billing/domain/types";
+import type { CreditOrDebitNotePayload, ElectronicDocumentKind, RemoteDocument, RemoteSeries } from "@/modules/electronic-billing/domain/types";
 import { ElectronicBillingClient } from "@/modules/electronic-billing/infrastructure/client";
-import { readElectronicBillingConfig, requireBillingSeries } from "@/modules/electronic-billing/infrastructure/config";
+import { readElectronicBillingConfig } from "@/modules/electronic-billing/infrastructure/config";
 
 const saleInclude = {
   company: { select: { taxId: true } },
@@ -32,29 +32,54 @@ const resources: Record<ElectronicDocumentKind, string> = {
   CREDIT_NOTE: "notas-credito",
   DEBIT_NOTE: "notas-debito",
   SENDER_GUIDE: "guias-remision",
-  CARRIER_GUIDE: "guias-remision-transportista",
+  CARRIER_GUIDE: "guias-remision",
   RETENTION: "retenciones",
   PERCEPTION: "percepciones",
   PURCHASE_SETTLEMENT: "liquidaciones-compra",
   DAILY_SUMMARY: "resumenes",
   VOIDED_DOCUMENT: "anulaciones",
-  REVERSION: "reversiones",
+  REVERSION: "anulaciones",
 };
 
-function documentFields(remote: RemoteDocument, attempts: number, submitted = false) {
+const seriesTypes: Partial<Record<ElectronicDocumentKind, string>> = {
+  INVOICE: "01",
+  RECEIPT: "03",
+  CREDIT_NOTE: "07",
+  DEBIT_NOTE: "08",
+  SENDER_GUIDE: "09",
+  CARRIER_GUIDE: "31",
+  RETENTION: "20",
+  PERCEPTION: "40",
+  PURCHASE_SETTLEMENT: "04",
+};
+
+function remoteDocumentId(remote: RemoteDocument, fallback?: string | null) {
+  const value = remote.id ?? remote.id_resumen ?? remote.id_anulacion ?? remote.voided_id ?? fallback;
+  if (value === undefined || value === null || value === "") {
+    throw new ElectronicBillingError("BILLING_INVALID_RESPONSE", "La plataforma de facturación no devolvió el identificador del documento.", 502, true);
+  }
+  return String(value);
+}
+
+function documentFields(remote: RemoteDocument, attempts: number, submitted = false, current?: {
+  remoteId?: string | null;
+  series?: string | null;
+  correlativo?: string | null;
+  number?: string | null;
+}) {
   const remoteStatus = remoteStatusValue(remote);
   const status = normalizeRemoteStatus(remoteStatus);
   const now = new Date();
   return {
     status,
     remoteStatus,
-    remoteId: String(remote.id),
-    series: remote.serie ? String(remote.serie) : null,
-    correlativo: remote.correlativo === undefined ? null : String(remote.correlativo),
-    number: remote.numero_completo ? String(remote.numero_completo) : null,
-    sunatCode: remote.sunat_code ? String(remote.sunat_code) : null,
-    sunatDescription: remote.sunat_description ? String(remote.sunat_description) : null,
-    sunatNotes: remote.sunat_notes ? remote.sunat_notes as Prisma.InputJsonValue : Prisma.JsonNull,
+    remoteId: remoteDocumentId(remote, current?.remoteId),
+    series: remote.serie ? String(remote.serie) : current?.series ?? null,
+    correlativo: remote.correlativo === undefined ? current?.correlativo ?? null : String(remote.correlativo),
+    number: remote.numero_completo ? String(remote.numero_completo) : remote.identifier ? String(remote.identifier) : current?.number ?? null,
+    sunatCode: remote.sunat_code || remote.codigo_sunat ? String(remote.sunat_code ?? remote.codigo_sunat) : null,
+    sunatDescription: remote.sunat_description || remote.descripcion_sunat ? String(remote.sunat_description ?? remote.descripcion_sunat) : null,
+    sunatNotes: remote.sunat_notes || remote.notas_sunat ? (remote.sunat_notes ?? remote.notas_sunat) as Prisma.InputJsonValue : Prisma.JsonNull,
     ticket: remote.ticket ? String(remote.ticket) : remote.num_ticket ? String(remote.num_ticket) : null,
     response: remote as Prisma.InputJsonValue,
     lastError: null,
@@ -90,10 +115,22 @@ export async function issueElectronicSale(database: PrismaClient, command: {
   const businessKey = `sale:${sale.id}:primary`;
   const idempotencyKey = `lkinnova:${businessKey}`;
   const { config, client } = billingClient(sale.company.taxId);
-  const series = requireBillingSeries(
-    kind === "INVOICE" ? config.series.invoice : config.series.receipt,
-    kind === "INVOICE" ? "factura" : "boleta",
-  );
+  const preferredSeries = (sale.documentSeries ?? (kind === "INVOICE" ? config.series.invoice : config.series.receipt))?.trim().toUpperCase();
+  const availableSeries = activeSeriesForKind(await client.getSeries(), kind);
+  const selectedSeries = preferredSeries
+    ? availableSeries.find((item) => item.serie.toUpperCase() === preferredSeries)
+    : availableSeries[0];
+  if (!selectedSeries) {
+    throw new ElectronicBillingError(
+      "BILLING_SERIES_INVALID",
+      preferredSeries
+        ? `La serie ${preferredSeries} no está activa para esta ${kind === "INVOICE" ? "factura" : "boleta"}.`
+        : `No existe una serie activa para ${kind === "INVOICE" ? "facturas" : "boletas"} en la plataforma SUNAT.`,
+      422,
+      false,
+    );
+  }
+  const series = selectedSeries.serie;
   const payload = mapSaleToBillingPayload(sale, series);
 
   const local = await database.electronicDocument.upsert({
@@ -171,8 +208,18 @@ function seriesForKind(config: ReturnType<typeof readElectronicBillingConfig>, k
     PURCHASE_SETTLEMENT: [config.series.purchaseSettlement, "liquidación de compra"],
   } as const;
   if (!(kind in definitions)) return undefined;
-  const [value, label] = definitions[kind as keyof typeof definitions];
-  return requireBillingSeries(value, label);
+  const [value] = definitions[kind as keyof typeof definitions];
+  return value?.trim().toUpperCase();
+}
+
+function activeSeriesForKind(series: RemoteSeries[], kind: ElectronicDocumentKind) {
+  const type = seriesTypes[kind];
+  return type ? series.filter((item) => item.activo && item.tipo_documento === type) : [];
+}
+
+export async function getRemoteBillingSeries(companyTaxId: string | null) {
+  const { client } = billingClient(companyTaxId);
+  return client.getSeries();
 }
 
 async function submitStandalone(client: ElectronicBillingClient, kind: CreateElectronicDocumentInput["kind"], payload: Record<string, unknown>, idempotencyKey: string) {
@@ -199,8 +246,18 @@ export async function createStandaloneElectronicDocument(database: PrismaClient,
   if (!company) throw new ElectronicBillingError("COMPANY_NOT_FOUND", "La empresa no existe.", 404, false);
   const { config, client } = billingClient(company.taxId);
   const payload = { ...command.input.payload } as Record<string, unknown>;
-  const configuredSeries = seriesForKind(config, command.input.kind);
-  if (configuredSeries) payload.serie = configuredSeries;
+  if (seriesTypes[command.input.kind]) {
+    const requestedSeries = (typeof payload.serie === "string" ? payload.serie : seriesForKind(config, command.input.kind))?.trim().toUpperCase();
+    if (!requestedSeries) {
+      throw new ElectronicBillingError("BILLING_SERIES_REQUIRED", "Selecciona una serie activa para este tipo de documento.", 422, false);
+    }
+    const available = activeSeriesForKind(await client.getSeries(), command.input.kind);
+    const selected = available.find((item) => item.serie.toUpperCase() === requestedSeries);
+    if (!selected) {
+      throw new ElectronicBillingError("BILLING_SERIES_INVALID", `La serie ${requestedSeries} no está activa para este tipo de documento en la plataforma SUNAT.`, 422, false);
+    }
+    payload.serie = selected.serie;
+  }
   payload.enviar_automatico = true;
   const businessKey = `manual:${command.input.kind}:${command.input.operationKey}`;
   const idempotencyKey = `lkinnova:${businessKey}`;
@@ -292,9 +349,49 @@ export async function refreshElectronicDocument(database: PrismaClient, companyI
   if (!document.remoteId || isFinalElectronicStatus(document.status)) return document;
 
   const { client } = billingClient(document.company.taxId);
-  const remote = await client.getDocument(resources[document.kind], document.remoteId);
-  const fields = documentFields(remote, document.attempts + 1);
+  const statusEndpoint = ["SENDER_GUIDE", "CARRIER_GUIDE", "DAILY_SUMMARY", "VOIDED_DOCUMENT", "REVERSION"].includes(document.kind);
+  const remote = await client.getDocumentStatus(resources[document.kind], document.remoteId, statusEndpoint);
+  const fields = documentFields(remote, document.attempts + 1, false, document);
   return database.electronicDocument.update({ where: { id: document.id }, data: fields });
+}
+
+export async function resendElectronicDocument(database: PrismaClient, command: {
+  companyId: string;
+  userId: string;
+  documentId: string;
+}) {
+  const document = await database.electronicDocument.findFirst({
+    where: { id: command.documentId, companyId: command.companyId },
+    include: { company: { select: { taxId: true } } },
+  });
+  if (!document) throw new ElectronicBillingError("BILLING_DOCUMENT_NOT_FOUND", "El comprobante electrónico no existe.", 404, false);
+  if (!document.remoteId) throw new ElectronicBillingError("BILLING_DOCUMENT_NOT_SENT", "El documento todavía no tiene un identificador remoto para reenviarlo.", 422, false);
+  if (!["PENDING", "REJECTED", "ERROR"].includes(document.status)) {
+    throw new ElectronicBillingError("BILLING_RESEND_NOT_ALLOWED", "Solo se pueden reenviar documentos pendientes, rechazados o con error.", 422, false);
+  }
+
+  const action: "enviar" | "reenviar" = ["INVOICE", "RECEIPT", "CREDIT_NOTE", "DEBIT_NOTE", "PURCHASE_SETTLEMENT"].includes(document.kind)
+    ? "reenviar"
+    : "enviar";
+  const { client } = billingClient(document.company.taxId);
+  const attempt = document.attempts + 1;
+  const remote = await client.resendDocument(resources[document.kind], document.remoteId, action, `${document.idempotencyKey}:retry:${attempt}`);
+  const fields = documentFields(remote, attempt, true, document);
+
+  return database.$transaction(async (tx) => {
+    const updated = await tx.electronicDocument.update({ where: { id: document.id }, data: fields });
+    await tx.auditLog.create({ data: {
+      companyId: command.companyId, userId: command.userId, module: "electronic-billing",
+      entity: "ElectronicDocument", entityId: document.id, action: "RESEND",
+      afterData: { kind: document.kind, remoteId: document.remoteId, attempt, status: fields.status },
+    } });
+    await tx.outboxEvent.create({ data: {
+      companyId: command.companyId, topic: `private-company-${command.companyId}`,
+      eventName: "electronic-document.resent.v1", aggregateId: document.id,
+      payload: { electronicDocumentId: document.id, kind: document.kind, status: fields.status, attempt },
+    } });
+    return updated;
+  });
 }
 
 export async function reconcileElectronicDocuments(database: PrismaClient, limit = 25) {
