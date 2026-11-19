@@ -72,7 +72,9 @@ Actualizado: 06/11/2026.
 - Módulo de Cotizaciones con correlativo COT, cliente, moneda y tipo de cambio, vigencia, descuento, IGV, condiciones comerciales, estados, PDF A4 y conversión única a Pedido en borrador sin afectar stock previamente.
 - Módulo de Ventas con correlativo VTA, consolidación de pedidos despachados del mismo cliente, cantidades reales de Pick & Pack, documento comercial interno, emisión, PDF A4, pagos parciales, saldo y anulación controlada sin duplicar movimientos de stock; integra emisión electrónica individual y masiva mediante la API SUNAT.
 - Centro de facturación electrónica con sincronización completa de comprobantes remotos, detalle estructurado, pagos y cobranzas, reintentos, bajas, reversiones, resúmenes de boletas y exportación ZIP de XML/PDF.
-- Panel fiscal con indicadores, estado de SUNAT, alertas, rechazos y cuentas por cobrar obtenidos de la API; la administración de series y sucursales está protegida en servidor y reservada a `SUPERADMIN`.
+- Panel fiscal ampliado con evolución anual, ventas por sucursal y moneda, clientes, productos, documentos recientes, alertas, rechazos y cobranzas; incluye monitor automático del circuito SUNAT cada 60 segundos.
+- Validación oficial CPE desde el detalle de facturas, boletas, liquidaciones y notas, usando los datos del documento remoto y registrando la consulta en Auditoría.
+- La administración de series y sucursales está protegida en servidor y reservada a `SUPERADMIN`.
 - Catálogos SUNAT y ubigeo disponibles como selecciones editables; clientes remotos sincronizables con el catálogo local y consultas RUC/DNI resueltas primero por la API SUNAT, con el proveedor anterior como respaldo.
 - Confirmación transaccional de pedidos con reserva de producto terminado.
 - Módulo Pick & Pack con correlativo, prioridad, picking, packing, ubicaciones, lotes, incidencias, paquetes, transportista y documento de salida.

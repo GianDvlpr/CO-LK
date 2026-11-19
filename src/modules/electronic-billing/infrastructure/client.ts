@@ -8,10 +8,12 @@ import type {
   BinaryDocument,
   CreditOrDebitNotePayload,
   InvoicePayload,
+  OfficialCpeResult,
   RemoteDocument,
   RemoteBranch,
   RemotePaymentSummary,
   RemoteSeries,
+  SunatServiceMonitor,
 } from "@/modules/electronic-billing/domain/types";
 import type { ElectronicBillingConfig } from "@/modules/electronic-billing/infrastructure/config";
 
@@ -244,6 +246,26 @@ export class ElectronicBillingClient {
 
   lookupDocument(type: "1" | "6", number: string) {
     return this.request<Record<string, unknown>>(`buscar-documento?tipo=${type}&numero=${encodeURIComponent(number)}`);
+  }
+
+  consultCpe(input: { rucEmisor: string; tipoDoc: string; serie: string; correlativo: number; fechaEmision: string; monto: number }) {
+    const query = new URLSearchParams({
+      ruc_emisor: input.rucEmisor,
+      tipo_doc: input.tipoDoc,
+      serie: input.serie,
+      correlativo: String(input.correlativo),
+      fecha_emision: input.fechaEmision,
+      monto: input.monto.toFixed(2),
+    });
+    return this.request<OfficialCpeResult>(`consultar-cpe?${query.toString()}`);
+  }
+
+  async getSunatMonitor(): Promise<SunatServiceMonitor> {
+    const response = await this.requestRawJson<{ estado?: string; sunat?: SunatServiceMonitor }>("sunat/estado");
+    if (response.estado !== "exito" || !response.sunat || !["closed", "open", "half_open"].includes(response.sunat.circuit)) {
+      throw new ElectronicBillingError("BILLING_INVALID_RESPONSE", "La plataforma no devolvió un estado SUNAT válido.", 502, true);
+    }
+    return response.sunat;
   }
 
   resendDocument(resource: string, remoteId: string, action: "enviar" | "reenviar", idempotencyKey: string) {

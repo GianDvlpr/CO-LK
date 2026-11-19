@@ -4,7 +4,7 @@ import { ElectronicBillingError } from "@/modules/electronic-billing/application
 import type { CreateElectronicDocumentInput } from "@/modules/electronic-billing/application/schemas";
 import { mapSaleToBillingPayload } from "@/modules/electronic-billing/application/sale-mapper";
 import { isFinalElectronicStatus, nextPollingDate, normalizeRemoteStatus, remoteStatusValue } from "@/modules/electronic-billing/domain/status";
-import type { CreditOrDebitNotePayload, ElectronicDocumentKind, InvoicePayload, RemoteDocument, RemotePaymentSummary, RemoteSeries } from "@/modules/electronic-billing/domain/types";
+import type { CreditOrDebitNotePayload, ElectronicDocumentKind, InvoicePayload, OfficialCpeResult, RemoteDocument, RemotePaymentSummary, RemoteSeries, SunatServiceMonitor } from "@/modules/electronic-billing/domain/types";
 import { ElectronicBillingClient } from "@/modules/electronic-billing/infrastructure/client";
 import { readElectronicBillingConfig } from "@/modules/electronic-billing/infrastructure/config";
 
@@ -53,6 +53,34 @@ const seriesTypes: Partial<Record<ElectronicDocumentKind, string>> = {
   PERCEPTION: "40",
   PURCHASE_SETTLEMENT: "04",
 };
+
+const officialCpeTypes: Partial<Record<ElectronicDocumentKind, string>> = {
+  INVOICE: "01",
+  RECEIPT: "03",
+  PURCHASE_SETTLEMENT: "04",
+  CREDIT_NOTE: "07",
+  DEBIT_NOTE: "08",
+};
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function officialCpeDate(value: unknown) {
+  const match = String(value ?? "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) throw new ElectronicBillingError("BILLING_CPE_DATA_INVALID", "El comprobante no tiene una fecha de emisión válida para consultar a SUNAT.", 422, false);
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function officialCpeAmount(remote: RemoteDocument, kind: ElectronicDocumentKind) {
+  const totals = record(remote.totales);
+  const value = kind === "PURCHASE_SETTLEMENT" ? totals.neto_a_pagar : totals.total;
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new ElectronicBillingError("BILLING_CPE_DATA_INVALID", "El comprobante no tiene un total válido para consultar a SUNAT.", 422, false);
+  }
+  return amount;
+}
 
 function remoteDocumentId(remote: RemoteDocument, fallback?: string | null) {
   const value = remote.id ?? remote.id_resumen ?? remote.id_anulacion ?? remote.voided_id ?? fallback;
@@ -387,6 +415,60 @@ export async function getElectronicDocumentDetail(database: PrismaClient, compan
   return { document, remote };
 }
 
+export async function validateElectronicDocumentCpe(database: PrismaClient, command: {
+  companyId: string;
+  userId: string;
+  documentId: string;
+}): Promise<OfficialCpeResult & { checkedAt: string; local: { kind: ElectronicDocumentKind; number: string | null; status: string } }> {
+  const document = await database.electronicDocument.findFirst({
+    where: { id: command.documentId, companyId: command.companyId },
+    include: { company: { select: { taxId: true } } },
+  });
+  if (!document?.remoteId) throw new ElectronicBillingError("BILLING_DOCUMENT_NOT_FOUND", "El documento remoto no está disponible.", 404, false);
+  const tipoDoc = officialCpeTypes[document.kind];
+  if (!tipoDoc) {
+    throw new ElectronicBillingError("BILLING_CPE_NOT_SUPPORTED", "La consulta oficial CPE no está disponible para este tipo de documento.", 422, false);
+  }
+  if (!document.company.taxId || !/^\d{11}$/.test(document.company.taxId)) {
+    throw new ElectronicBillingError("BILLING_CPE_COMPANY_RUC_INVALID", "La empresa no tiene un RUC válido configurado.", 422, false);
+  }
+
+  const { client } = billingClient(document.company.taxId);
+  const remote = await client.getDocument(resources[document.kind], document.remoteId);
+  const serie = String(remote.serie ?? document.series ?? "").trim().toUpperCase();
+  const correlativo = Number(remote.correlativo ?? document.correlativo);
+  if (!serie || serie.length > 4 || !Number.isInteger(correlativo) || correlativo < 1) {
+    throw new ElectronicBillingError("BILLING_CPE_DATA_INVALID", "La serie o el correlativo del comprobante no permiten realizar la consulta oficial.", 422, false);
+  }
+
+  const result = await client.consultCpe({
+    rucEmisor: document.company.taxId,
+    tipoDoc,
+    serie,
+    correlativo,
+    fechaEmision: officialCpeDate(remote.fecha_emision),
+    monto: officialCpeAmount(remote, document.kind),
+  });
+  const checkedAt = new Date().toISOString();
+  await database.auditLog.create({ data: {
+    companyId: command.companyId,
+    userId: command.userId,
+    module: "electronic-billing",
+    entity: "ElectronicDocument",
+    entityId: document.id,
+    action: "OFFICIAL_CPE_QUERY",
+    afterData: {
+      tipoDoc,
+      serie,
+      correlativo,
+      encontrado: result.encontrado,
+      estadoCp: result.estado_cp ?? null,
+      estadoCpDescripcion: result.estado_cp_descripcion ?? null,
+    },
+  } });
+  return { ...result, checkedAt, local: { kind: document.kind, number: document.number, status: document.status } };
+}
+
 function paymentResource(kind: ElectronicDocumentKind) {
   if (kind === "INVOICE") return "facturas";
   if (kind === "RECEIPT") return "boletas";
@@ -477,14 +559,26 @@ export async function mutateFiscalAdministration(database: PrismaClient, command
 export async function getFiscalDashboard(database: PrismaClient, companyId: string, month?: string) {
   const client = await clientForCompany(database, companyId);
   const query = month ? `?mes=${encodeURIComponent(month)}` : "";
-  const [overview, indicators, sunat, collections, alerts] = await Promise.all([
+  const [overview, indicators, sunat, collections, alerts, monthlySales, branches, currencies, customers, products, recentDocuments] = await Promise.all([
     client.request<Record<string, unknown>>(`panel${query}`),
     client.request<Record<string, unknown>>(`panel/indicadores${query}`),
     client.request<Record<string, unknown>>(`panel/estado-sunat${query}`),
     client.request<Record<string, unknown>>(`panel/cobranzas${query}`),
     client.request<Record<string, unknown>>("panel/alertas"),
+    client.request<Record<string, unknown>>("panel/ventas-mensuales"),
+    client.request<Record<string, unknown>>(`panel/por-sucursal${query}`),
+    client.request<Record<string, unknown>>(`panel/por-moneda${query}`),
+    client.request<Record<string, unknown>>(`panel/clientes${query}`),
+    client.request<Record<string, unknown>>(`panel/productos${query}`),
+    client.request<Record<string, unknown>>("panel/documentos-recientes?limit=20"),
   ]);
-  return { overview, indicators, sunat, collections, alerts };
+  return { overview, indicators, sunat, collections, alerts, monthlySales, branches, currencies, customers, products, recentDocuments };
+}
+
+export async function getSunatServiceMonitor(database: PrismaClient, companyId: string): Promise<SunatServiceMonitor & { checkedAt: string }> {
+  const client = await clientForCompany(database, companyId);
+  const monitor = await client.getSunatMonitor();
+  return { ...monitor, checkedAt: new Date().toISOString() };
 }
 
 export async function getFiscalReference(database: PrismaClient, companyId: string, path: string) {

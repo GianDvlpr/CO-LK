@@ -1,6 +1,6 @@
 "use client";
 
-import { DeleteOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { DeleteOutlined, PlusOutlined, ReloadOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Descriptions, Drawer, Empty, Form, Input, InputNumber, Modal, Select, Space, Spin, Table, Tag, Typography } from "antd";
 import dayjs from "dayjs";
@@ -10,6 +10,16 @@ import { toast } from "sonner";
 type Detail = { document: { id: string; kind: string; status: string; number?: string; series?: string; correlativo?: string; remoteId: string; createdAt: string; sale?: { number: string; customer: { name: string } } | null }; remote: Record<string, unknown> };
 type Payment = { id: number; metodo: string; monto: number; referencia?: string; monto_recibido?: number; vuelto?: number; notas?: string; creado_en?: string };
 type PaymentSummary = { pagos: Payment[]; estado_pago: string; monto_pagado: number; total_documento?: number };
+type OfficialCpe = {
+  encontrado: boolean;
+  mensaje?: string;
+  estado_cp?: string;
+  estado_cp_descripcion?: string;
+  estado_ruc_descripcion?: string;
+  cond_domi_ruc_descripcion?: string;
+  observaciones?: string[];
+  checkedAt: string;
+};
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -89,6 +99,36 @@ function PaymentManagement({ documentId, canManage }: { documentId: string; canM
   </Card>;
 }
 
+function OfficialCpeValidation({ documentId }: { documentId: string }) {
+  const validation = useMutation({
+    mutationFn: () => api<OfficialCpe>(`/api/v1/electronic-billing/documents/${documentId}/cpe`, { method: "POST" }),
+    onError: (error) => toast.error(error.message),
+  });
+  const result = validation.data;
+  const color = result?.estado_cp === "1" ? "green" : result?.estado_cp === "3" ? "blue" : result?.estado_cp === "0" ? "default" : "red";
+  return <Card
+    size="small"
+    title={<Space><SafetyCertificateOutlined />Validación oficial CPE</Space>}
+    extra={<Button type="primary" icon={<SafetyCertificateOutlined />} loading={validation.isPending} onClick={() => validation.mutate()}>Consultar SUNAT</Button>}
+  >
+    {!result ? <Typography.Text type="secondary">Consulta el estado actual del comprobante en la API oficial de SUNAT. Esta verificación es independiente del estado guardado en la plataforma.</Typography.Text> : <Space direction="vertical" size="small" style={{ width: "100%" }}>
+      <Alert
+        type={result.estado_cp === "1" ? "success" : result.encontrado ? "warning" : "error"}
+        showIcon
+        message={result.estado_cp_descripcion ?? (result.encontrado ? "Comprobante encontrado" : "Comprobante no encontrado")}
+        description={result.mensaje}
+      />
+      <Descriptions size="small" bordered column={{ xs: 1, sm: 2 }} items={[
+        { key: "estado", label: "Estado del CPE", children: <Tag color={color}>{result.estado_cp_descripcion ?? "Sin estado"}</Tag> },
+        { key: "fecha", label: "Última consulta", children: dayjs(result.checkedAt).format("DD/MM/YYYY HH:mm:ss") },
+        { key: "ruc", label: "Estado del RUC", children: result.estado_ruc_descripcion ?? "—" },
+        { key: "domicilio", label: "Condición del domicilio", children: result.cond_domi_ruc_descripcion ?? "—" },
+      ]} />
+      {result.observaciones?.length ? <Alert type="info" showIcon message="Observaciones de SUNAT" description={<ul style={{ margin: 0, paddingLeft: 18 }}>{result.observaciones.map((item) => <li key={item}>{item}</li>)}</ul>} /> : null}
+    </Space>}
+  </Card>;
+}
+
 export function ElectronicDocumentDetail({ documentId, open, onClose, canManagePayments }: { documentId?: string; open: boolean; onClose: () => void; canManagePayments: boolean }) {
   const detail = useQuery({ queryKey: ["electronic-document-detail", documentId], queryFn: () => api<Detail>(`/api/v1/electronic-billing/documents/${documentId}`), enabled: open && Boolean(documentId) });
   const remote = detail.data?.remote ?? {};
@@ -96,11 +136,13 @@ export function ElectronicDocumentDetail({ documentId, open, onClose, canManageP
   const objectEntries = Object.entries(remote).filter(([, value]) => Boolean(value) && typeof value === "object" && !Array.isArray(value)) as Array<[string, Record<string, unknown>]>;
   const arrayEntries = Object.entries(remote).filter(([, value]) => Array.isArray(value)) as Array<[string, unknown[]]>;
   const paymentKinds = ["INVOICE", "RECEIPT", "PURCHASE_SETTLEMENT"];
+  const officialCpeKinds = ["INVOICE", "RECEIPT", "PURCHASE_SETTLEMENT", "CREDIT_NOTE", "DEBIT_NOTE"];
   return <Drawer title={detail.data?.document.number ?? "Detalle del documento"} width={920} open={open} onClose={onClose} extra={<Button icon={<ReloadOutlined />} onClick={() => detail.refetch()}>Actualizar</Button>}>
     {detail.isLoading ? <Spin /> : detail.error ? <Alert type="error" showIcon message={detail.error.message} /> : detail.data ? <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Card size="small" title="Documento"><Descriptions bordered size="small" column={{ xs: 1, sm: 2 }} items={scalarEntries.map(([key, value]) => ({ key, label: title(key), children: scalar(value) }))} /></Card>
       {objectEntries.map(([name, value]) => <ObjectSection key={name} name={name} value={value} />)}
       {arrayEntries.filter(([name]) => name !== "pagos").map(([name, value]) => <ArraySection key={name} name={name} value={value} />)}
+      {officialCpeKinds.includes(detail.data.document.kind) ? <OfficialCpeValidation key={detail.data.document.id} documentId={detail.data.document.id} /> : null}
       {paymentKinds.includes(detail.data.document.kind) ? <PaymentManagement documentId={detail.data.document.id} canManage={canManagePayments} /> : null}
     </Space> : <Typography.Text>No se encontró información.</Typography.Text>}
   </Drawer>;

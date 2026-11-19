@@ -123,4 +123,31 @@ describe("ElectronicBillingClient", () => {
     expect(fetcher.mock.calls[0]?.[0]).toBe("http://127.0.0.1:8000/api/v1/sucursales");
     expect(fetcher.mock.calls[0]?.[1]?.headers).toMatchObject({ "X-Api-Key": "key-test", "X-Api-Secret": "secret-test" });
   });
+
+  it("consulta el estado oficial CPE con todos los datos requeridos", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+      estado: "exito",
+      mensaje: "OK",
+      datos: { encontrado: true, estado_cp: "1", estado_cp_descripcion: "ACEPTADO", ruc_emisor: config.companyRuc, tipo_doc: "01", serie: "F004", correlativo: 12 },
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const client = new ElectronicBillingClient(config, fetcher as typeof fetch, async () => undefined);
+
+    const result = await client.consultCpe({ rucEmisor: config.companyRuc, tipoDoc: "01", serie: "F004", correlativo: 12, fechaEmision: "18/11/2026", monto: 118 });
+
+    expect(result.estado_cp_descripcion).toBe("ACEPTADO");
+    expect(fetcher.mock.calls[0]?.[0]).toBe("http://127.0.0.1:8000/api/v1/consultar-cpe?ruc_emisor=20613343769&tipo_doc=01&serie=F004&correlativo=12&fecha_emision=18%2F11%2F2026&monto=118.00");
+  });
+
+  it("normaliza el estado no envuelto del monitor SUNAT", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+      estado: "exito",
+      sunat: { disponible: true, circuit: "closed", fallas: 0, entorno: "production" },
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const client = new ElectronicBillingClient(config, fetcher as typeof fetch, async () => undefined);
+
+    const result = await client.getSunatMonitor();
+
+    expect(result).toEqual({ disponible: true, circuit: "closed", fallas: 0, entorno: "production" });
+    expect(fetcher.mock.calls[0]?.[0]).toBe("http://127.0.0.1:8000/api/v1/sunat/estado");
+  });
 });

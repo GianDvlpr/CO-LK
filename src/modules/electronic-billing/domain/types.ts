@@ -60,6 +60,30 @@ export type RemoteDocument = {
   [key: string]: unknown;
 };
 
+export type OfficialCpeResult = {
+  encontrado: boolean;
+  mensaje?: string;
+  estado_cp?: "0" | "1" | "2" | "3" | "4";
+  estado_cp_descripcion?: string;
+  estado_ruc?: string;
+  estado_ruc_descripcion?: string;
+  cond_domi_ruc?: string;
+  cond_domi_ruc_descripcion?: string;
+  observaciones?: string[];
+  consultado_por_ruc?: string;
+  ruc_emisor: string;
+  tipo_doc: string;
+  serie: string;
+  correlativo: number;
+};
+
+export type SunatServiceMonitor = {
+  disponible: boolean;
+  circuit: "closed" | "open" | "half_open";
+  fallas: number;
+  entorno: string;
+};
+
 export type RemoteSeries = {
   id: number;
   tipo: string;
