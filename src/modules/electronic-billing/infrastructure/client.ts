@@ -9,6 +9,8 @@ import type {
   CreditOrDebitNotePayload,
   InvoicePayload,
   RemoteDocument,
+  RemoteBranch,
+  RemotePaymentSummary,
   RemoteSeries,
 } from "@/modules/electronic-billing/domain/types";
 import type { ElectronicBillingConfig } from "@/modules/electronic-billing/infrastructure/config";
@@ -112,6 +114,11 @@ export class ElectronicBillingClient {
     return envelope.datos;
   }
 
+  async requestRawJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    const response = await this.execute(path, options);
+    return response.json() as Promise<T>;
+  }
+
   async download(path: string): Promise<BinaryDocument> {
     const response = await this.execute(path, { retries: 3 });
     const disposition = response.headers.get("content-disposition") ?? "";
@@ -125,6 +132,14 @@ export class ElectronicBillingClient {
 
   createInvoice(payload: InvoicePayload, idempotencyKey: string) {
     return this.request<RemoteDocument>("facturas", { method: "POST", body: payload, idempotencyKey });
+  }
+
+  createInvoicesBulk(payloads: InvoicePayload[], idempotencyKey: string) {
+    return this.request<{
+      resumen: { total_enviadas: number; creadas: number; errores: number };
+      facturas: Array<RemoteDocument & { indice: number }>;
+      errores: Array<{ indice: number; mensaje: string }>;
+    }>("facturas/masivo", { method: "POST", body: { facturas: payloads }, idempotencyKey });
   }
 
   createReceipt(payload: InvoicePayload, idempotencyKey: string) {
@@ -173,6 +188,62 @@ export class ElectronicBillingClient {
 
   getSeries() {
     return this.request<RemoteSeries[]>("series");
+  }
+
+  getAllSeries() {
+    return this.request<RemoteSeries[]>("series?include_inactive=1");
+  }
+
+  getBranches() {
+    return this.request<RemoteBranch[]>("sucursales");
+  }
+
+  createSeries(payload: Record<string, unknown>) {
+    return this.request<{ creadas: RemoteSeries[]; errores?: string[] }>("series", { method: "POST", body: payload });
+  }
+
+  updateSeries(id: number, payload: Record<string, unknown>) {
+    return this.request<RemoteSeries>(`series/${id}`, { method: "PUT", body: payload });
+  }
+
+  disableSeries(id: number) {
+    return this.request<null>(`series/${id}`, { method: "DELETE" });
+  }
+
+  createBranch(payload: Record<string, unknown>) {
+    return this.request<RemoteBranch>("sucursales", { method: "POST", body: payload });
+  }
+
+  updateBranch(id: number, payload: Record<string, unknown>) {
+    return this.request<RemoteBranch>(`sucursales/${id}`, { method: "PUT", body: payload });
+  }
+
+  deleteBranch(id: number) {
+    return this.request<null>(`sucursales/${id}`, { method: "DELETE" });
+  }
+
+  async getPayments(resource: string, remoteId: string): Promise<RemotePaymentSummary> {
+    const path = `${resource}/${encodeURIComponent(remoteId)}/pagos`;
+    if (resource === "liquidaciones-compra") return this.request<RemotePaymentSummary>(path);
+    const result = await this.requestRawJson<RemotePaymentSummary & { datos?: RemotePaymentSummary["pagos"] }>(path);
+    return { ...result, pagos: result.pagos ?? result.datos ?? [] };
+  }
+
+  async addPayment(resource: string, remoteId: string, payload: Record<string, unknown>): Promise<RemotePaymentSummary> {
+    const path = `${resource}/${encodeURIComponent(remoteId)}/pagos`;
+    if (resource === "liquidaciones-compra") return this.request<RemotePaymentSummary>(path, { method: "POST", body: payload });
+    return this.requestRawJson<RemotePaymentSummary>(path, { method: "POST", body: payload });
+  }
+
+  async deletePayment(resource: string, remoteId: string, paymentId: number): Promise<RemotePaymentSummary> {
+    const path = `${resource}/${encodeURIComponent(remoteId)}/pagos/${paymentId}`;
+    if (resource === "liquidaciones-compra") return this.request<RemotePaymentSummary>(path, { method: "DELETE" });
+    await this.requestRawJson<RemotePaymentSummary>(path, { method: "DELETE" });
+    return this.getPayments(resource, remoteId);
+  }
+
+  lookupDocument(type: "1" | "6", number: string) {
+    return this.request<Record<string, unknown>>(`buscar-documento?tipo=${type}&numero=${encodeURIComponent(number)}`);
   }
 
   resendDocument(resource: string, remoteId: string, action: "enviar" | "reenviar", idempotencyKey: string) {

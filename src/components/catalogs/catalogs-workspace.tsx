@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircleOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, TagsOutlined } from "@ant-design/icons";
+import { CheckCircleOutlined, CloudSyncOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, TagsOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Checkbox, Empty, Form, Input, InputNumber, Modal, Select, Space, Tabs, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -27,7 +27,7 @@ type Common = {
   district?: string | null;
   rucStatus?: string | null;
   rucCondition?: string | null;
-  sunatSource?: "APIS.NET.PE" | null;
+  sunatSource?: "SUNAT_API" | "APIS.NET.PE" | null;
   sunatCheckedAt?: string | null;
   symbol?: string;
   decimalPlaces?: number;
@@ -54,7 +54,7 @@ type CatalogForm = {
   district?: string;
   rucStatus?: string;
   rucCondition?: string;
-  sunatSource?: "APIS.NET.PE";
+  sunatSource?: "SUNAT_API" | "APIS.NET.PE";
   sunatCheckedAt?: string;
   symbol?: string;
   decimalPlaces?: number;
@@ -70,7 +70,7 @@ type RucLookup = {
   department: string | null;
   province: string | null;
   district: string | null;
-  source: "APIS.NET.PE";
+  source: "SUNAT_API" | "APIS.NET.PE";
   consultedAt: string;
 };
 type DniLookup = {
@@ -79,7 +79,7 @@ type DniLookup = {
   firstNames: string | null;
   paternalSurname: string | null;
   maternalSurname: string | null;
-  source: "APIS.NET.PE";
+  source: "SUNAT_API" | "APIS.NET.PE";
   consultedAt: string;
 };
 
@@ -197,6 +197,11 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
         queryClient.invalidateQueries({ queryKey: ["inventory-options"] }),
       ]);
     },
+    onError: (error) => toast.error(error.message),
+  });
+  const syncSunatClients = useMutation({
+    mutationFn: () => api<{ created: number; updated: number }>("/api/v1/electronic-billing/clients/sync", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }),
+    onSuccess: async (result) => { toast.success(`${result.created} cliente(s) importados y ${result.updated} actualizados desde la API SUNAT.`); await refreshCatalogDependencies(); },
     onError: (error) => toast.error(error.message),
   });
   const changeStatus = useMutation({
@@ -320,7 +325,7 @@ export function CatalogsWorkspace({ canManage }: { canManage: boolean }) {
   return <>
     <div className="page-heading">
       <ModuleHeadingIntro title="Catálogos" eyebrow="Maestros" description="Administra los datos base usados por compras, almacén, producción y pedidos." />
-      <Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar código, nombre o documento" /><Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => catalogs.refetch()} /></Tooltip></Space>
+      <Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar código, nombre o documento" />{canManage ? <Button icon={<CloudSyncOutlined />} loading={syncSunatClients.isPending} onClick={() => syncSunatClients.mutate()}>Sincronizar clientes SUNAT</Button> : null}<Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" onClick={() => catalogs.refetch()} /></Tooltip></Space>
     </div>
     <Card className="section-card" title={labels[active].plural} extra={canManage ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo {labels[active].singular}</Button> : null}>
       {catalogs.error ? <Alert type="error" showIcon message={catalogs.error.message} style={{ marginBottom: 16 }} /> : null}

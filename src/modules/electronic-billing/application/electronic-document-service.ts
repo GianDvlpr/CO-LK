@@ -1,9 +1,10 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { nextBusinessCode } from "@/lib/database/business-code";
 import { ElectronicBillingError } from "@/modules/electronic-billing/application/errors";
 import type { CreateElectronicDocumentInput } from "@/modules/electronic-billing/application/schemas";
 import { mapSaleToBillingPayload } from "@/modules/electronic-billing/application/sale-mapper";
 import { isFinalElectronicStatus, nextPollingDate, normalizeRemoteStatus, remoteStatusValue } from "@/modules/electronic-billing/domain/status";
-import type { CreditOrDebitNotePayload, ElectronicDocumentKind, RemoteDocument, RemoteSeries } from "@/modules/electronic-billing/domain/types";
+import type { CreditOrDebitNotePayload, ElectronicDocumentKind, InvoicePayload, RemoteDocument, RemotePaymentSummary, RemoteSeries } from "@/modules/electronic-billing/domain/types";
 import { ElectronicBillingClient } from "@/modules/electronic-billing/infrastructure/client";
 import { readElectronicBillingConfig } from "@/modules/electronic-billing/infrastructure/config";
 
@@ -197,6 +198,65 @@ export async function issueElectronicSale(database: PrismaClient, command: {
   }
 }
 
+export async function issueElectronicSalesBulk(database: PrismaClient, command: {
+  companyId: string;
+  userId: string;
+  saleIds: string[];
+}) {
+  const uniqueIds = [...new Set(command.saleIds)];
+  if (!uniqueIds.length || uniqueIds.length > 100) throw new ElectronicBillingError("BILLING_BULK_INVALID", "Selecciona entre 1 y 100 facturas.", 422, false);
+  const sales = await database.sale.findMany({ where: { id: { in: uniqueIds }, companyId: command.companyId }, include: saleInclude });
+  if (sales.length !== uniqueIds.length) throw new ElectronicBillingError("SALE_NOT_FOUND", "Alguna venta seleccionada no existe.", 404, false);
+  if (sales.some((sale) => sale.status !== "DRAFT" || sale.documentType !== "INVOICE")) {
+    throw new ElectronicBillingError("BILLING_BULK_INVALID", "La emisión masiva solo admite facturas en borrador.", 422, false);
+  }
+  const { config, client } = billingClient(sales[0]!.company.taxId);
+  const availableSeries = activeSeriesForKind(await client.getSeries(), "INVOICE");
+  const payloads: InvoicePayload[] = [];
+  const locals = [];
+  for (const sale of sales) {
+    const preferred = (sale.documentSeries ?? config.series.invoice)?.trim().toUpperCase();
+    const selected = preferred ? availableSeries.find((item) => item.serie.toUpperCase() === preferred) : availableSeries[0];
+    if (!selected) throw new ElectronicBillingError("BILLING_SERIES_INVALID", `La venta ${sale.number} no tiene una serie de factura activa.`, 422, false);
+    payloads.push(mapSaleToBillingPayload(sale, selected.serie));
+    const businessKey = `sale:${sale.id}:primary`;
+    const local = await database.electronicDocument.upsert({
+      where: { companyId_businessKey: { companyId: command.companyId, businessKey } },
+      update: {},
+      create: { companyId: command.companyId, saleId: sale.id, createdById: command.userId, kind: "INVOICE", businessKey, idempotencyKey: `lkinnova:${businessKey}`, status: "SUBMITTING", series: selected.serie },
+    });
+    if (local.remoteId) throw new ElectronicBillingError("BILLING_DUPLICATE", `La venta ${sale.number} ya tiene un documento remoto.`, 409, false);
+    locals.push(local);
+  }
+
+  const batchKey = `lkinnova:bulk:${uniqueIds.slice().sort().join(":")}`;
+  let result: Awaited<ReturnType<ElectronicBillingClient["createInvoicesBulk"]>>;
+  try {
+    result = await client.createInvoicesBulk(payloads, batchKey);
+  } catch (error) {
+    const message = error instanceof Error ? error.message.slice(0, 1_000) : "No se pudo completar la emisión masiva.";
+    await database.electronicDocument.updateMany({ where: { id: { in: locals.map((item) => item.id) }, remoteId: null }, data: { status: "ERROR", lastError: message, attempts: { increment: 1 }, nextCheckAt: null } });
+    throw error;
+  }
+  for (const created of result.facturas) {
+    const sale = sales[created.indice];
+    const local = locals[created.indice];
+    if (!sale || !local) continue;
+    const fields = documentFields(created, local.attempts + 1, true, local);
+    await database.$transaction(async (tx) => {
+      const document = await tx.electronicDocument.update({ where: { id: local.id }, data: fields });
+      await tx.sale.update({ where: { id: sale.id }, data: { status: "ISSUED", documentSeries: fields.series, documentNumber: fields.correlativo } });
+      await tx.auditLog.create({ data: { companyId: command.companyId, userId: command.userId, module: "sales", entity: "Sale", entityId: sale.id, action: "ISSUE_ELECTRONIC_BULK", afterData: { documentId: document.id, number: fields.number, status: fields.status } } });
+      await tx.outboxEvent.create({ data: { companyId: command.companyId, topic: `private-company-${command.companyId}`, eventName: "electronic-document.submitted.v1", aggregateId: document.id, payload: { electronicDocumentId: document.id, saleId: sale.id, kind: "INVOICE", status: fields.status } } });
+    });
+  }
+  for (const failure of result.errores) {
+    const local = locals[failure.indice];
+    if (local) await database.electronicDocument.update({ where: { id: local.id }, data: { status: "ERROR", lastError: failure.mensaje.slice(0, 1_000), attempts: { increment: 1 }, nextCheckAt: null } });
+  }
+  return result;
+}
+
 function seriesForKind(config: ReturnType<typeof readElectronicBillingConfig>, kind: CreateElectronicDocumentInput["kind"]) {
   const definitions = {
     CREDIT_NOTE: [config.series.creditNote, "nota de crédito"],
@@ -220,6 +280,271 @@ function activeSeriesForKind(series: RemoteSeries[], kind: ElectronicDocumentKin
 export async function getRemoteBillingSeries(companyTaxId: string | null) {
   const { client } = billingClient(companyTaxId);
   return client.getSeries();
+}
+
+function extractRemotePage(value: unknown) {
+  if (Array.isArray(value)) return { items: value as RemoteDocument[], currentPage: 1, lastPage: 1 };
+  if (!value || typeof value !== "object") return { items: [] as RemoteDocument[], currentPage: 1, lastPage: 1 };
+  const record = value as Record<string, unknown>;
+  const nested = record.datos;
+  const items = Array.isArray(nested) ? nested as RemoteDocument[]
+    : Array.isArray(record.data) ? record.data as RemoteDocument[]
+      : [];
+  const pagination = (record.paginacion ?? record.meta) as Record<string, unknown> | undefined;
+  return {
+    items,
+    currentPage: Number(pagination?.pagina_actual ?? pagination?.current_page ?? 1),
+    lastPage: Number(pagination?.ultima_pagina ?? pagination?.last_page ?? 1),
+  };
+}
+
+function remoteKind(collectionKind: ElectronicDocumentKind, remote: RemoteDocument): ElectronicDocumentKind {
+  if (collectionKind === "SENDER_GUIDE" && String(remote.tipo_documento ?? "09") === "31") return "CARRIER_GUIDE";
+  if (collectionKind === "VOIDED_DOCUMENT" && String(remote.identifier ?? "").startsWith("RR-")) return "REVERSION";
+  return collectionKind;
+}
+
+const remoteCollections: Array<{ kind: ElectronicDocumentKind; resource: string }> = [
+  { kind: "INVOICE", resource: "facturas" },
+  { kind: "RECEIPT", resource: "boletas" },
+  { kind: "CREDIT_NOTE", resource: "notas-credito" },
+  { kind: "DEBIT_NOTE", resource: "notas-debito" },
+  { kind: "SENDER_GUIDE", resource: "guias-remision" },
+  { kind: "RETENTION", resource: "retenciones" },
+  { kind: "PERCEPTION", resource: "percepciones" },
+  { kind: "PURCHASE_SETTLEMENT", resource: "liquidaciones-compra" },
+  { kind: "DAILY_SUMMARY", resource: "resumenes" },
+  { kind: "VOIDED_DOCUMENT", resource: "anulaciones" },
+];
+
+export async function syncRemoteElectronicDocuments(database: PrismaClient, command: { companyId: string; userId: string }) {
+  const company = await database.company.findUnique({ where: { id: command.companyId }, select: { taxId: true } });
+  if (!company) throw new ElectronicBillingError("COMPANY_NOT_FOUND", "La empresa no existe.", 404, false);
+  const { client } = billingClient(company.taxId);
+  let created = 0;
+  let updated = 0;
+  const errors: Array<{ resource: string; message: string }> = [];
+
+  for (const collection of remoteCollections) {
+    try {
+      let page = 1;
+      let lastPage = 1;
+      do {
+        const separator = collection.resource.includes("?") ? "&" : "?";
+        const value = await client.request<unknown>(`${collection.resource}${separator}pagina=${page}&page=${page}&por_pagina=100&per_page=100`);
+        const remotePage = extractRemotePage(value);
+        lastPage = Math.max(remotePage.lastPage, 1);
+        for (const remote of remotePage.items) {
+          const kind = remoteKind(collection.kind, remote);
+          const remoteId = remoteDocumentId(remote);
+          const existing = await database.electronicDocument.findFirst({ where: { companyId: command.companyId, kind, remoteId } });
+          const fields = documentFields(remote, existing?.attempts ?? 0, false, existing ?? undefined);
+          if (existing) {
+            await database.electronicDocument.update({ where: { id: existing.id }, data: fields });
+            updated += 1;
+          } else {
+            await database.electronicDocument.create({
+              data: {
+                companyId: command.companyId,
+                createdById: command.userId,
+                kind,
+                businessKey: `remote:${kind}:${remoteId}`,
+                idempotencyKey: `lkinnova:remote:${kind}:${remoteId}`,
+                ...fields,
+              },
+            });
+            created += 1;
+          }
+        }
+        page += 1;
+      } while (page <= lastPage && page <= 100);
+    } catch (error) {
+      errors.push({ resource: collection.resource, message: error instanceof Error ? error.message : "Error desconocido" });
+    }
+  }
+
+  await database.auditLog.create({ data: {
+    companyId: command.companyId, userId: command.userId, module: "electronic-billing",
+    entity: "ElectronicDocument", entityId: command.companyId, action: "SYNC_REMOTE",
+    afterData: { created, updated, errors },
+  } });
+  return { created, updated, errors };
+}
+
+export async function getElectronicDocumentDetail(database: PrismaClient, companyId: string, documentId: string) {
+  const document = await database.electronicDocument.findFirst({
+    where: { id: documentId, companyId },
+    include: {
+      company: { select: { taxId: true } },
+      sale: { select: { id: true, number: true, customer: { select: { name: true } } } },
+      createdBy: { select: { name: true, username: true } },
+    },
+  });
+  if (!document?.remoteId) throw new ElectronicBillingError("BILLING_DOCUMENT_NOT_FOUND", "El documento remoto no está disponible.", 404, false);
+  const { client } = billingClient(document.company.taxId);
+  const statusEndpoint = document.kind === "DAILY_SUMMARY";
+  const remote = await client.getDocumentStatus(resources[document.kind], document.remoteId, statusEndpoint);
+  return { document, remote };
+}
+
+function paymentResource(kind: ElectronicDocumentKind) {
+  if (kind === "INVOICE") return "facturas";
+  if (kind === "RECEIPT") return "boletas";
+  if (kind === "PURCHASE_SETTLEMENT") return "liquidaciones-compra";
+  throw new ElectronicBillingError("BILLING_PAYMENTS_NOT_SUPPORTED", "Este tipo de documento no admite pagos en la plataforma SUNAT.", 422, false);
+}
+
+async function paymentDocument(database: PrismaClient, companyId: string, documentId: string) {
+  const document = await database.electronicDocument.findFirst({
+    where: { id: documentId, companyId },
+    include: { company: { select: { taxId: true } } },
+  });
+  if (!document?.remoteId) throw new ElectronicBillingError("BILLING_DOCUMENT_NOT_FOUND", "El documento remoto no está disponible.", 404, false);
+  return document;
+}
+
+export async function getElectronicDocumentPayments(database: PrismaClient, companyId: string, documentId: string): Promise<RemotePaymentSummary> {
+  const document = await paymentDocument(database, companyId, documentId);
+  const { client } = billingClient(document.company.taxId);
+  return client.getPayments(paymentResource(document.kind), document.remoteId!);
+}
+
+export async function addElectronicDocumentPayment(database: PrismaClient, command: {
+  companyId: string; userId: string; documentId: string; payment: Record<string, unknown>;
+}) {
+  const document = await paymentDocument(database, command.companyId, command.documentId);
+  const { client } = billingClient(document.company.taxId);
+  const result = await client.addPayment(paymentResource(document.kind), document.remoteId!, command.payment);
+  await database.auditLog.create({ data: {
+    companyId: command.companyId, userId: command.userId, module: "electronic-billing",
+    entity: "ElectronicDocument", entityId: document.id, action: "REMOTE_PAYMENT_CREATE",
+    afterData: { remoteId: document.remoteId, metodo: command.payment.metodo, monto: command.payment.monto } as Prisma.InputJsonValue,
+  } });
+  return result;
+}
+
+export async function deleteElectronicDocumentPayment(database: PrismaClient, command: {
+  companyId: string; userId: string; documentId: string; paymentId: number;
+}) {
+  const document = await paymentDocument(database, command.companyId, command.documentId);
+  const { client } = billingClient(document.company.taxId);
+  const result = await client.deletePayment(paymentResource(document.kind), document.remoteId!, command.paymentId);
+  await database.auditLog.create({ data: {
+    companyId: command.companyId, userId: command.userId, module: "electronic-billing",
+    entity: "ElectronicDocument", entityId: document.id, action: "REMOTE_PAYMENT_DELETE",
+    afterData: { remoteId: document.remoteId, paymentId: command.paymentId },
+  } });
+  return result;
+}
+
+async function clientForCompany(database: PrismaClient, companyId: string) {
+  const company = await database.company.findUnique({ where: { id: companyId }, select: { taxId: true } });
+  if (!company) throw new ElectronicBillingError("COMPANY_NOT_FOUND", "La empresa no existe.", 404, false);
+  return billingClient(company.taxId).client;
+}
+
+export async function getFiscalAdministration(database: PrismaClient, companyId: string) {
+  const client = await clientForCompany(database, companyId);
+  const [series, branches] = await Promise.all([client.getAllSeries(), client.getBranches()]);
+  return { series, branches };
+}
+
+export async function mutateFiscalAdministration(database: PrismaClient, command: {
+  companyId: string; userId: string; entity: "series" | "branches"; action: "create" | "update" | "delete"; id?: number; payload?: Record<string, unknown>;
+}) {
+  const client = await clientForCompany(database, command.companyId);
+  let result: unknown;
+  if (command.entity === "series") {
+    if (command.action === "create") result = await client.createSeries(command.payload ?? {});
+    else if (command.action === "update" && command.id) result = await client.updateSeries(command.id, command.payload ?? {});
+    else if (command.action === "delete" && command.id) result = await client.disableSeries(command.id);
+    else throw new ElectronicBillingError("BILLING_ADMIN_INVALID", "Operación de serie inválida.", 400, false);
+  } else {
+    if (command.action === "create") result = await client.createBranch(command.payload ?? {});
+    else if (command.action === "update" && command.id) result = await client.updateBranch(command.id, command.payload ?? {});
+    else if (command.action === "delete" && command.id) result = await client.deleteBranch(command.id);
+    else throw new ElectronicBillingError("BILLING_ADMIN_INVALID", "Operación de sucursal inválida.", 400, false);
+  }
+  await database.auditLog.create({ data: {
+    companyId: command.companyId, userId: command.userId, module: "electronic-billing",
+    entity: command.entity === "series" ? "RemoteSeries" : "RemoteBranch",
+    entityId: String(command.id ?? "new"), action: `REMOTE_${command.action.toUpperCase()}`,
+    afterData: { payload: command.payload ?? null } as Prisma.InputJsonValue,
+  } });
+  return result;
+}
+
+export async function getFiscalDashboard(database: PrismaClient, companyId: string, month?: string) {
+  const client = await clientForCompany(database, companyId);
+  const query = month ? `?mes=${encodeURIComponent(month)}` : "";
+  const [overview, indicators, sunat, collections, alerts] = await Promise.all([
+    client.request<Record<string, unknown>>(`panel${query}`),
+    client.request<Record<string, unknown>>(`panel/indicadores${query}`),
+    client.request<Record<string, unknown>>(`panel/estado-sunat${query}`),
+    client.request<Record<string, unknown>>(`panel/cobranzas${query}`),
+    client.request<Record<string, unknown>>("panel/alertas"),
+  ]);
+  return { overview, indicators, sunat, collections, alerts };
+}
+
+export async function getFiscalReference(database: PrismaClient, companyId: string, path: string) {
+  const client = await clientForCompany(database, companyId);
+  return client.request<unknown>(path);
+}
+
+export async function downloadFiscalExport(database: PrismaClient, companyId: string, query: string) {
+  const client = await clientForCompany(database, companyId);
+  return client.download(`comprobantes/exportar-zip${query}`);
+}
+
+export async function lookupRemoteTaxpayer(database: PrismaClient, companyId: string, type: "1" | "6", number: string) {
+  const client = await clientForCompany(database, companyId);
+  return client.lookupDocument(type, number);
+}
+
+export async function syncRemoteClients(database: PrismaClient, command: { companyId: string; userId: string }) {
+  const client = await clientForCompany(database, command.companyId);
+  let page = 1;
+  let lastPage = 1;
+  let created = 0;
+  let updated = 0;
+  do {
+    const value = await client.request<unknown>(`clientes?page=${page}&por_pagina=100`);
+    const remotePage = extractRemotePage(value);
+    lastPage = Math.max(remotePage.lastPage, 1);
+    for (const raw of remotePage.items) {
+      const taxId = String(raw.numero_documento ?? "").trim();
+      const name = String(raw.razon_social ?? "").trim();
+      const remoteType = String(raw.tipo_documento ?? "");
+      if (!taxId || !name || !["1", "6"].includes(remoteType)) continue;
+      const existing = await database.customer.findFirst({ where: { companyId: command.companyId, taxId } });
+      const data = {
+        name,
+        documentType: remoteType === "1" ? "DNI" as const : "RUC" as const,
+        email: typeof raw.email === "string" && raw.email.trim() ? raw.email.trim() : existing?.email ?? null,
+        phone: typeof raw.telefono === "string" && raw.telefono.trim() ? raw.telefono.trim() : existing?.phone ?? null,
+        fiscalAddress: typeof raw.direccion === "string" && raw.direccion.trim() ? raw.direccion.trim() : existing?.fiscalAddress ?? null,
+        ubigeo: typeof raw.ubigeo === "string" && raw.ubigeo.trim() ? raw.ubigeo.trim() : existing?.ubigeo ?? null,
+        sunatSource: "SUNAT_API",
+        sunatCheckedAt: new Date(),
+      };
+      if (existing) {
+        await database.customer.update({ where: { id: existing.id }, data });
+        updated += 1;
+      } else {
+        await database.$transaction(async (tx) => {
+          await tx.customer.create({ data: { companyId: command.companyId, code: await nextBusinessCode(tx, command.companyId, "CUSTOMER"), taxId, ...data } });
+        });
+        created += 1;
+      }
+    }
+    page += 1;
+  } while (page <= lastPage && page <= 100);
+  await database.$transaction([
+    database.auditLog.create({ data: { companyId: command.companyId, userId: command.userId, module: "catalogs", entity: "Customer", entityId: command.companyId, action: "SYNC_SUNAT_CLIENTS", afterData: { created, updated } } }),
+    database.outboxEvent.create({ data: { companyId: command.companyId, topic: `private-company-${command.companyId}`, eventName: "catalog.customers-synced.v1", aggregateId: command.companyId, payload: { created, updated } } }),
+  ]);
+  return { created, updated };
 }
 
 async function submitStandalone(client: ElectronicBillingClient, kind: CreateElectronicDocumentInput["kind"], payload: Record<string, unknown>, idempotencyKey: string) {

@@ -1,8 +1,8 @@
 "use client";
 
-import { DownloadOutlined, InfoCircleOutlined, PlusOutlined, RedoOutlined, ReloadOutlined, SendOutlined, StopOutlined } from "@ant-design/icons";
+import { CloudSyncOutlined, DownloadOutlined, EyeOutlined, InfoCircleOutlined, PlusOutlined, RedoOutlined, ReloadOutlined, SendOutlined, StopOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Form, Modal, Segmented, Select, Space, Tag, Tooltip, Typography } from "antd";
+import { Alert, Button, Card, DatePicker, Empty, Form, Modal, Segmented, Select, Space, Tabs, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { useMemo, useState } from "react";
@@ -11,6 +11,10 @@ import { ModuleHeadingIntro } from "@/components/common/module-heading-intro";
 import { ResponsiveTable as Table } from "@/components/common/responsive-table";
 import { TableSearch, matchesSearch } from "@/components/common/table-search";
 import { ElectronicDocumentFormFields, electronicDocumentInitialValues, type ElectronicDocumentKind } from "@/components/electronic-billing/electronic-document-form";
+import { ElectronicDocumentDetail } from "@/components/electronic-billing/electronic-document-detail";
+import { FiscalAdministration } from "@/components/electronic-billing/fiscal-administration";
+import { FiscalDashboard } from "@/components/electronic-billing/fiscal-dashboard";
+import { FiscalReferenceCatalogs } from "@/components/electronic-billing/fiscal-reference-catalogs";
 
 type Kind = ElectronicDocumentKind;
 type Document = { id: string; kind: Kind | "INVOICE" | "RECEIPT"; status: string; remoteId?: string; number?: string; series?: string; correlativo?: string; remoteStatus?: string; sunatCode?: string; sunatDescription?: string; lastError?: string; ticket?: string; createdAt: string; submittedAt?: string; sale?: { number: string; customer: { name: string } } | null; createdBy: { name: string; username: string } };
@@ -59,12 +63,16 @@ function cleanPayload(value: unknown): unknown {
   return value;
 }
 
-export function ElectronicBillingWorkspace({ permissions }: { permissions: string[] }) {
+export function ElectronicBillingWorkspace({ permissions, isSuperadmin }: { permissions: string[]; isSuperadmin: boolean }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [operationKey, setOperationKey] = useState("");
   const [search, setSearch] = useState("");
   const [view, setView] = useState<View>("ALL");
+  const [detailId, setDetailId] = useState<string>();
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportRange, setExportRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
+  const [exportFormat, setExportFormat] = useState("ambos");
   const [form] = Form.useForm<FormValue>();
   const selectedKind = Form.useWatch("kind", form) ?? "CREDIT_NOTE";
   const records = useQuery({ queryKey: ["electronic-documents"], queryFn: () => api<Data>("/api/v1/electronic-billing/documents") });
@@ -86,6 +94,11 @@ export function ElectronicBillingWorkspace({ permissions }: { permissions: strin
   const refresh = useMutation({
     mutationFn: (id: string) => api<Document>(`/api/v1/electronic-billing/documents/${id}/refresh`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }),
     onSuccess: async () => { toast.success("Estado actualizado."); await queryClient.invalidateQueries({ queryKey: ["electronic-documents"] }); },
+    onError: (error) => toast.error(error.message),
+  });
+  const synchronize = useMutation({
+    mutationFn: () => api<{ created: number; updated: number; errors: Array<{ resource: string; message: string }> }>("/api/v1/electronic-billing/sync", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }),
+    onSuccess: async (result) => { toast.success(`${result.created} documento(s) importados y ${result.updated} actualizados.${result.errors.length ? ` ${result.errors.length} recurso(s) no pudieron sincronizarse.` : ""}`); await queryClient.invalidateQueries({ queryKey: ["electronic-documents"] }); },
     onError: (error) => toast.error(error.message),
   });
   const resend = useMutation({
@@ -132,6 +145,7 @@ export function ElectronicBillingWorkspace({ permissions }: { permissions: strin
     { title: "Respuesta SUNAT", render: (_, item) => item.lastError ? <Typography.Text type="danger">{item.lastError}</Typography.Text> : <>{item.sunatCode ? <Tag>{item.sunatCode}</Tag> : null}{item.sunatDescription ?? (item.ticket ? `Ticket ${item.ticket}` : "—")}</> },
     { title: "Fecha", width: 145, render: (_, item) => dayjs(item.submittedAt ?? item.createdAt).format("DD/MM/YYYY HH:mm") },
     { title: "Acciones", width: 285, render: (_, item) => <Space wrap>
+      {item.remoteId ? <Button size="small" icon={<EyeOutlined />} onClick={() => setDetailId(item.id)}>Detalle</Button> : null}
       {item.remoteId ? <Tooltip title="Consultar estado"><Button size="small" icon={<ReloadOutlined />} loading={refresh.isPending && refresh.variables === item.id} onClick={() => refresh.mutate(item.id)}>Estado</Button></Tooltip> : null}
       {item.remoteId && ["PENDING", "REJECTED", "ERROR"].includes(item.status) ? <Button size="small" icon={<RedoOutlined />} loading={resend.isPending && resend.variables === item.id} onClick={() => Modal.confirm({ title: "¿Reenviar este documento?", content: "Se realizará un nuevo intento con el mismo documento y numeración.", okText: "Reenviar", cancelText: "Cancelar", onOk: () => resend.mutateAsync(item.id) })}>Reenviar</Button> : null}
       {canCancel(item) ? <Button size="small" danger icon={<StopOutlined />} onClick={() => cancellationAction(item)}>{["RETENTION", "PERCEPTION"].includes(item.kind) ? "Revertir" : "Dar de baja"}</Button> : null}
@@ -144,9 +158,14 @@ export function ElectronicBillingWorkspace({ permissions }: { permissions: strin
   const selectedSeriesType = seriesTypeByKind[selectedKind];
   const selectedSeriesMissing = Boolean(configuration?.enabled && selectedSeriesType && !availableForSelected.length);
   return <>
-    <div className="page-heading"><ModuleHeadingIntro title="Comprobantes SUNAT" eyebrow="Facturación electrónica" description="Emite, consulta, reenvía y gestiona bajas, reversiones y resúmenes de boletas." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar documento, estado o cliente" /><Tooltip title="Actualizar documentos y sincronizar series"><Button icon={<ReloadOutlined />} loading={records.isFetching} onClick={() => records.refetch()}>Sincronizar</Button></Tooltip></Space></div>
+    <div className="page-heading"><ModuleHeadingIntro title="Comprobantes SUNAT" eyebrow="Facturación electrónica" description="Emite, sincroniza y administra documentos, pagos, catálogos y alertas fiscales desde LKINNOVA." /><Space wrap className="module-actions"><TableSearch value={search} onChange={setSearch} placeholder="Buscar documento, estado o cliente" /><Button icon={<DownloadOutlined />} onClick={() => setExportOpen(true)}>Exportar ZIP</Button><Button icon={<CloudSyncOutlined />} loading={synchronize.isPending} disabled={!permissions.includes("sales.issue")} onClick={() => synchronize.mutate()}>Sincronizar API</Button><Tooltip title="Actualizar vista y series"><Button icon={<ReloadOutlined />} loading={records.isFetching} onClick={() => records.refetch()} /></Tooltip></Space></div>
     {!configuration?.enabled && !records.isLoading ? <Alert type="warning" showIcon message="La facturación electrónica aún no está configurada para esta empresa." description="Configura la URL, credenciales y RUC en el servidor. Las credenciales nunca se envían al navegador." style={{ marginBottom: 16 }} /> : null}
     {configuration?.seriesError ? <Alert type="warning" showIcon message="No se pudieron sincronizar las series con la plataforma SUNAT." description={configuration.seriesError} style={{ marginBottom: 16 }} action={<Button size="small" onClick={() => records.refetch()}>Reintentar</Button>} /> : null}
+    <Tabs defaultActiveKey="dashboard" items={[
+      { key: "dashboard", label: "Panel fiscal y alertas", children: <FiscalDashboard /> },
+      { key: "reference", label: "Catálogos SUNAT y ubigeo", children: <FiscalReferenceCatalogs /> },
+      ...(isSuperadmin ? [{ key: "administration", label: "Series y sucursales", children: <FiscalAdministration /> }] : []),
+    ]} style={{ marginBottom: 20 }} />
     <Card className="section-card" title="Documentos electrónicos" extra={<Space>{configuration?.enabled ? <Tooltip title={`${configuration.availableSeries.length} serie(s) activa(s) sincronizada(s) desde la API SUNAT.`}><Tag icon={<InfoCircleOutlined />}>Series sincronizadas: {configuration.availableSeries.length}</Tag></Tooltip> : null}{permissions.includes("sales.issue") ? <Button type="primary" icon={<PlusOutlined />} disabled={!configuration?.enabled} onClick={() => openCreate()}>Nuevo documento</Button> : null}</Space>}>
       {records.error ? <Alert type="error" showIcon message={records.error.message} style={{ marginBottom: 16 }} /> : null}
       <Segmented<View> value={view} onChange={setView} options={[{ value: "ALL", label: "Todos" }, { value: "ATTENTION", label: "Pendientes y errores" }, { value: "CANCELLATIONS", label: "Bajas y reversiones" }, { value: "SUMMARIES", label: "Resúmenes de boletas" }]} style={{ marginBottom: 16 }} />
@@ -160,5 +179,9 @@ export function ElectronicBillingWorkspace({ permissions }: { permissions: strin
         <ElectronicDocumentFormFields kind={selectedKind} />
       </Form>
     </Modal>
+    <Modal title="Exportar comprobantes" open={exportOpen} onCancel={() => setExportOpen(false)} footer={<Space><Button onClick={() => setExportOpen(false)}>Cancelar</Button><Button type="primary" icon={<DownloadOutlined />} disabled={!exportRange} href={exportRange ? `/api/v1/electronic-billing/export?from=${exportRange[0].format("YYYY-MM-DD")}&to=${exportRange[1].format("YYYY-MM-DD")}&format=${exportFormat}` : undefined} onClick={() => setExportOpen(false)}>Descargar ZIP</Button></Space>}>
+      <Space direction="vertical" style={{ width: "100%" }}><Typography.Text>Selecciona un rango máximo de un año y el contenido del archivo.</Typography.Text><DatePicker.RangePicker value={exportRange} onChange={(value) => setExportRange(value ? [value[0]!, value[1]!] : null)} style={{ width: "100%" }} /><Select value={exportFormat} onChange={setExportFormat} options={[{ value: "xml", label: "Solo XML" }, { value: "pdf", label: "Solo PDF" }, { value: "ambos", label: "XML y PDF" }]} style={{ width: "100%" }} /></Space>
+    </Modal>
+    <ElectronicDocumentDetail documentId={detailId} open={Boolean(detailId)} onClose={() => setDetailId(undefined)} canManagePayments={permissions.includes("sales.payment")} />
   </>;
 }

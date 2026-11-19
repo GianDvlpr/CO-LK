@@ -101,4 +101,26 @@ describe("ElectronicBillingClient", () => {
     expect(fetcher.mock.calls[0]?.[0]).toBe("http://127.0.0.1:8000/api/v1/facturas/10/reenviar");
     expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ method: "POST" });
   });
+
+  it("normaliza la respuesta no envuelta de pagos de facturas", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+      datos: [{ id: 7, metodo: "transferencia", monto: 120 }], estado_pago: "parcial", monto_pagado: 120, total_documento: 300,
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const client = new ElectronicBillingClient(config, fetcher as typeof fetch, async () => undefined);
+
+    const result = await client.getPayments("facturas", "22");
+
+    expect(result.pagos).toEqual([{ id: 7, metodo: "transferencia", monto: 120 }]);
+    expect(result.estado_pago).toBe("parcial");
+  });
+
+  it("consulta sucursales sin exponer las credenciales en la URL", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ estado: "exito", mensaje: "OK", datos: [] }), { status: 200, headers: { "content-type": "application/json" } }));
+    const client = new ElectronicBillingClient(config, fetcher as typeof fetch, async () => undefined);
+
+    await client.getBranches();
+
+    expect(fetcher.mock.calls[0]?.[0]).toBe("http://127.0.0.1:8000/api/v1/sucursales");
+    expect(fetcher.mock.calls[0]?.[1]?.headers).toMatchObject({ "X-Api-Key": "key-test", "X-Api-Secret": "secret-test" });
+  });
 });

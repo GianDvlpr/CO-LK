@@ -23,7 +23,7 @@ const taxpayerFields = {
   district: optionalText(100),
   rucStatus: optionalText(50),
   rucCondition: optionalText(50),
-  sunatSource: z.literal("APIS.NET.PE").optional(),
+  sunatSource: z.enum(["SUNAT_API", "APIS.NET.PE"]).optional(),
   sunatCheckedAt: z.string().datetime().transform((value) => new Date(value)).optional(),
 };
 const createSchema = z.discriminatedUnion("type", [

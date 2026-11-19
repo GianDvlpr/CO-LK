@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { catalogUpdateSchema } from "@/modules/catalogs/domain/catalog-update-schema";
 
 describe("validación de edición de catálogos", () => {
+  it("acepta la API SUNAT como fuente primaria de consulta", () => {
+    expect(catalogUpdateSchema.safeParse({ name: "Cliente SUNAT", documentType: "RUC", taxId: "20131312955", sunatSource: "SUNAT_API" }).success).toBe(true);
+  });
+
   it("acepta los contactos opcionales vacíos que PostgreSQL devuelve como null", () => {
     const parsed = catalogUpdateSchema.safeParse({
       name: "Proveedor sin datos de contacto",

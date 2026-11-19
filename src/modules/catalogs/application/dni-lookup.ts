@@ -7,7 +7,7 @@ export type DniLookupResult = {
   firstNames: string | null;
   paternalSurname: string | null;
   maternalSurname: string | null;
-  source: "APIS.NET.PE";
+  source: "SUNAT_API" | "APIS.NET.PE";
   consultedAt: string;
 };
 

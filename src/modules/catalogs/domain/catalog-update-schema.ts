@@ -16,7 +16,7 @@ export const catalogUpdateSchema = z.object({
   district: optionalContactText(100),
   rucStatus: optionalContactText(50),
   rucCondition: optionalContactText(50),
-  sunatSource: z.literal("APIS.NET.PE").nullish().transform((value) => value ?? undefined),
+  sunatSource: z.enum(["SUNAT_API", "APIS.NET.PE"]).nullish().transform((value) => value ?? undefined),
   sunatCheckedAt: optionalCheckedAt,
   symbol: z.string().trim().max(20).optional(),
   decimalPlaces: z.number().int().min(0).max(6).optional(),

@@ -11,7 +11,7 @@ export type RucLookupResult = {
   department: string | null;
   province: string | null;
   district: string | null;
-  source: "APIS.NET.PE";
+  source: "SUNAT_API" | "APIS.NET.PE";
   consultedAt: string;
 };
 

@@ -3,5 +3,5 @@ import { requirePermission } from "@/modules/auth/application/session-service";
 
 export default async function ElectronicBillingPage() {
   const user = await requirePermission("sales.read");
-  return <ElectronicBillingWorkspace permissions={user.permissions} />;
+  return <ElectronicBillingWorkspace permissions={user.permissions} isSuperadmin={user.roles.includes("SUPERADMIN")} />;
 }

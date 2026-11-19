@@ -71,6 +71,37 @@ export type RemoteSeries = {
   activo: boolean;
 };
 
+export type RemoteBranch = {
+  id: number;
+  nombre: string;
+  cod_local: string;
+  direccion: string;
+  ubigeo: string;
+  telefono: string | null;
+  email: string | null;
+  es_principal: boolean;
+  activo: boolean;
+  total_series: number;
+};
+
+export type RemotePayment = {
+  id: number;
+  metodo: string;
+  monto: number;
+  referencia?: string | null;
+  monto_recibido?: number | null;
+  vuelto?: number | null;
+  notas?: string | null;
+  creado_en?: string | null;
+};
+
+export type RemotePaymentSummary = {
+  pagos: RemotePayment[];
+  estado_pago: string;
+  monto_pagado: number;
+  total_documento?: number;
+};
+
 export type BillingParty = {
   tipo_doc: "0" | "1" | "4" | "6" | "7";
   num_doc: string;
