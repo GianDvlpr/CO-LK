@@ -4,7 +4,7 @@ import { ElectronicBillingError } from "@/modules/electronic-billing/application
 import type { CreateElectronicDocumentInput } from "@/modules/electronic-billing/application/schemas";
 import { mapSaleToBillingPayload } from "@/modules/electronic-billing/application/sale-mapper";
 import { isFinalElectronicStatus, nextPollingDate, normalizeRemoteStatus, remoteStatusValue } from "@/modules/electronic-billing/domain/status";
-import type { CreditOrDebitNotePayload, ElectronicDocumentKind, InvoicePayload, OfficialCpeResult, RemoteDocument, RemotePaymentSummary, RemoteSeries, SunatServiceMonitor } from "@/modules/electronic-billing/domain/types";
+import type { BillingPdfFormat, CreditOrDebitNotePayload, ElectronicDocumentKind, FiscalReportName, InvoicePayload, OfficialCpeResult, RemoteDocument, RemotePaymentSummary, RemoteSeries, SunatServiceMonitor } from "@/modules/electronic-billing/domain/types";
 import { ElectronicBillingClient } from "@/modules/electronic-billing/infrastructure/client";
 import { readElectronicBillingConfig } from "@/modules/electronic-billing/infrastructure/config";
 
@@ -591,6 +591,16 @@ export async function downloadFiscalExport(database: PrismaClient, companyId: st
   return client.download(`comprobantes/exportar-zip${query}`);
 }
 
+export async function getFiscalReport(database: PrismaClient, companyId: string, report: FiscalReportName, query: string) {
+  const client = await clientForCompany(database, companyId);
+  return client.getFiscalReport(report, query);
+}
+
+export async function downloadFiscalReport(database: PrismaClient, companyId: string, report: FiscalReportName, query: string) {
+  const client = await clientForCompany(database, companyId);
+  return client.downloadFiscalReport(report, query);
+}
+
 export async function lookupRemoteTaxpayer(database: PrismaClient, companyId: string, type: "1" | "6", number: string) {
   const client = await clientForCompany(database, companyId);
   return client.lookupDocument(type, number);
@@ -840,7 +850,7 @@ export async function reconcileElectronicDocuments(database: PrismaClient, limit
   return { examined: pending.length, results };
 }
 
-export async function downloadElectronicArtifact(database: PrismaClient, companyId: string, documentId: string, artifact: "pdf" | "xml" | "cdr", format?: string) {
+export async function downloadElectronicArtifact(database: PrismaClient, companyId: string, documentId: string, artifact: "pdf" | "xml" | "cdr", format?: BillingPdfFormat) {
   const document = await database.electronicDocument.findFirst({
     where: { id: documentId, companyId },
     include: { company: { select: { taxId: true } } },

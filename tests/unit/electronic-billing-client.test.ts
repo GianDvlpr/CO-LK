@@ -150,4 +150,37 @@ describe("ElectronicBillingClient", () => {
     expect(result).toEqual({ disponible: true, circuit: "closed", fallas: 0, entorno: "production" });
     expect(fetcher.mock.calls[0]?.[0]).toBe("http://127.0.0.1:8000/api/v1/sunat/estado");
   });
+
+  it("solicita el PDF con el formato de impresión indicado", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(new Uint8Array([1, 2, 3]), {
+      status: 200,
+      headers: {
+        "content-type": "application/pdf",
+        "content-disposition": 'attachment; filename="F004-12.pdf"',
+      },
+    }));
+    const client = new ElectronicBillingClient(config, fetcher as typeof fetch, async () => undefined);
+
+    const result = await client.downloadArtifact("facturas", "12", "pdf", "ticket-80");
+
+    expect(result.contentType).toBe("application/pdf");
+    expect(result.fileName).toBe("F004-12.pdf");
+    expect(fetcher.mock.calls[0]?.[0]).toBe("http://127.0.0.1:8000/api/v1/facturas/12/pdf?format=ticket-80");
+  });
+
+  it("consulta y descarga reportes fiscales con los filtros indicados", async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) => String(input).includes("formato=pdf")
+      ? new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "application/pdf", "content-disposition": 'attachment; filename="registro-ventas.pdf"' } })
+      : new Response(JSON.stringify({ estado: "exito", mensaje: "OK", datos: { total_documentos: 4 } }), { status: 200, headers: { "content-type": "application/json" } }));
+    const client = new ElectronicBillingClient(config, fetcher as typeof fetch, async () => undefined);
+    const query = "fecha_desde=2026-11-01&fecha_hasta=2026-11-30&formato=json";
+
+    const report = await client.getFiscalReport("registro-ventas", query);
+    const file = await client.downloadFiscalReport("registro-ventas", query.replace("json", "pdf"));
+
+    expect(report.total_documentos).toBe(4);
+    expect(file.fileName).toBe("registro-ventas.pdf");
+    expect(fetcher.mock.calls[0]?.[0]).toBe(`http://127.0.0.1:8000/api/v1/reportes/registro-ventas?${query}`);
+    expect(fetcher.mock.calls[1]?.[0]).toContain("formato=pdf");
+  });
 });

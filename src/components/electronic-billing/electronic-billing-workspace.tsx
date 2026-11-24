@@ -1,8 +1,8 @@
 "use client";
 
-import { CloudSyncOutlined, DownloadOutlined, EyeOutlined, InfoCircleOutlined, PlusOutlined, RedoOutlined, ReloadOutlined, SendOutlined, StopOutlined } from "@ant-design/icons";
+import { CloudSyncOutlined, DownOutlined, DownloadOutlined, EyeOutlined, InfoCircleOutlined, PlusOutlined, RedoOutlined, ReloadOutlined, SendOutlined, StopOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, DatePicker, Empty, Form, Modal, Segmented, Select, Space, Tabs, Tag, Tooltip, Typography } from "antd";
+import { Alert, Button, Card, DatePicker, Dropdown, Empty, Form, Modal, Segmented, Select, Space, Tabs, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { useMemo, useState } from "react";
@@ -13,8 +13,10 @@ import { TableSearch, matchesSearch } from "@/components/common/table-search";
 import { ElectronicDocumentFormFields, electronicDocumentInitialValues, type ElectronicDocumentKind } from "@/components/electronic-billing/electronic-document-form";
 import { ElectronicDocumentDetail } from "@/components/electronic-billing/electronic-document-detail";
 import { FiscalAdministration } from "@/components/electronic-billing/fiscal-administration";
+import { FiscalAttentionInbox } from "@/components/electronic-billing/fiscal-attention-inbox";
 import { FiscalDashboard } from "@/components/electronic-billing/fiscal-dashboard";
 import { FiscalReferenceCatalogs } from "@/components/electronic-billing/fiscal-reference-catalogs";
+import { FiscalReports } from "@/components/electronic-billing/fiscal-reports";
 
 type Kind = ElectronicDocumentKind;
 type Document = { id: string; kind: Kind | "INVOICE" | "RECEIPT"; status: string; remoteId?: string; number?: string; series?: string; correlativo?: string; remoteStatus?: string; sunatCode?: string; sunatDescription?: string; lastError?: string; ticket?: string; createdAt: string; submittedAt?: string; sale?: { number: string; customer: { name: string } } | null; createdBy: { name: string; username: string } };
@@ -38,6 +40,12 @@ const seriesTypeByKind: Partial<Record<Kind, string>> = {
   CREDIT_NOTE: "07", DEBIT_NOTE: "08", SENDER_GUIDE: "09", CARRIER_GUIDE: "31",
   RETENTION: "20", PERCEPTION: "40", PURCHASE_SETTLEMENT: "04",
 };
+const pdfFormats = [
+  { value: "a4", label: "A4 · Documento estándar" },
+  { value: "a5", label: "A5 · Formato compacto" },
+  { value: "ticket-80", label: "Ticket · 80 mm" },
+  { value: "ticket-58", label: "Ticket · 58 mm" },
+] as const;
 
 type View = "ALL" | "ATTENTION" | "CANCELLATIONS" | "SUMMARIES";
 
@@ -106,6 +114,13 @@ export function ElectronicBillingWorkspace({ permissions, isSuperadmin }: { perm
     onSuccess: async () => { toast.success("Documento reenviado a la plataforma SUNAT."); await queryClient.invalidateQueries({ queryKey: ["electronic-documents"] }); },
     onError: (error) => toast.error(error.message),
   });
+  const confirmResend = (id: string) => Modal.confirm({
+    title: "¿Reenviar este documento?",
+    content: "Se realizará un nuevo intento con el mismo documento y numeración.",
+    okText: "Reenviar",
+    cancelText: "Cancelar",
+    onOk: () => resend.mutateAsync(id),
+  });
   const seriesFor = (kind: Kind) => {
     const type = seriesTypeByKind[kind];
     return type ? (records.data?.configuration.availableSeries ?? []).filter((item) => item.activo && item.tipo_documento === type) : [];
@@ -147,13 +162,18 @@ export function ElectronicBillingWorkspace({ permissions, isSuperadmin }: { perm
     { title: "Acciones", width: 285, render: (_, item) => <Space wrap>
       {item.remoteId ? <Button size="small" icon={<EyeOutlined />} onClick={() => setDetailId(item.id)}>Detalle</Button> : null}
       {item.remoteId ? <Tooltip title="Consultar estado"><Button size="small" icon={<ReloadOutlined />} loading={refresh.isPending && refresh.variables === item.id} onClick={() => refresh.mutate(item.id)}>Estado</Button></Tooltip> : null}
-      {item.remoteId && ["PENDING", "REJECTED", "ERROR"].includes(item.status) ? <Button size="small" icon={<RedoOutlined />} loading={resend.isPending && resend.variables === item.id} onClick={() => Modal.confirm({ title: "¿Reenviar este documento?", content: "Se realizará un nuevo intento con el mismo documento y numeración.", okText: "Reenviar", cancelText: "Cancelar", onOk: () => resend.mutateAsync(item.id) })}>Reenviar</Button> : null}
+      {item.remoteId && ["PENDING", "REJECTED", "ERROR"].includes(item.status) ? <Button size="small" icon={<RedoOutlined />} loading={resend.isPending && resend.variables === item.id} onClick={() => confirmResend(item.id)}>Reenviar</Button> : null}
       {canCancel(item) ? <Button size="small" danger icon={<StopOutlined />} onClick={() => cancellationAction(item)}>{["RETENTION", "PERCEPTION"].includes(item.kind) ? "Revertir" : "Dar de baja"}</Button> : null}
-      {item.remoteId ? ([...(!["DAILY_SUMMARY", "VOIDED_DOCUMENT", "REVERSION"].includes(item.kind) ? ["pdf" as const] : []), "xml" as const, "cdr" as const]).map((artifact) => <Button key={artifact} size="small" icon={<DownloadOutlined />} href={`/api/v1/electronic-billing/documents/${item.id}/${artifact}`}>{artifact.toUpperCase()}</Button>) : null}
+      {item.remoteId && !["DAILY_SUMMARY", "VOIDED_DOCUMENT", "REVERSION"].includes(item.kind) ? <Dropdown
+        trigger={["click"]}
+        menu={{ items: pdfFormats.map((format) => ({ key: format.value, label: <a href={`/api/v1/electronic-billing/documents/${item.id}/pdf?format=${format.value}`}>{format.label}</a> })) }}
+      ><Button size="small" icon={<DownloadOutlined />}>PDF <DownOutlined /></Button></Dropdown> : null}
+      {item.remoteId ? (["xml", "cdr"] as const).map((artifact) => <Button key={artifact} size="small" icon={<DownloadOutlined />} href={`/api/v1/electronic-billing/documents/${item.id}/${artifact}`}>{artifact.toUpperCase()}</Button>) : null}
     </Space> },
   ];
 
   const configuration = records.data?.configuration;
+  const attentionCount = (records.data?.items ?? []).filter((item) => ["SUBMITTING", "PENDING", "SENT", "PROCESSING", "REJECTED", "ERROR"].includes(item.status)).length;
   const availableForSelected = seriesFor(selectedKind);
   const selectedSeriesType = seriesTypeByKind[selectedKind];
   const selectedSeriesMissing = Boolean(configuration?.enabled && selectedSeriesType && !availableForSelected.length);
@@ -163,6 +183,8 @@ export function ElectronicBillingWorkspace({ permissions, isSuperadmin }: { perm
     {configuration?.seriesError ? <Alert type="warning" showIcon message="No se pudieron sincronizar las series con la plataforma SUNAT." description={configuration.seriesError} style={{ marginBottom: 16 }} action={<Button size="small" onClick={() => records.refetch()}>Reintentar</Button>} /> : null}
     <Tabs defaultActiveKey="dashboard" items={[
       { key: "dashboard", label: "Panel fiscal y alertas", children: <FiscalDashboard /> },
+      { key: "reports", label: "Reportes fiscales", children: <FiscalReports /> },
+      { key: "attention", label: `Pendientes y rechazados (${attentionCount})`, children: <FiscalAttentionInbox documents={records.data?.items ?? []} loading={records.isLoading} canResend={permissions.includes("sales.issue")} refreshingId={refresh.isPending ? refresh.variables : undefined} resendingId={resend.isPending ? resend.variables : undefined} onRefresh={(id) => refresh.mutate(id)} onResend={confirmResend} onOpen={setDetailId} onReload={() => records.refetch()} /> },
       { key: "reference", label: "Catálogos SUNAT y ubigeo", children: <FiscalReferenceCatalogs /> },
       ...(isSuperadmin ? [{ key: "administration", label: "Series y sucursales", children: <FiscalAdministration /> }] : []),
     ]} style={{ marginBottom: 20 }} />

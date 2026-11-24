@@ -186,6 +186,17 @@ export type BinaryDocument = {
   fileName?: string;
 };
 
+export type BillingPdfFormat = "a4" | "a5" | "ticket-80" | "ticket-58";
+
+export type FiscalReportName =
+  | "registro-ventas"
+  | "ventas-consolidado"
+  | "notas"
+  | "cobranzas"
+  | "documentos-internos"
+  | "por-cliente"
+  | "por-sucursal";
+
 export type BillingList<T> = {
   datos: T[];
   paginacion?: {

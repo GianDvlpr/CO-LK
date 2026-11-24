@@ -71,8 +71,10 @@ Actualizado: 06/11/2026.
 - Módulo operativo de Pedidos con cliente, fechas, variantes SKU, cantidades, precios e importes.
 - Módulo de Cotizaciones con correlativo COT, cliente, moneda y tipo de cambio, vigencia, descuento, IGV, condiciones comerciales, estados, PDF A4 y conversión única a Pedido en borrador sin afectar stock previamente.
 - Módulo de Ventas con correlativo VTA, consolidación de pedidos despachados del mismo cliente, cantidades reales de Pick & Pack, documento comercial interno, emisión, PDF A4, pagos parciales, saldo y anulación controlada sin duplicar movimientos de stock; integra emisión electrónica individual y masiva mediante la API SUNAT.
-- Centro de facturación electrónica con sincronización completa de comprobantes remotos, detalle estructurado, pagos y cobranzas, reintentos, bajas, reversiones, resúmenes de boletas y exportación ZIP de XML/PDF.
+- Centro de facturación electrónica con sincronización completa de comprobantes remotos, detalle estructurado, pagos y cobranzas, reintentos, bajas, reversiones, resúmenes de boletas, exportación ZIP de XML/PDF y descarga individual en A4, A5 o ticket de 80/58 mm.
 - Panel fiscal ampliado con evolución anual, ventas por sucursal y moneda, clientes, productos, documentos recientes, alertas, rechazos y cobranzas; incluye monitor automático del circuito SUNAT cada 60 segundos.
+- Centro de reportes fiscales conectado a la API SUNAT con filtros, vista previa y descargas PDF/Excel para ventas, notas, cobranzas, documentos internos, clientes y sucursales.
+- Bandeja operativa de pendientes y rechazados con prioridad, antigüedad, motivo, intentos, consulta de estado, detalle y reenvío controlado.
 - Validación oficial CPE desde el detalle de facturas, boletas, liquidaciones y notas, usando los datos del documento remoto y registrando la consulta en Auditoría.
 - La administración de series y sucursales está protegida en servidor y reservada a `SUPERADMIN`.
 - Catálogos SUNAT y ubigeo disponibles como selecciones editables; clientes remotos sincronizables con el catálogo local y consultas RUC/DNI resueltas primero por la API SUNAT, con el proveedor anterior como respaldo.

@@ -5,8 +5,10 @@ import {
 import type {
   BillingApiFailure,
   BillingApiSuccess,
+  BillingPdfFormat,
   BinaryDocument,
   CreditOrDebitNotePayload,
+  FiscalReportName,
   InvoicePayload,
   OfficialCpeResult,
   RemoteDocument,
@@ -285,8 +287,16 @@ export class ElectronicBillingClient {
     return this.getDocumentStatus(resource, remoteId);
   }
 
-  downloadArtifact(resource: string, remoteId: string, artifact: "pdf" | "xml" | "cdr", format?: string) {
+  downloadArtifact(resource: string, remoteId: string, artifact: "pdf" | "xml" | "cdr", format?: BillingPdfFormat) {
     const query = artifact === "pdf" && format ? `?format=${encodeURIComponent(format)}` : "";
     return this.download(`${resource}/${encodeURIComponent(remoteId)}/${artifact}${query}`);
+  }
+
+  getFiscalReport(report: FiscalReportName, query: string) {
+    return this.request<Record<string, unknown>>(`reportes/${report}?${query}`);
+  }
+
+  downloadFiscalReport(report: FiscalReportName, query: string) {
+    return this.download(`reportes/${report}?${query}`);
   }
 }
