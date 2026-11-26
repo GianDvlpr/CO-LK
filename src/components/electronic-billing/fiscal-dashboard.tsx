@@ -1,6 +1,6 @@
 "use client";
 
-import { CloudServerOutlined, ReloadOutlined, WarningOutlined } from "@ant-design/icons";
+import { ReloadOutlined, WarningOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Card, Col, DatePicker, Descriptions, Empty, Row, Space, Statistic, Table, Tag, Tooltip, Typography } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
@@ -75,12 +75,23 @@ function SunatMonitorCard() {
   const recovering = data?.circuit === "half_open";
   const type = monitor.error || data?.circuit === "open" || data?.disponible === false ? "error" : recovering ? "warning" : "success";
   const message = monitor.error ? "No se pudo verificar la conexión con SUNAT" : data?.circuit === "open" ? "SUNAT temporalmente no disponible" : recovering ? "Conexión SUNAT en recuperación" : data ? "Conexión SUNAT disponible" : "Verificando conexión con SUNAT";
+  const environmentLabel = data?.entorno === "production" ? "Producción" : "Beta (pruebas)";
+  const details = monitor.error
+    ? monitor.error.message
+    : data
+      ? `Circuito: ${data.circuit} · Fallas registradas: ${data.fallas} · Última revisión: ${dayjs(data.checkedAt).format("DD/MM/YYYY HH:mm:ss")}`
+      : "La revisión automática se ejecuta cada 60 segundos.";
   return <Alert
     showIcon
     type={type}
-    message={<Space wrap><CloudServerOutlined /><strong>{message}</strong>{data ? <Tag>{data.entorno === "production" ? "Producción" : data.entorno}</Tag> : null}</Space>}
-    description={monitor.error ? monitor.error.message : data ? `Circuito: ${data.circuit} · Fallas registradas: ${data.fallas} · Última revisión: ${dayjs(data.checkedAt).format("DD/MM/YYYY HH:mm:ss")}` : "La revisión automática se ejecuta cada 60 segundos."}
-    action={<Tooltip title="Se actualiza automáticamente cada 60 segundos"><Button size="small" icon={<ReloadOutlined />} loading={monitor.isFetching} onClick={() => monitor.refetch()}>Revisar ahora</Button></Tooltip>}
+    message={<Space size={8} wrap>
+      <strong>{message}</strong>
+      {data ? <Tag color={data.entorno === "production" ? "green" : "gold"}>{environmentLabel}</Tag> : null}
+      {data ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{data.fallas} fallas · {dayjs(data.checkedAt).format("HH:mm:ss")}</Typography.Text> : null}
+    </Space>}
+    description={monitor.error ? monitor.error.message : undefined}
+    action={<Tooltip title={details}><Button type="text" size="small" aria-label="Revisar conexión con SUNAT" icon={<ReloadOutlined />} loading={monitor.isFetching} onClick={() => monitor.refetch()} /></Tooltip>}
+    style={{ paddingBlock: 6, paddingInline: 12 }}
   />;
 }
 
