@@ -5,9 +5,9 @@ import {
 } from "@/modules/production/application/production-order-document";
 
 const NAVY = "FF17384D";
+const HEADER = "FFBFE3F4";
 const LIGHT = "FFE8F0F4";
 const INPUT = "FFFFF1AD";
-const WHITE = "FFFFFFFF";
 const GRID = "FF718795";
 
 export async function buildProductionOrderWorkbook(order: ProductionOrderDocumentData) {
@@ -47,17 +47,17 @@ export async function buildProductionOrderWorkbook(order: ProductionOrderDocumen
     sheet.mergeCells(row, 1, row, columnCount);
     const cell = sheet.getCell(row, 1);
     cell.value = title;
-    cell.font = { name: "Arial", size: 9, bold: true, color: { argb: WHITE } };
+    cell.font = { name: "Arial", size: 9, bold: true, color: { argb: NAVY } };
     cell.alignment = { vertical: "middle", horizontal: "left" };
-    fill(cell, NAVY); cell.border = border; sheet.getRow(row).height = 18;
+    fill(cell, HEADER); cell.border = border; sheet.getRow(row).height = 18;
   };
 
   sheet.mergeCells(1, 1, 1, columnCount);
   const title = sheet.getCell(1, 1);
   title.value = `LK INNOVACION DE SUELAS PARA CALZADO  |  ORDEN DE PRODUCCIÓN  |  FECHA DE EMISIÓN: ${formatDate(order.createdAt)}`;
-  title.font = { name: "Arial", size: 10, bold: true, color: { argb: WHITE } };
+  title.font = { name: "Arial", size: 10, bold: true, color: { argb: NAVY } };
   title.alignment = { vertical: "middle", horizontal: "left" };
-  fill(title, NAVY); title.border = border; sheet.getRow(1).height = 22;
+  fill(title, HEADER); title.border = border; sheet.getRow(1).height = 22;
 
   const leftEnd = Math.floor(columnCount / 2);
   const rightStart = leftEnd + 1;

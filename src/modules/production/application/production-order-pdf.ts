@@ -8,6 +8,7 @@ import {
 const A5_LANDSCAPE: [number, number] = [595.28, 419.53];
 const A4_PORTRAIT: [number, number] = [595.28, 841.89];
 const navy = rgb(23 / 255, 56 / 255, 77 / 255);
+const header = rgb(191 / 255, 227 / 255, 244 / 255);
 const light = rgb(232 / 255, 240 / 255, 244 / 255);
 const input = rgb(1, 241 / 255, 173 / 255);
 const white = rgb(1, 1, 1);
@@ -23,12 +24,12 @@ function fitText(font: PDFFont, text: string, size: number, maxWidth: number) {
 
 function cell(page: PDFPage, font: PDFFont, bold: PDFFont, inputValue: { x: number; top: number; width: number; height: number; text?: string; label?: boolean; dark?: boolean; highlight?: boolean; center?: boolean; size?: number }) {
   const { x, top, width, height } = inputValue;
-  page.drawRectangle({ x, y: top - height, width, height, color: inputValue.dark ? navy : inputValue.label ? light : inputValue.highlight ? input : white, borderColor: grid, borderWidth: 0.55 });
+  page.drawRectangle({ x, y: top - height, width, height, color: inputValue.dark ? header : inputValue.label ? light : inputValue.highlight ? input : white, borderColor: grid, borderWidth: 0.55 });
   const selectedFont = inputValue.label || inputValue.dark ? bold : font;
   const size = inputValue.size ?? 6.2;
   const text = fitText(selectedFont, inputValue.text ?? "", size, width - 6);
   const textWidth = selectedFont.widthOfTextAtSize(text, size);
-  page.drawText(text, { x: inputValue.center ? x + Math.max(3, (width - textWidth) / 2) : x + 3, y: top - height + (height - size) / 2 + 1, size, font: selectedFont, color: inputValue.dark ? white : navy });
+  page.drawText(text, { x: inputValue.center ? x + Math.max(3, (width - textWidth) / 2) : x + 3, y: top - height + (height - size) / 2 + 1, size, font: selectedFont, color: navy });
 }
 
 function section(page: PDFPage, bold: PDFFont, top: number, text: string, left: number, width: number, size = 7.2) {

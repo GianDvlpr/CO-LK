@@ -69,6 +69,15 @@ describe("orden de producción A5", () => {
     expect(sheet?.getCell(24, 1).font.size).toBe(8);
   });
 
+  it("usa cabeceras celeste claro con texto azul oscuro", async () => {
+    const workbook = await buildProductionOrderWorkbook(documentData);
+    const sheet = workbook.getWorksheet("Orden de producción");
+    expect(sheet?.getCell(1, 1).fill).toMatchObject({ fgColor: { argb: "FFBFE3F4" } });
+    expect(sheet?.getCell(1, 1).font.color).toMatchObject({ argb: "FF17384D" });
+    expect(sheet?.getCell(9, 1).fill).toMatchObject({ fgColor: { argb: "FFBFE3F4" } });
+    expect(sheet?.getCell(18, 1).fill).toMatchObject({ fgColor: { argb: "FFBFE3F4" } });
+  });
+
   it("resalta en amarillo número de orden, máquina, matriz, pedidos y A fabricar", async () => {
     const workbook = await buildProductionOrderWorkbook(documentData);
     const sheet = workbook.getWorksheet("Orden de producción");
